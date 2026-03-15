@@ -1,0 +1,62 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+api/.env
+bot/.env
+
+
+# Node dependencies
+**/node_modules
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+bot/logs
+logs
+
+# Build artifacts
+**/dist
+**/build
+**/dist-ssr
+
+# Test directories
+test/
+tests/
+**/test/
+**/tests/
+**/__tests__/
+
+# Local overrides/secrets
+*.local
+.local/
+**/.local/
+*.pem
+.env*.local
+.vercel
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.cache/
+#
+# Local databases or data files
+api/db/data.db
+bot/db/data.db
+
+# Instruction files
+.github/implementation.md
+Implementation.md
+codex.md
+AGENTS.md
+~/.npm/
