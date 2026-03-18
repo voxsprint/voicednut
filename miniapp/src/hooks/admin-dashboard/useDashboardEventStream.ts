@@ -5,7 +5,7 @@ export type StreamConnectionMode = 'disabled' | 'connecting' | 'connected' | 'fa
 type UseDashboardEventStreamOptions = {
   enabled: boolean;
   token: string | null;
-  buildEventStreamUrl: (path: string, token: string) => string;
+  buildEventStreamUrl: (path: string) => string;
   applyStreamPayload: (raw: unknown) => boolean;
   refreshPoll: () => Promise<boolean>;
   reconnectBaseMs: number;
@@ -81,7 +81,7 @@ export function useDashboardEventStream({
       if (disposed) return;
       setStreamMode('connecting');
       const nextEndpoint = endpoints[Math.max(0, Math.min(endpointIndex, endpoints.length - 1))];
-      const streamUrl = buildEventStreamUrl(nextEndpoint, token);
+      const streamUrl = buildEventStreamUrl(nextEndpoint);
       const source = new EventSource(streamUrl);
       activeStream = source;
 

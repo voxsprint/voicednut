@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { AuditRow, DashboardVm, IncidentRow, RunbookRow } from './types';
 import { selectAuditIncidentsPageVm } from './vmSelectors';
+import {
+  selectAuditFilterOptions,
+  selectAuditRows,
+  selectIncidentFilterOptions,
+  selectIncidentRows,
+} from './tableSelectors';
+import { downloadCsv } from './csvExport';
 
 type AuditIncidentsPageProps = {
   visible: boolean;
@@ -25,29 +32,12 @@ type SavedQuery = {
   auditSeverity: string;
 };
 
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  const lines = [headers.map(csvEscape).join(',')];
-  rows.forEach((row) => {
-    lines.push(row.map((cell) => csvEscape(String(cell ?? ''))).join(','));
-  });
-  const csv = `${lines.join('\n')}\n`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+function statusBadgeVariant(status: string): 'success' | 'info' | 'error' | 'neutral' {
+  const normalized = status.toLowerCase();
+  if (normalized === 'ok' || normalized === 'healthy' || normalized === 'success') return 'success';
+  if (normalized === 'warning' || normalized === 'degraded' || normalized === 'pending') return 'info';
+  if (normalized === 'error' || normalized === 'failed' || normalized === 'critical') return 'error';
+  return 'neutral';
 }
 
 export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
@@ -124,47 +114,28 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
     }
   }, [savedQueries]);
 
-  const incidentStatusOptions = useMemo(() => {
-    const statuses = Array.from(new Set(incidentRows.map((row) => toText(row.status, 'unknown').toLowerCase())));
-    return statuses.filter(Boolean).sort();
-  }, [incidentRows, toText]);
-  const incidentActorOptions = useMemo(() => {
-    const actors = incidentRows.map((row) => toText(asRecord(row.details).actor, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(actors)).sort();
-  }, [asRecord, incidentRows, toText]);
-  const incidentModuleOptions = useMemo(() => {
-    const modules = incidentRows.map((row) => toText(asRecord(row.details).module, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(modules)).sort();
-  }, [asRecord, incidentRows, toText]);
-  const incidentSeverityOptions = useMemo(() => {
-    const severities = incidentRows.map((row) => toText(asRecord(row.details).severity, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(severities)).sort();
-  }, [asRecord, incidentRows, toText]);
+  const {
+    statusOptions: incidentStatusOptions,
+    actorOptions: incidentActorOptions,
+    moduleOptions: incidentModuleOptions,
+    severityOptions: incidentSeverityOptions,
+  } = useMemo(() => selectIncidentFilterOptions({
+    incidentRows,
+    asRecord,
+    toText,
+  }), [asRecord, incidentRows, toText]);
 
   const filteredIncidentRows = useMemo(() => {
-    const query = incidentQuery.trim().toLowerCase();
-    return [...incidentRows]
-      .filter((incident) => {
-        const status = toText(incident.status, 'unknown').toLowerCase();
-        const details = asRecord(incident.details);
-        const actor = toText(details.actor, '').toLowerCase();
-        const moduleName = toText(details.module, '').toLowerCase();
-        const severity = toText(details.severity, '').toLowerCase();
-        if (incidentStatusFilter !== 'all' && status !== incidentStatusFilter) return false;
-        if (incidentActorFilter !== 'all' && actor !== incidentActorFilter) return false;
-        if (incidentModuleFilter !== 'all' && moduleName !== incidentModuleFilter) return false;
-        if (incidentSeverityFilter !== 'all' && severity !== incidentSeverityFilter) return false;
-        if (!query) return true;
-        const service = toText(incident.service_name, 'service').toLowerCase();
-        const detail = toText(asRecord(incident.details).message, toText(incident.details, '')).toLowerCase();
-        return service.includes(query) || status.includes(query) || detail.includes(query)
-          || actor.includes(query) || moduleName.includes(query) || severity.includes(query);
-      })
-      .sort((a, b) => {
-        const aTime = Date.parse(toText(a.timestamp, ''));
-        const bTime = Date.parse(toText(b.timestamp, ''));
-        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-      });
+    return selectIncidentRows({
+      incidentRows,
+      query: incidentQuery,
+      statusFilter: incidentStatusFilter,
+      actorFilter: incidentActorFilter,
+      moduleFilter: incidentModuleFilter,
+      severityFilter: incidentSeverityFilter,
+      asRecord,
+      toText,
+    });
   }, [
     asRecord,
     incidentActorFilter,
@@ -177,41 +148,25 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   ]);
 
   const filteredAuditRows = useMemo(() => {
-    const query = auditQuery.trim().toLowerCase();
-    return [...auditRows]
-      .filter((row) => {
-        const details = asRecord(row.details);
-        const actor = toText(details.actor, 'unknown').toLowerCase();
-        const moduleName = toText(details.module, toText(row.service_name, 'unknown')).toLowerCase();
-        const severity = toText(details.severity, 'info').toLowerCase();
-        if (auditActorFilter !== 'all' && actor !== auditActorFilter) return false;
-        if (auditModuleFilter !== 'all' && moduleName !== auditModuleFilter) return false;
-        if (auditSeverityFilter !== 'all' && severity !== auditSeverityFilter) return false;
-        if (!query) return true;
-        const service = toText(row.service_name, 'service').toLowerCase();
-        const status = toText(row.status, 'unknown').toLowerCase();
-        const detail = toText(details.message, toText(row.details, '')).toLowerCase();
-        return service.includes(query) || status.includes(query) || detail.includes(query)
-          || actor.includes(query) || moduleName.includes(query) || severity.includes(query);
-      })
-      .sort((a, b) => {
-        const aTime = Date.parse(toText(a.timestamp, ''));
-        const bTime = Date.parse(toText(b.timestamp, ''));
-        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-      });
+    return selectAuditRows({
+      auditRows,
+      query: auditQuery,
+      actorFilter: auditActorFilter,
+      moduleFilter: auditModuleFilter,
+      severityFilter: auditSeverityFilter,
+      asRecord,
+      toText,
+    });
   }, [asRecord, auditActorFilter, auditModuleFilter, auditQuery, auditRows, auditSeverityFilter, toText]);
-  const auditActorOptions = useMemo(() => {
-    const actors = auditRows.map((row) => toText(asRecord(row.details).actor, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(actors)).sort();
-  }, [asRecord, auditRows, toText]);
-  const auditModuleOptions = useMemo(() => {
-    const modules = auditRows.map((row) => toText(asRecord(row.details).module, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(modules)).sort();
-  }, [asRecord, auditRows, toText]);
-  const auditSeverityOptions = useMemo(() => {
-    const severities = auditRows.map((row) => toText(asRecord(row.details).severity, '').toLowerCase()).filter(Boolean);
-    return Array.from(new Set(severities)).sort();
-  }, [asRecord, auditRows, toText]);
+  const {
+    actorOptions: auditActorOptions,
+    moduleOptions: auditModuleOptions,
+    severityOptions: auditSeverityOptions,
+  } = useMemo(() => selectAuditFilterOptions({
+    auditRows,
+    asRecord,
+    toText,
+  }), [asRecord, auditRows, toText]);
 
   const incidentTotalPages = Math.max(1, Math.ceil(filteredIncidentRows.length / incidentPageSize));
   const auditTotalPages = Math.max(1, Math.ceil(filteredAuditRows.length / auditPageSize));
@@ -294,7 +249,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
     <section className="va-grid">
       <div className="va-card">
         <h3>Audit & Incident Center</h3>
-        <div className="va-inline-tools">
+        <div className="va-filter-grid">
           <button type="button" onClick={() => { void refreshAuditModule(); }}>
             Refresh Alerts
           </button>
@@ -335,7 +290,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           </button>
         </div>
         {advancedTablesEnabled ? (
-          <div className="va-inline-tools">
+          <div className="va-filter-grid">
             <input
               className="va-input"
               placeholder="Filter incidents (service/status/message)"
@@ -417,14 +372,28 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           {' '}| Showing: <strong>{incidentRangeStart}-{incidentRangeEnd}</strong>
         </p>
         <ul className="va-list">
-          {incidentPageRows.map((incident: IncidentRow, index: number) => (
-            <li key={`incident-${incidentStart + index}`}>
-              <strong>{toText(incident.service_name, 'service')}</strong>
-              <span>Status: {toText(incident.status, 'unknown')}</span>
-              <span>{toText((asRecord(incident.details).message), toText(incident.details, ''))}</span>
-              <span>{formatTime(incident.timestamp)}</span>
-            </li>
-          ))}
+          {incidentPageRows.map((incident: IncidentRow, index: number) => {
+            const details = asRecord(incident.details);
+            const status = toText(incident.status, 'unknown');
+            const actor = toText(details.actor, 'unknown');
+            const moduleName = toText(details.module, 'n/a');
+            const severity = toText(details.severity, 'info');
+            return (
+              <li key={`incident-${incidentStart + index}`} className="va-entity-row">
+                <div className="va-entity-head">
+                  <strong>{toText(incident.service_name, 'service')}</strong>
+                  <span className={`va-pill va-pill-${statusBadgeVariant(status)}`}>{status}</span>
+                </div>
+                <p className="va-entity-message">{toText(details.message, toText(incident.details, ''))}</p>
+                <div className="va-entity-meta">
+                  <span>Actor: {actor}</span>
+                  <span>Module: {moduleName}</span>
+                  <span>Severity: {severity}</span>
+                  <span>At: {formatTime(incident.timestamp)}</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
         {incidentPageRows.length === 0 ? <p className="va-muted">No incident alerts matched filters.</p> : null}
         {advancedTablesEnabled ? (
@@ -474,7 +443,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
       <div className="va-card">
         <h3>Immutable Activity Timeline</h3>
         {advancedTablesEnabled ? (
-          <div className="va-inline-tools">
+          <div className="va-filter-grid">
             <input
               className="va-input"
               placeholder="Filter audit timeline"
@@ -532,14 +501,28 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           {' '}| Showing: <strong>{auditRangeStart}-{auditRangeEnd}</strong>
         </p>
         <ul className="va-list">
-          {auditPageRows.map((row: AuditRow, index: number) => (
-            <li key={`audit-${auditStart + index}`}>
-              <strong>{toText(row.service_name, 'service')}</strong>
-              <span>Status: {toText(row.status, 'unknown')}</span>
-              <span>{toText((asRecord(row.details).message), toText(row.details, ''))}</span>
-              <span>{formatTime(row.timestamp)}</span>
-            </li>
-          ))}
+          {auditPageRows.map((row: AuditRow, index: number) => {
+            const details = asRecord(row.details);
+            const status = toText(row.status, 'unknown');
+            const actor = toText(details.actor, 'unknown');
+            const moduleName = toText(details.module, toText(row.service_name, 'n/a'));
+            const severity = toText(details.severity, 'info');
+            return (
+              <li key={`audit-${auditStart + index}`} className="va-entity-row">
+                <div className="va-entity-head">
+                  <strong>{toText(row.service_name, 'service')}</strong>
+                  <span className={`va-pill va-pill-${statusBadgeVariant(status)}`}>{status}</span>
+                </div>
+                <p className="va-entity-message">{toText(details.message, toText(row.details, ''))}</p>
+                <div className="va-entity-meta">
+                  <span>Actor: {actor}</span>
+                  <span>Module: {moduleName}</span>
+                  <span>Severity: {severity}</span>
+                  <span>At: {formatTime(row.timestamp)}</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
         {auditPageRows.length === 0 ? <p className="va-muted">No audit entries matched filters.</p> : null}
         {advancedTablesEnabled ? (

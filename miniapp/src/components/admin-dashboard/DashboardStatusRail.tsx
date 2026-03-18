@@ -1,4 +1,5 @@
 import type { ActionTelemetry } from '@/hooks/admin-dashboard/useDashboardActions';
+import { UiBadge, UiCard } from '@/components/ui/AdminPrimitives';
 
 type DashboardStatusRailProps = {
   loading: boolean;
@@ -39,29 +40,33 @@ export function DashboardStatusRail({
   actionTelemetry,
 }: DashboardStatusRailProps) {
   const hasActionTelemetry = actionTelemetry.action.length > 0;
+  const isBusy = busyAction.length > 0;
   return (
-    <section className="va-status-rail">
-      <div className="va-card va-status-card">
+    <section
+      className={`va-status-rail ${isBusy ? 'is-busy' : ''}`}
+      aria-label="Dashboard sync and action status"
+    >
+      <UiCard tone="status">
         <div className="va-status-chip-row">
-          <span className="va-meta-chip">Sync {syncModeLabel}</span>
-          <span className="va-meta-chip">Poll failures {pollFailureCount}</span>
-          <span className="va-meta-chip">Stream failures {streamFailureCount}</span>
-          <span className="va-meta-chip">Bridge 5xx {bridgeHardFailures}</span>
-          <span className="va-meta-chip">Bridge 4xx/5xx {bridgeSoftFailures}</span>
-          <span className="va-meta-chip">Busy {busyAction || 'none'}</span>
+          <UiBadge>Sync {syncModeLabel}</UiBadge>
+          <UiBadge>Poll failures {pollFailureCount}</UiBadge>
+          <UiBadge>Stream failures {streamFailureCount}</UiBadge>
+          <UiBadge>Bridge 5xx {bridgeHardFailures}</UiBadge>
+          <UiBadge>Bridge 4xx/5xx {bridgeSoftFailures}</UiBadge>
+          <UiBadge>Busy {busyAction || 'none'}</UiBadge>
         </div>
         {hasActionTelemetry ? (
-          <p className="va-status-line">
+          <p className="va-status-line" role="status" aria-live="polite" aria-atomic="true">
             Action {actionTelemetry.action} • Status {statusLabel(actionTelemetry.status)} • Trace {actionTelemetry.traceHint || 'n/a'} • Latency {actionTelemetry.latencyMs}ms
           </p>
         ) : null}
         {actionTelemetry.status === 'error' && actionTelemetry.error ? (
-          <p className="va-error">{actionTelemetry.error}</p>
+          <p className="va-error" role="alert" aria-live="assertive">{actionTelemetry.error}</p>
         ) : null}
-      </div>
-      {loading ? <p className="va-muted">Preparing dashboard…</p> : null}
-      {error ? <p className="va-error">{error}</p> : null}
-      {notice ? <p className="va-notice">{notice}</p> : null}
+      </UiCard>
+      {loading ? <p className="va-muted" role="status" aria-live="polite">Preparing dashboard…</p> : null}
+      {error ? <p className="va-error" role="alert" aria-live="assertive">{error}</p> : null}
+      {notice ? <p className="va-notice" role="status" aria-live="polite">{notice}</p> : null}
     </section>
   );
 }

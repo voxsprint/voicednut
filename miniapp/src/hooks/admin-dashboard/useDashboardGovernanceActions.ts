@@ -31,6 +31,17 @@ type UseDashboardGovernanceActionsOptions = {
   refreshUsersModule: () => Promise<void>;
   refreshAuditModule: () => Promise<void>;
   providersByChannel: Partial<Record<ProviderChannel, ProviderChannelData>>;
+  requestTextInput?: (options: {
+    title: string;
+    message: string;
+    defaultValue?: string;
+    placeholder?: string;
+    requireNonEmpty?: boolean;
+    validationMessage?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: 'default' | 'warning' | 'danger';
+  }) => Promise<string | null>;
 };
 
 type UseDashboardGovernanceActionsResult = {
@@ -51,28 +62,54 @@ export function useDashboardGovernanceActions({
   refreshUsersModule,
   refreshAuditModule,
   providersByChannel,
+  requestTextInput,
 }: UseDashboardGovernanceActionsOptions): UseDashboardGovernanceActionsResult {
   const handleApplyUserRole = useCallback(async (
     telegramId: string,
     role: 'admin' | 'operator' | 'viewer',
     reasonHint = '',
   ): Promise<void> => {
-    const reasonInput = typeof window !== 'undefined'
-      ? (window.prompt(
-        `Provide audit reason for ${telegramId} -> ${role}`,
-        reasonHint || '',
-      ) || '').trim()
-      : reasonHint.trim();
+    const reasonInputRaw = requestTextInput
+      ? await requestTextInput({
+        title: 'Audit Reason Required',
+        message: `Provide audit reason for ${telegramId} -> ${role}.`,
+        defaultValue: reasonHint || '',
+        placeholder: 'Reason for role change',
+        requireNonEmpty: true,
+        validationMessage: 'Audit reason is required.',
+        confirmLabel: 'Continue',
+        cancelLabel: 'Cancel',
+        tone: 'warning',
+      })
+      : (typeof window !== 'undefined'
+        ? window.prompt(
+          `Provide audit reason for ${telegramId} -> ${role}`,
+          reasonHint || '',
+        )
+        : reasonHint);
+    const reasonInput = String(reasonInputRaw || '').trim();
     const reason = reasonInput || reasonHint.trim();
     if (!reason) {
       pushActivity('info', 'Role update cancelled', `No audit reason supplied for ${telegramId}.`);
       return;
     }
-    if (role === 'admin' && typeof window !== 'undefined') {
-      const policyAck = (window.prompt(
-        'Two-step approval required. Type "APPROVE ADMIN" to continue.',
-        '',
-      ) || '').trim().toUpperCase();
+    if (role === 'admin') {
+      const policyAckRaw = requestTextInput
+        ? await requestTextInput({
+          title: 'Two-Step Approval',
+          message: 'Type "APPROVE ADMIN" to continue with admin elevation.',
+          defaultValue: '',
+          placeholder: 'APPROVE ADMIN',
+          requireNonEmpty: true,
+          validationMessage: 'Approval phrase is required.',
+          confirmLabel: 'Approve',
+          cancelLabel: 'Cancel',
+          tone: 'danger',
+        })
+        : (typeof window !== 'undefined'
+          ? window.prompt('Two-step approval required. Type "APPROVE ADMIN" to continue.', '')
+          : '');
+      const policyAck = String(policyAckRaw || '').trim().toUpperCase();
       if (policyAck !== 'APPROVE ADMIN') {
         pushActivity('info', 'Admin elevation blocked', `${telegramId} elevation not approved.`);
         return;
@@ -87,7 +124,7 @@ export function useDashboardGovernanceActions({
       },
     );
     await refreshUsersModule();
-  }, [pushActivity, refreshUsersModule, runAction]);
+  }, [pushActivity, refreshUsersModule, requestTextInput, runAction]);
 
   const runbookAction = useCallback(async (
     action: string,

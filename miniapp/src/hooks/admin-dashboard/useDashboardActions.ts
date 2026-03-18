@@ -31,6 +31,14 @@ type RunActionOptions = {
   successMessage?: string;
 };
 
+export type DashboardActionConfirmDialog = {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: 'default' | 'warning' | 'danger';
+};
+
 type UseDashboardActionsOptions = {
   createActionMeta: (action: string) => ActionRequestMeta;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -45,6 +53,7 @@ type UseDashboardActionsOptions = {
   setError: (value: string) => void;
   setActionLatencyMsSamples: Dispatch<SetStateAction<number[]>>;
   actionLatencySampleLimit: number;
+  confirmAction?: (dialog: DashboardActionConfirmDialog) => Promise<boolean>;
 };
 
 type UseDashboardActionsResult = {
@@ -72,6 +81,7 @@ export function useDashboardActions({
   setError,
   setActionLatencyMsSamples,
   actionLatencySampleLimit,
+  confirmAction,
 }: UseDashboardActionsOptions): UseDashboardActionsResult {
   const [actionTelemetry, setActionTelemetry] = useState<ActionTelemetry>({
     traceHint: '',
@@ -167,7 +177,15 @@ export function useDashboardActions({
     const actionMeta = createActionMeta(action);
     const traceHint = actionMeta.action_id.slice(-8);
     if (options.confirmText && typeof window !== 'undefined') {
-      const allowed = window.confirm(options.confirmText);
+      const allowed = confirmAction
+        ? await confirmAction({
+          title: 'Confirm action',
+          message: options.confirmText,
+          confirmLabel: 'Confirm',
+          cancelLabel: 'Cancel',
+          tone: 'warning',
+        })
+        : window.confirm(options.confirmText);
       if (!allowed) {
         triggerHaptic('warning');
         pushActivity('info', 'Action cancelled', `Cancelled: ${action} (trace:${traceHint})`);
@@ -207,6 +225,7 @@ export function useDashboardActions({
     setError,
     setNotice,
     triggerHaptic,
+    confirmAction,
   ]);
 
   return {

@@ -97,21 +97,40 @@ export function useDashboardMessagingActions({
       try {
         const scheduledIso = new Date(smsScheduleAt).toISOString();
         let queued = 0;
+        const failures: Array<{ recipient: string; error: string }> = [];
         for (const recipient of recipients) {
-          await invokeAction('sms.schedule.send', {
-            to: recipient,
-            message: smsMessageInput,
-            scheduled_time: scheduledIso,
-            provider: smsProviderInput || undefined,
-            options: {
-              durable: true,
-            },
-          });
-          queued += 1;
+          try {
+            await invokeAction('sms.schedule.send', {
+              to: recipient,
+              message: smsMessageInput,
+              scheduled_time: scheduledIso,
+              provider: smsProviderInput || undefined,
+              options: {
+                durable: true,
+              },
+            });
+            queued += 1;
+          } catch (err) {
+            const detail = err instanceof Error ? err.message : String(err);
+            failures.push({ recipient, error: detail });
+          }
         }
-        const msg = `Scheduled ${queued} SMS messages for ${formatTime(scheduledIso)}.`;
+        if (failures.length === 0) {
+          const msg = `Scheduled ${queued} SMS messages for ${formatTime(scheduledIso)}.`;
+          setNotice(msg);
+          pushActivity('success', 'SMS scheduled', msg);
+          return;
+        }
+        if (queued === 0) {
+          const detail = failures[0]?.error || 'Scheduling failed for all recipients.';
+          setError(detail);
+          pushActivity('error', 'SMS scheduling failed', detail);
+          return;
+        }
+        const msg = `Scheduled ${queued}/${recipients.length} SMS messages for ${formatTime(scheduledIso)}. ${failures.length} failed.`;
         setNotice(msg);
-        pushActivity('success', 'SMS scheduled', msg);
+        setError(`Some recipients failed scheduling. First failure: ${failures[0]?.recipient} (${failures[0]?.error || 'unknown'})`);
+        pushActivity('error', 'SMS partially scheduled', msg);
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         setError(detail);

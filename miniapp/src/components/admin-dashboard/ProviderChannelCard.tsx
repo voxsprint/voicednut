@@ -1,4 +1,6 @@
 import type { ProviderChannel } from '@/pages/AdminDashboard/types';
+import { classNames } from '@/css/classnames';
+import { UiButton, UiCard } from '@/components/ui/AdminPrimitives';
 
 type ProviderChannelCardProps = {
   channel: ProviderChannel;
@@ -28,7 +30,7 @@ export function ProviderChannelCard({
   onRollback,
 }: ProviderChannelCardProps) {
   return (
-    <div className="va-card">
+    <UiCard>
       <h3>{channel.toUpperCase()} Provider</h3>
       <p className="va-muted">Current: <strong>{currentProvider || 'unknown'}</strong></p>
       <div className="va-chip-grid">
@@ -37,16 +39,16 @@ export function ProviderChannelCard({
           const ready = readinessByProvider[normalized] !== false;
           const active = normalized === currentProvider;
           return (
-            <button
+            <UiButton
               key={`${channel}-${normalized}`}
-              type="button"
-              className={`va-chip ${active ? 'is-active' : ''}`}
+              variant="chip"
+              className={classNames(active && 'is-active')}
               disabled={busyAction.length > 0 || !ready || active}
               onClick={() => { void onSwitchProvider(channel, normalized, currentProvider); }}
             >
               {normalized}
               {!ready ? ' (not ready)' : ''}
-            </button>
+            </UiButton>
           );
         })}
       </div>
@@ -55,26 +57,24 @@ export function ProviderChannelCard({
           const key = `${channel}:${provider}`;
           const state = providerPreflightRows[key] || 'idle';
           return (
-            <button
+            <UiButton
               key={`${key}:preflight`}
-              type="button"
-              className="va-chip"
+              variant="chip"
               disabled={providerPreflightBusy.length > 0}
               onClick={() => { void onRunPreflight(channel, provider); }}
             >
               preflight {provider}: {state}
-            </button>
+            </UiButton>
           );
         })}
-        <button
-          type="button"
-          className="va-chip"
+        <UiButton
+          variant="chip"
           disabled={busyAction.length > 0 || !rollbackTarget || rollbackTarget === currentProvider}
           onClick={() => { void onRollback(channel, rollbackTarget); }}
         >
           rollback: {rollbackTarget || 'n/a'}
-        </button>
+        </UiButton>
       </div>
-    </div>
+    </UiCard>
   );
 }

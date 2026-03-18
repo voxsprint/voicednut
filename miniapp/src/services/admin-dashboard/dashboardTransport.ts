@@ -64,12 +64,11 @@ export function buildApiUrl(path: string, apiBaseUrl: string): string {
   return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
 }
 
-export function buildEventStreamUrl(path: string, token: string, apiBaseUrl: string): string {
+export function buildEventStreamUrl(path: string, apiBaseUrl: string): string {
   const base = buildApiUrl(path, apiBaseUrl);
   const separator = base.includes('?') ? '&' : '?';
-  const encodedToken = encodeURIComponent(token);
   const ngrokBypassQuery = isNgrokApiBase(apiBaseUrl)
     ? '&ngrok-skip-browser-warning=1'
     : '';
-  return `${base}${separator}token=${encodedToken}&session_token=${encodedToken}&transport=sse${ngrokBypassQuery}`;
+  return `${base}${separator}transport=sse${ngrokBypassQuery}`;
 }

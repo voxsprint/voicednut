@@ -53,7 +53,7 @@ import type { SessionCacheEntry } from '@/services/admin-dashboard/dashboardTran
 import {
   useDashboardActions,
 } from '@/hooks/admin-dashboard/useDashboardActions';
-import type { ActionRequestMeta } from '@/hooks/admin-dashboard/useDashboardActions';
+import type { ActionRequestMeta, DashboardActionConfirmDialog } from '@/hooks/admin-dashboard/useDashboardActions';
 import { useDashboardEventStream } from '@/hooks/admin-dashboard/useDashboardEventStream';
 import {
   useDashboardFeatureFlags,
@@ -95,6 +95,7 @@ import { ScriptStudioPage } from '@/pages/AdminDashboard/ScriptStudioPage';
 import { SmsSenderPage } from '@/pages/AdminDashboard/SmsSenderPage';
 import { UsersRolePage } from '@/pages/AdminDashboard/UsersRolePage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { UiButton, UiInput } from '@/components/ui/AdminPrimitives';
 
 const POLL_BASE_INTERVAL_MS = 10000;
 const POLL_MAX_INTERVAL_MS = 60000;
@@ -382,6 +383,22 @@ type ProviderSwitchPlanState = {
   postCheck: ProviderSwitchPostCheck;
   rollbackSuggestion: string;
 };
+type DashboardDialogTone = 'default' | 'warning' | 'danger';
+type DashboardDialogState =
+  | (DashboardActionConfirmDialog & { kind: 'confirm' })
+  | {
+    kind: 'prompt';
+    title: string;
+    message: string;
+    defaultValue?: string;
+    placeholder?: string;
+    requireNonEmpty?: boolean;
+    validationMessage?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: DashboardDialogTone;
+  };
+type DashboardDialogResolveValue = boolean | string | null;
 
 const MODULE_DEFINITIONS: Array<{ id: DashboardModule; label: string; capability: string }> = [
   { id: 'ops', label: 'Ops Dashboard', capability: 'dashboard_view' },
@@ -601,6 +618,13 @@ function asRunbooks(value: unknown): RunbookRow[] {
   return value.map((entry) => asRecord(entry) as RunbookRow);
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+}
+
 export function AdminDashboardPage() {
   const initDataRawFromHook = useRawInitData();
   const initDataRaw = initDataRawFromHook;
@@ -625,6 +649,7 @@ export function AdminDashboardPage() {
   const [actionLatencyMsSamples, setActionLatencyMsSamples] = useState<number[]>([]);
   const [activeModule, setActiveModule] = useState<DashboardModule>('ops');
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState<boolean>(false);
   const [pollingPaused, setPollingPaused] = useState<boolean>(false);
   const [smsRecipientsInput, setSmsRecipientsInput] = useState<string>('');
   const [smsMessageInput, setSmsMessageInput] = useState<string>('');
@@ -670,9 +695,91 @@ export function AdminDashboardPage() {
   const [usersSnapshot, setUsersSnapshot] = useState<MiniAppUsersPayload | null>(null);
   const [auditSnapshot, setAuditSnapshot] = useState<MiniAppAuditPayload | null>(null);
   const [incidentsSnapshot, setIncidentsSnapshot] = useState<MiniAppIncidentsPayload | null>(null);
+  const [dialogState, setDialogState] = useState<DashboardDialogState | null>(null);
+  const [dialogInputValue, setDialogInputValue] = useState<string>('');
+  const [dialogInputError, setDialogInputError] = useState<string>('');
   const sessionRequestRef = useRef<Promise<string> | null>(null);
   const pollFailureNotedRef = useRef<boolean>(false);
   const initialServerModuleAppliedRef = useRef<boolean>(false);
+  const shortcutsReturnFocusRef = useRef<HTMLElement | null>(null);
+  const shortcutsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusSelectorRef = useRef<string>('#va-main-shortcuts-btn');
+  const shouldRestoreFocusRef = useRef<boolean>(false);
+  const shouldFocusStageRef = useRef<boolean>(false);
+  const dialogResolverRef = useRef<((value: DashboardDialogResolveValue) => void) | null>(null);
+  const closeDialog = useCallback((value: DashboardDialogResolveValue): void => {
+    const resolve = dialogResolverRef.current;
+    dialogResolverRef.current = null;
+    setDialogState(null);
+    setDialogInputValue('');
+    setDialogInputError('');
+    resolve?.(value);
+  }, []);
+  const openConfirmDialog = useCallback((dialog: DashboardActionConfirmDialog): Promise<boolean> => (
+    new Promise<boolean>((resolve) => {
+      if (dialogResolverRef.current) {
+        dialogResolverRef.current(false);
+      }
+      dialogResolverRef.current = (value) => {
+        resolve(Boolean(value));
+      };
+      setDialogInputValue('');
+      setDialogInputError('');
+      setDialogState({
+        kind: 'confirm',
+        title: dialog.title,
+        message: dialog.message,
+        confirmLabel: dialog.confirmLabel,
+        cancelLabel: dialog.cancelLabel,
+        tone: dialog.tone,
+      });
+    })
+  ), []);
+  const openPromptDialog = useCallback((options: {
+    title: string;
+    message: string;
+    defaultValue?: string;
+    placeholder?: string;
+    requireNonEmpty?: boolean;
+    validationMessage?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: DashboardDialogTone;
+  }): Promise<string | null> => (
+    new Promise<string | null>((resolve) => {
+      if (dialogResolverRef.current) {
+        dialogResolverRef.current(null);
+      }
+      dialogResolverRef.current = (value) => {
+        resolve(typeof value === 'string' ? value : null);
+      };
+      setDialogInputValue(options.defaultValue || '');
+      setDialogInputError('');
+      setDialogState({
+        kind: 'prompt',
+        ...options,
+      });
+    })
+  ), []);
+  const handleDialogConfirm = useCallback((): void => {
+    if (!dialogState) return;
+    if (dialogState.kind === 'confirm') {
+      closeDialog(true);
+      return;
+    }
+    const nextValue = dialogInputValue.trim();
+    if (dialogState.requireNonEmpty && !nextValue) {
+      setDialogInputError(dialogState.validationMessage || 'This field is required.');
+      return;
+    }
+    closeDialog(nextValue);
+  }, [closeDialog, dialogInputValue, dialogState]);
+  useEffect(() => () => {
+    if (dialogResolverRef.current) {
+      dialogResolverRef.current(null);
+      dialogResolverRef.current = null;
+    }
+  }, []);
   const triggerHaptic = useCallback((
     mode: 'selection' | 'impact' | 'success' | 'warning' | 'error',
     impactStyle: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light',
@@ -721,6 +828,33 @@ export function AdminDashboardPage() {
   const toggleSettings = useCallback((next?: boolean): void => {
     setSettingsOpen((prev) => {
       const target = typeof next === 'boolean' ? next : !prev;
+      if (!prev && target) {
+        if (typeof document !== 'undefined') {
+          const activeElement = document.activeElement as HTMLElement | null;
+          if (activeElement?.id) {
+            restoreFocusSelectorRef.current = `#${activeElement.id}`;
+          } else {
+            restoreFocusSelectorRef.current = `#va-module-chip-${activeModule}, #va-module-bottom-${activeModule}, #va-main-shortcuts-btn`;
+          }
+        }
+      }
+      if (prev && !target) {
+        shouldRestoreFocusRef.current = true;
+      }
+      if (target !== prev) {
+        triggerHaptic('selection');
+      }
+      return target;
+    });
+  }, [activeModule, triggerHaptic]);
+
+  const toggleShortcuts = useCallback((next?: boolean): void => {
+    setShortcutsOpen((prev) => {
+      const target = typeof next === 'boolean' ? next : !prev;
+      if (!prev && target && typeof document !== 'undefined') {
+        const activeElement = document.activeElement;
+        shortcutsReturnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+      }
       if (target !== prev) {
         triggerHaptic('selection');
       }
@@ -728,9 +862,12 @@ export function AdminDashboardPage() {
     });
   }, [triggerHaptic]);
 
-  const selectModule = useCallback((moduleId: DashboardModule): void => {
+  const selectModule = useCallback((moduleId: DashboardModule, options?: { fromKeyboard?: boolean }): void => {
     setActiveModule((prev) => {
       if (prev === moduleId) return prev;
+      if (options?.fromKeyboard) {
+        shouldFocusStageRef.current = true;
+      }
       triggerHaptic('selection');
       return moduleId;
     });
@@ -751,8 +888,8 @@ export function AdminDashboardPage() {
     setActivityLog((prev) => [entry, ...prev].slice(0, MAX_ACTIVITY_ITEMS));
   }, []);
 
-  const resolveEventStreamUrl = useCallback((path: string, sessionToken: string): string => (
-    buildEventStreamUrl(path, sessionToken, API_BASE_URL)
+  const resolveEventStreamUrl = useCallback((path: string): string => (
+    buildEventStreamUrl(path, API_BASE_URL)
   ), []);
 
   const userLabel = useMemo(() => {
@@ -1010,6 +1147,7 @@ export function AdminDashboardPage() {
     setError,
     setActionLatencyMsSamples,
     actionLatencySampleLimit: ACTION_LATENCY_SAMPLE_LIMIT,
+    confirmAction: openConfirmDialog,
   });
   const {
     featureFlags,
@@ -1057,7 +1195,7 @@ export function AdminDashboardPage() {
         return;
       }
       if (activeModule !== 'ops') {
-        selectModule('ops');
+        selectModule('ops', { fromKeyboard: true });
         return;
       }
       if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -1065,6 +1203,52 @@ export function AdminDashboardPage() {
       }
     });
   }, [activeModule, selectModule, settingsOpen, toggleSettings]);
+
+  useEffect(() => {
+    if (settingsOpen) return;
+    if (!shouldRestoreFocusRef.current) return;
+    shouldRestoreFocusRef.current = false;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(restoreFocusSelectorRef.current)
+        || document.querySelector<HTMLElement>('#va-main-shortcuts-btn')
+        || document.querySelector<HTMLElement>('#va-view-stage-root');
+      target?.focus({ preventScroll: true });
+    });
+  }, [activeModule, settingsOpen]);
+
+  useEffect(() => {
+    if (settingsOpen) return;
+    if (!shouldFocusStageRef.current) return;
+    shouldFocusStageRef.current = false;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('#va-view-stage-root')?.focus({ preventScroll: true });
+    });
+  }, [activeModule, settingsOpen]);
+
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      shortcutsCloseButtonRef.current?.focus({ preventScroll: true });
+    });
+  }, [shortcutsOpen]);
+
+  useEffect(() => {
+    if (shortcutsOpen) return;
+    const previousFocus = shortcutsReturnFocusRef.current;
+    if (!previousFocus) return;
+    shortcutsReturnFocusRef.current = null;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      if (previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+        return;
+      }
+      document.querySelector<HTMLElement>('#va-main-shortcuts-btn')?.focus({ preventScroll: true });
+    });
+  }, [shortcutsOpen]);
 
   const serverPollIntervalMs = useMemo(() => {
     const intervalSeconds = Number(bootstrap?.poll_interval_seconds);
@@ -1182,6 +1366,76 @@ export function AdminDashboardPage() {
     setActiveModule(preferredServerModule);
   }, [preferredServerModule, visibleModules]);
   const activeModuleMeta = MODULE_CONTEXT[activeModule] || MODULE_CONTEXT.ops;
+  const activeModuleLabel = useMemo(() => (
+    MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label || activeModule
+  ), [activeModule]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (shortcutsOpen && key === 'escape') {
+        event.preventDefault();
+        toggleShortcuts(false);
+        return;
+      }
+      if (shortcutsOpen) return;
+      if ((key === '?' || (event.altKey && key === '/')) && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        if (!dialogState) {
+          toggleShortcuts(true);
+        }
+        return;
+      }
+      if (dialogState) return;
+      if ((event.ctrlKey || event.metaKey) && key === ',') {
+        event.preventDefault();
+        toggleSettings();
+        return;
+      }
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (key === 'r') {
+        event.preventDefault();
+        triggerHaptic('impact', 'light');
+        pushActivity('info', 'Manual refresh', 'Operator triggered dashboard refresh.');
+        void loadBootstrap();
+        return;
+      }
+      if (key === 's') {
+        event.preventDefault();
+        toggleSettings();
+        return;
+      }
+      const moduleIndex = Number.parseInt(key, 10);
+      if (!Number.isFinite(moduleIndex) || moduleIndex < 1 || moduleIndex > visibleModules.length) return;
+      const nextModule = visibleModules[moduleIndex - 1];
+      if (!nextModule) return;
+      event.preventDefault();
+      restoreFocusSelectorRef.current = `#va-module-chip-${nextModule.id}, #va-module-bottom-${nextModule.id}, #va-main-shortcuts-btn`;
+      if (settingsOpen) {
+        selectModule(nextModule.id);
+        toggleSettings(false);
+        return;
+      }
+      selectModule(nextModule.id, { fromKeyboard: true });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    dialogState,
+    loadBootstrap,
+    pushActivity,
+    selectModule,
+    settingsOpen,
+    shortcutsOpen,
+    toggleSettings,
+    toggleShortcuts,
+    triggerHaptic,
+    visibleModules,
+  ]);
 
   useEffect(() => {
     if (callScripts.length === 0) {
@@ -1455,6 +1709,7 @@ export function AdminDashboardPage() {
     refreshUsersModule,
     refreshAuditModule,
     providersByChannel,
+    requestTextInput: openPromptDialog,
   });
 
   const {
@@ -1555,6 +1810,7 @@ export function AdminDashboardPage() {
     providersByChannel,
     providerCurrentByChannel,
     providerSwitchPlanByChannel,
+    requestConfirmation: openConfirmDialog,
   });
 
   const renderProviderSection = (channel: ProviderChannel) => {
@@ -1849,44 +2105,56 @@ export function AdminDashboardPage() {
   };
 
   return (
-    <main className="va-dashboard">
-      {settingsOpen ? (
-        <DashboardSettingsHeader
-          loading={loading}
-          busy={busyAction.length > 0}
-          onBack={() => toggleSettings(false)}
-          onSync={handleRefresh}
-        />
-      ) : (
-        <DashboardMainHeader
-          userLabel={userLabel}
-          sessionRole={sessionRole}
-          sessionRoleSource={sessionRoleSource}
-          settingsStatusLabel={settingsStatusLabel}
-          featureFlagsCount={Object.keys(featureFlags).length || 'default'}
-          moduleDetail={activeModuleMeta.detail}
-          activeModuleGlyph={moduleGlyph(activeModule)}
-          loading={loading}
-          busy={busyAction.length > 0}
-          onOpenSettings={() => toggleSettings(true)}
-          onRefresh={handleRefresh}
-        />
-      )}
+    <>
+      <main className="va-dashboard" aria-busy={loading}>
+        <a className="va-skip-link" href="#va-view-stage-root">Skip to active content</a>
+        <p className="va-sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {settingsOpen ? 'Settings panel active.' : `${activeModuleLabel} module active.`}
+        </p>
+        <section className="va-top-shell">
+          {settingsOpen ? (
+            <DashboardSettingsHeader
+              loading={loading}
+              busy={busyAction.length > 0}
+              onBack={() => toggleSettings(false)}
+              onSync={handleRefresh}
+            />
+          ) : (
+            <DashboardMainHeader
+              userLabel={userLabel}
+              sessionRole={sessionRole}
+              sessionRoleSource={sessionRoleSource}
+              settingsStatusLabel={settingsStatusLabel}
+              featureFlagsCount={Object.keys(featureFlags).length || 'default'}
+              moduleDetail={activeModuleMeta.detail}
+              activeModuleGlyph={moduleGlyph(activeModule)}
+              loading={loading}
+              onOpenShortcuts={() => toggleShortcuts(true)}
+            />
+          )}
+          {!settingsOpen && visibleModules.length > 0 ? (
+            <DashboardModuleNav
+              modules={visibleModules}
+              activeModuleId={activeModule}
+              onSelectModule={(moduleId) => selectModule(moduleId as DashboardModule)}
+            />
+          ) : null}
+        </section>
 
-      <DashboardStatusRail
-        loading={loading}
-        error={error}
-        notice={notice}
-        busyAction={busyAction}
-        syncModeLabel={syncModeLabel}
-        pollFailureCount={pollFailureCount}
-        streamFailureCount={streamFailureCount}
-        bridgeHardFailures={bridgeHardFailures}
-        bridgeSoftFailures={bridgeSoftFailures}
-        actionTelemetry={actionTelemetry}
-      />
+        <DashboardStatusRail
+          loading={loading}
+          error={error}
+          notice={notice}
+          busyAction={busyAction}
+          syncModeLabel={syncModeLabel}
+          pollFailureCount={pollFailureCount}
+          streamFailureCount={streamFailureCount}
+          bridgeHardFailures={bridgeHardFailures}
+          bridgeSoftFailures={bridgeSoftFailures}
+          actionTelemetry={actionTelemetry}
+        />
       {settingsOpen ? (
-        <section className="va-view-stage va-view-stage-settings">
+        <section id="va-view-stage-root" className="va-view-stage va-view-stage-settings" tabIndex={-1}>
         <SettingsPage
           userLabel={userLabel}
           sessionRole={sessionRole}
@@ -1905,6 +2173,7 @@ export function AdminDashboardPage() {
           onRetrySession={resetSession}
             onJumpToModule={(moduleId) => {
               if (!MODULE_DEFINITIONS.some((module) => module.id === moduleId)) return;
+              restoreFocusSelectorRef.current = `#va-module-chip-${moduleId}, #va-module-bottom-${moduleId}, #va-main-shortcuts-btn`;
               selectModule(moduleId as DashboardModule);
               toggleSettings(false);
             }}
@@ -1912,7 +2181,7 @@ export function AdminDashboardPage() {
         </section>
       ) : null}
       {!settingsOpen ? (
-        <section className="va-view-stage va-view-stage-dashboard">
+        <section id="va-view-stage-root" className="va-view-stage va-view-stage-dashboard" tabIndex={-1}>
       {sessionBlocked ? (
         <SessionBlockedCard
           errorCode={errorCode}
@@ -1950,12 +2219,6 @@ export function AdminDashboardPage() {
           </div>
         </div>
       </section>
-
-      <DashboardModuleNav
-        modules={visibleModules}
-        activeModuleId={activeModule}
-        onSelectModule={(moduleId) => selectModule(moduleId as DashboardModule)}
-      />
       {visibleModules.length === 0 ? (
         <EmptyModulesCard
           onRefreshAccess={handleRefresh}
@@ -2034,6 +2297,106 @@ export function AdminDashboardPage() {
       ) : null}
         </section>
       ) : null}
-    </main>
+      </main>
+      {shortcutsOpen ? (
+        <div className="va-dialog-overlay" role="presentation" onClick={() => toggleShortcuts(false)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="va-shortcuts-title"
+            className="va-dialog va-dialog-shortcuts"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="va-shortcuts-title">Keyboard Shortcuts</h3>
+            <p className="va-muted">Quick controls for faster navigation and command execution.</p>
+            <ul className="va-shortcuts-list">
+              <li>
+                <span>Open shortcuts</span>
+                <kbd>?</kbd>
+              </li>
+              <li>
+                <span>Open shortcuts (alternate)</span>
+                <kbd>Alt + /</kbd>
+              </li>
+              <li>
+                <span>Toggle settings</span>
+                <kbd>Ctrl/Cmd + ,</kbd>
+              </li>
+              <li>
+                <span>Toggle settings (alternate)</span>
+                <kbd>Alt + S</kbd>
+              </li>
+              <li>
+                <span>Refresh dashboard</span>
+                <kbd>Alt + R</kbd>
+              </li>
+              {visibleModules.map((module, index) => (
+                <li key={`shortcut-module-${module.id}`}>
+                  <span>Open {module.label}</span>
+                  <kbd>{`Alt + ${index + 1}`}</kbd>
+                </li>
+              ))}
+            </ul>
+            <div className="va-dialog-actions">
+              <button
+                ref={shortcutsCloseButtonRef}
+                type="button"
+                className="va-btn va-btn-secondary"
+                onClick={() => toggleShortcuts(false)}
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {dialogState ? (
+        <div className="va-dialog-overlay" role="presentation" onClick={() => closeDialog(dialogState.kind === 'confirm' ? false : null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            className={`va-dialog va-dialog-${dialogState.tone || 'default'}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>{dialogState.title}</h3>
+            <p className="va-muted">{dialogState.message}</p>
+            {dialogState.kind === 'prompt' ? (
+              <div className="va-dialog-input-wrap">
+                <UiInput
+                  autoFocus
+                  value={dialogInputValue}
+                  placeholder={dialogState.placeholder || ''}
+                  onChange={(event) => {
+                    setDialogInputValue(event.target.value);
+                    setDialogInputError('');
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleDialogConfirm();
+                    }
+                  }}
+                />
+                {dialogInputError ? <p className="va-error">{dialogInputError}</p> : null}
+              </div>
+            ) : null}
+            <div className="va-dialog-actions">
+              <UiButton
+                variant="secondary"
+                onClick={() => closeDialog(dialogState.kind === 'confirm' ? false : null)}
+              >
+                {dialogState.cancelLabel || 'Cancel'}
+              </UiButton>
+              <UiButton
+                variant="primary"
+                onClick={handleDialogConfirm}
+              >
+                {dialogState.confirmLabel || 'Confirm'}
+              </UiButton>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }

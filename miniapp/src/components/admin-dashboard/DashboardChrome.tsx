@@ -1,3 +1,5 @@
+import { UiBadge, UiButton } from '@/components/ui/AdminPrimitives';
+
 type ModuleItem = {
   id: string;
   label: string;
@@ -19,9 +21,7 @@ type DashboardMainHeaderProps = {
   moduleDetail: string;
   activeModuleGlyph: string;
   loading: boolean;
-  busy: boolean;
-  onOpenSettings: () => void;
-  onRefresh: () => void;
+  onOpenShortcuts: () => void;
 };
 
 type DashboardModuleNavProps = {
@@ -46,26 +46,26 @@ export function DashboardSettingsHeader({
   return (
     <header className="va-header is-settings">
       <div className="va-settings-header-grid">
-        <button
-          type="button"
-          className="va-settings-back va-btn va-btn-secondary"
+        <UiButton
+          variant="plain"
+          className="va-settings-back"
           onClick={onBack}
           disabled={loading}
         >
           Back
-        </button>
+        </UiButton>
         <div className="va-settings-header-center">
           <strong>VOICEDNUT</strong>
           <span>mini app</span>
         </div>
-        <button
-          type="button"
-          className="va-settings-header-action va-btn va-btn-secondary"
+        <UiButton
+          variant="secondary"
+          className="va-settings-header-action"
           onClick={onSync}
           disabled={loading || busy}
         >
           Sync
-        </button>
+        </UiButton>
       </div>
     </header>
   );
@@ -80,9 +80,7 @@ export function DashboardMainHeader({
   moduleDetail,
   activeModuleGlyph,
   loading,
-  busy,
-  onOpenSettings,
-  onRefresh,
+  onOpenShortcuts,
 }: DashboardMainHeaderProps) {
   return (
     <header className="va-header">
@@ -96,29 +94,22 @@ export function DashboardMainHeader({
       </div>
       <div className="va-header-meta">
         <div className="va-meta-chips">
-          <span className="va-meta-chip">Admin {userLabel}</span>
-          <span className="va-meta-chip">Role {sessionRole}</span>
-          <span className="va-meta-chip">Source {sessionRoleSource}</span>
-          <span className="va-meta-chip">Settings {settingsStatusLabel}</span>
-          <span className="va-meta-chip">Flags {featureFlagsCount}</span>
+          <UiBadge>Admin {userLabel}</UiBadge>
+          <UiBadge>Role {sessionRole}</UiBadge>
+          <UiBadge>Source {sessionRoleSource}</UiBadge>
+          <UiBadge>Settings {settingsStatusLabel}</UiBadge>
+          <UiBadge>Flags {featureFlagsCount}</UiBadge>
         </div>
         <div className="va-header-actions">
-          <button
-            type="button"
-            className="va-btn va-btn-secondary"
-            onClick={onOpenSettings}
+          <UiButton
+            id="va-main-shortcuts-btn"
+            variant="secondary"
+            aria-keyshortcuts="Alt+Slash Shift+Slash"
+            onClick={onOpenShortcuts}
             disabled={loading}
           >
-            Settings
-          </button>
-          <button
-            type="button"
-            className="va-btn va-btn-primary"
-            onClick={onRefresh}
-            disabled={loading || busy}
-          >
-            Refresh
-          </button>
+            Shortcuts
+          </UiButton>
         </div>
       </div>
     </header>
@@ -131,18 +122,24 @@ export function DashboardModuleNav({
   onSelectModule,
 }: DashboardModuleNavProps) {
   return (
-    <section className="va-module-nav">
-      {modules.map((module) => (
-        <button
+    <nav className="va-module-nav" aria-label="Module navigation">
+      {modules.map((module, index) => (
+        <UiButton
           key={module.id}
-          type="button"
-          className={`va-chip ${activeModuleId === module.id ? 'is-active' : ''}`}
+          id={`va-module-chip-${module.id}`}
+          variant="chip"
+          className={activeModuleId === module.id ? 'is-active' : ''}
+          aria-pressed={activeModuleId === module.id}
+          aria-current={activeModuleId === module.id ? 'page' : undefined}
+          aria-label={`Open ${module.label} module`}
+          aria-keyshortcuts={`Alt+${index + 1}`}
+          aria-controls="va-view-stage-root"
           onClick={() => onSelectModule(module.id)}
         >
           {module.label}
-        </button>
+        </UiButton>
       ))}
-    </section>
+    </nav>
   );
 }
 
@@ -155,16 +152,21 @@ export function DashboardBottomNav({
   return (
     <nav className="va-bottom-nav-wrap" aria-label="Quick module navigation">
       <div className="va-bottom-nav">
-        {modules.map((module) => (
-          <button
+        {modules.map((module, index) => (
+          <UiButton
             key={`bottom-${module.id}`}
-            type="button"
+            id={`va-module-bottom-${module.id}`}
+            variant="plain"
             className={`va-bottom-nav-item ${activeModuleId === module.id ? 'is-active' : ''}`}
+            aria-current={activeModuleId === module.id ? 'page' : undefined}
+            aria-label={`Open ${module.label} module`}
+            aria-keyshortcuts={`Alt+${index + 1}`}
+            aria-controls="va-view-stage-root"
             onClick={() => onSelectModule(module.id)}
           >
             <span className="va-bottom-nav-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
             <span>{module.label}</span>
-          </button>
+          </UiButton>
         ))}
       </div>
     </nav>

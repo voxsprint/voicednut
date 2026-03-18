@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { DashboardVm, UserRow } from './types';
 import { selectUsersRolePageVm } from './vmSelectors';
+import { selectUsersRows, type UserRoleFilter } from './tableSelectors';
+import { downloadCsv } from './csvExport';
 
 type UsersRolePageProps = {
   visible: boolean;
@@ -10,29 +12,15 @@ type UsersRolePageProps = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 40, 80] as const;
 
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+function roleBadgeVariant(role: string): 'success' | 'info' | 'neutral' {
+  switch (role.toLowerCase()) {
+    case 'admin':
+      return 'success';
+    case 'operator':
+      return 'info';
+    default:
+      return 'neutral';
   }
-  return value;
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  const lines = [headers.map(csvEscape).join(',')];
-  rows.forEach((row) => {
-    lines.push(row.map((cell) => csvEscape(String(cell ?? ''))).join(','));
-  });
-  const csv = `${lines.join('\n')}\n`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
 }
 
 export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
@@ -57,7 +45,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   } = selectUsersRolePageVm(vm);
   const advancedTablesEnabled = isFeatureEnabled('advanced_tables', true);
   const usersCsvEnabled = isFeatureEnabled('users_csv_export', advancedTablesEnabled);
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'operator' | 'viewer'>('all');
+  const [roleFilter, setRoleFilter] = useState<UserRoleFilter>('all');
   const [pageSize, setPageSize] = useState<number>(20);
   const [page, setPage] = useState<number>(1);
   const [reasonTemplate, setReasonTemplate] = useState<string>(roleReasonTemplates[0] || '');
@@ -65,31 +53,14 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   const composedReason = [reasonTemplate, reasonDetail.trim()].filter(Boolean).join(' - ');
 
   const filteredAndSortedUsers = useMemo(() => {
-    const query = String(userSearch || '').trim().toLowerCase();
-    const filtered = usersRows.filter((user) => {
-      const role = toText(user.role, 'viewer').toLowerCase();
-      if (roleFilter !== 'all' && role !== roleFilter) return false;
-      if (!query) return true;
-      const telegramId = toText(user.telegram_id, '').toLowerCase();
-      const roleSource = toText(user.role_source, '').toLowerCase();
-      return telegramId.includes(query) || role.includes(query) || roleSource.includes(query);
-    });
-    const direction = userSortDir === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      if (userSortBy === 'last_activity') {
-        const aTime = Date.parse(toText(a.last_activity, ''));
-        const bTime = Date.parse(toText(b.last_activity, ''));
-        const safeATime = Number.isFinite(aTime) ? aTime : 0;
-        const safeBTime = Number.isFinite(bTime) ? bTime : 0;
-        return (safeATime - safeBTime) * direction;
-      }
-      if (userSortBy === 'total_calls') {
-        return (toInt(a.total_calls) - toInt(b.total_calls)) * direction;
-      }
-      if (userSortBy === 'role') {
-        return toText(a.role, 'viewer').localeCompare(toText(b.role, 'viewer')) * direction;
-      }
-      return toText(a.telegram_id, '').localeCompare(toText(b.telegram_id, '')) * direction;
+    return selectUsersRows({
+      usersRows,
+      roleFilter,
+      userSearch,
+      userSortBy: userSortBy as 'last_activity' | 'total_calls' | 'role',
+      userSortDir: userSortDir as 'asc' | 'desc',
+      toText,
+      toInt,
     });
   }, [roleFilter, toInt, toText, userSearch, userSortBy, userSortDir, usersRows]);
 
@@ -132,7 +103,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
     <section className="va-grid">
       <div className="va-card">
         <h3>User & Role Admin</h3>
-        <div className="va-inline-tools">
+        <div className="va-filter-grid">
           <input
             className="va-input"
             placeholder="Search Telegram ID"
@@ -161,11 +132,11 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
           </button>
         </div>
         {advancedTablesEnabled ? (
-          <div className="va-inline-tools">
+          <div className="va-filter-grid">
             <select
               className="va-input"
               value={roleFilter}
-              onChange={(event) => setRoleFilter(event.target.value as 'all' | 'admin' | 'operator' | 'viewer')}
+              onChange={(event) => setRoleFilter(event.target.value as UserRoleFilter)}
             >
               <option value="all">All Roles</option>
               <option value="admin">Admin</option>
@@ -188,7 +159,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             ) : null}
           </div>
         ) : null}
-        <div className="va-inline-tools">
+        <div className="va-filter-grid">
           <select
             className="va-input"
             value={reasonTemplate}
@@ -217,13 +188,21 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
           {pageUsers.map((user: UserRow, index: number) => {
             const telegramId = toText(user.telegram_id, '');
             const role = toText(user.role, 'viewer');
+            const roleVariant = roleBadgeVariant(role);
+            const roleSource = toText(user.role_source, 'inferred');
             return (
-              <li key={`user-role-${telegramId || `row-${pageStart + index}`}`}>
-                <strong>{telegramId || 'unknown'}</strong>
-                <span>Role: {role} ({toText(user.role_source, 'inferred')})</span>
-                <span>Calls: {toInt(user.total_calls)} | Failed: {toInt(user.failed_calls)}</span>
-                <span>Last activity: {formatTime(user.last_activity)}</span>
-                <div className="va-inline-tools">
+              <li key={`user-role-${telegramId || `row-${pageStart + index}`}`} className="va-entity-row va-user-row">
+                <div className="va-entity-head">
+                  <strong title={telegramId}>{telegramId || 'unknown'}</strong>
+                  <span className={`va-pill va-pill-${roleVariant}`}>{role}</span>
+                </div>
+                <div className="va-entity-meta">
+                  <span>Source: {roleSource}</span>
+                  <span>Calls: {toInt(user.total_calls)}</span>
+                  <span>Failed: {toInt(user.failed_calls)}</span>
+                  <span>Last: {formatTime(user.last_activity)}</span>
+                </div>
+                <div className="va-entity-actions">
                   <button
                     type="button"
                     onClick={() => { void handleApplyUserRole(telegramId, 'admin', composedReason); }}

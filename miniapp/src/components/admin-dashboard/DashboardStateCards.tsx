@@ -1,3 +1,5 @@
+import { UiButton, UiCard, UiSkeletonLine } from '@/components/ui/AdminPrimitives';
+
 type ModuleErrorFallbackCardProps = {
   moduleLabel: string;
   onReload: () => void;
@@ -27,19 +29,19 @@ export function ModuleErrorFallbackCard({
   reloadDisabled,
 }: ModuleErrorFallbackCardProps) {
   return (
-    <div className="va-card va-module-fallback">
+    <UiCard tone="fallback">
       <h3>{moduleLabel} is temporarily unavailable</h3>
       <p className="va-muted">
         This module hit a render-time error. Refresh data and reopen the module.
       </p>
-      <button
-        type="button"
+      <UiButton
+        variant="secondary"
         onClick={onReload}
         disabled={reloadDisabled}
       >
         Reload Module Data
-      </button>
-    </div>
+      </UiButton>
+    </UiCard>
   );
 }
 
@@ -50,7 +52,7 @@ export function SessionBlockedCard({
 }: SessionBlockedCardProps) {
   return (
     <section className="va-grid">
-      <div className="va-card va-blocked">
+      <UiCard tone="blocked">
         <h3>Mini App Session Blocked</h3>
         <p>
           Code: <strong>{errorCode || 'miniapp_auth_invalid'}</strong>
@@ -58,14 +60,14 @@ export function SessionBlockedCard({
         <p>
           Open this Mini App from the Telegram bot menu, then tap <strong>Retry Session</strong>.
         </p>
-        <button
-          type="button"
+        <UiButton
+          variant="secondary"
           onClick={onRetrySession}
           disabled={retryDisabled}
         >
           Retry Session
-        </button>
-      </div>
+        </UiButton>
+      </UiCard>
     </section>
   );
 }
@@ -76,20 +78,19 @@ export function EmptyModulesCard({
 }: EmptyModulesCardProps) {
   return (
     <section className="va-grid">
-      <div className="va-card va-empty-state">
+      <UiCard tone="empty">
         <h3>No Modules Available</h3>
         <p className="va-muted">
           This role has no enabled modules yet. Ask an administrator to grant access, then refresh.
         </p>
-        <button
-          type="button"
-          className="va-btn va-btn-primary"
+        <UiButton
+          variant="primary"
           onClick={onRefreshAccess}
           disabled={refreshDisabled}
         >
           Refresh Access
-        </button>
-      </div>
+        </UiButton>
+      </UiCard>
     </section>
   );
 }
@@ -100,12 +101,12 @@ export function ModuleSkeletonGrid({
   return (
     <section className="va-grid va-module-skeleton-grid">
       {labels.map((label) => (
-        <div key={label} className="va-card va-module-skeleton-card">
+        <UiCard key={label} className="va-module-skeleton-card">
           <div className="va-module-skeleton-title" />
-          <div className="va-module-skeleton-line" />
-          <div className="va-module-skeleton-line short" />
+          <UiSkeletonLine />
+          <UiSkeletonLine short />
           <p className="va-muted">{label}...</p>
-        </div>
+        </UiCard>
       ))}
     </section>
   );

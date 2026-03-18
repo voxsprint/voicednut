@@ -1,5 +1,6 @@
 import type { DashboardVm } from './types';
 import { selectSmsPageVm } from './vmSelectors';
+import { UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type SmsSenderPageProps = {
   visible: boolean;
@@ -37,15 +38,63 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     smsFailed,
     smsProcessedPercent,
     textBar,
+    loading,
   } = selectSmsPageVm(vm);
+  const smsHasRecipients = smsRecipientsParsed.length > 0;
+  const smsHasMessage = smsMessageInput.trim().length > 0;
+  const smsCanSubmit = smsHasRecipients && smsHasMessage;
+  const smsReadinessHint = !smsHasRecipients && !smsHasMessage
+    ? 'Add at least one valid recipient and a message body to enable batch execution.'
+    : !smsHasRecipients
+      ? 'Add at least one valid recipient to enable batch execution.'
+      : 'Add a message body to enable batch execution.';
 
   return (
-    <section className="va-grid">
+    <>
+      <section className="va-page-intro">
+        <p className="va-kicker">Messaging</p>
+        <h2 className="va-page-title">SMS Operations Console</h2>
+        <p className="va-muted">
+          Compose bulk SMS campaigns, validate recipients, estimate cost, and monitor completion.
+        </p>
+        <div className="va-inline-metrics">
+          <span className="va-meta-chip">Recipients {smsRecipientsParsed.length}</span>
+          <span className="va-meta-chip">Invalid {smsInvalidRecipients.length}</span>
+          <span className="va-meta-chip">Duplicates {smsDuplicateCount}</span>
+          <span className="va-meta-chip">Segments {smsSegmentEstimate.segments}</span>
+          <span className="va-meta-chip">Est. cost ${smsEstimatedCost.toFixed(4)}</span>
+        </div>
+      </section>
+
+      {loading && smsRecipientsParsed.length === 0 ? (
+        <section className="va-grid">
+          <div className="va-card">
+            <UiStatePanel
+              title="Loading SMS telemetry"
+              description="Syncing recipient analytics, route simulation, and job outcomes."
+              tone="info"
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Compose & Validate</h3>
+          <p className="va-muted">Prepare recipients, author message, and configure delivery settings.</p>
+        </header>
+        <section className="va-grid">
       <div className="va-card">
         <h3>SMS Sender Console</h3>
-        <p className="va-muted">
-          Upload recipients, estimate segments, schedule delivery, and track bulk job outcomes.
-        </p>
+        {!smsRecipientsInput.trim() && !smsMessageInput.trim() ? (
+          <UiStatePanel
+            title="Start a new SMS batch"
+            description="Paste recipients and a message body, or upload a CSV/TXT recipient list."
+            tone="info"
+            compact
+          />
+        ) : null}
+        <p className="va-card-eyebrow">Audience</p>
         <textarea
           className="va-input va-textarea"
           placeholder="Recipients (+15551230001), separated by comma/newline"
@@ -70,6 +119,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
             onChange={(event) => setSmsProviderInput(event.target.value)}
           />
         </div>
+        <p className="va-card-eyebrow">Message</p>
         <textarea
           className="va-input va-textarea"
           placeholder="Message body"
@@ -77,6 +127,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           onChange={(event) => setSmsMessageInput(event.target.value)}
           rows={4}
         />
+        <p className="va-card-eyebrow">Delivery Settings</p>
         <div className="va-inline-tools">
           <label className="va-muted">
             Schedule at:
@@ -107,12 +158,20 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           </label>
           <button
             type="button"
-            disabled={busyAction.length > 0}
+            disabled={busyAction.length > 0 || !smsCanSubmit}
             onClick={() => { void sendSmsFromConsole(); }}
           >
             {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
           </button>
         </div>
+        {!smsCanSubmit ? (
+          <UiStatePanel
+            title="Batch requirements not met"
+            description={smsReadinessHint}
+            tone="warning"
+            compact
+          />
+        ) : null}
         <div className="va-inline-tools">
           <div className="va-card va-subcard">
             <h4>Validation Preview</h4>
@@ -140,7 +199,12 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         </p>
         <h4>Route Simulation</h4>
         {smsRouteSimulationRows.length === 0 ? (
-          <p className="va-muted">Provider route simulation is warming up.</p>
+          <UiStatePanel
+            title="Route simulation warming up"
+            description="Provider routing diagnostics will appear after the first parse/run cycle."
+            tone="info"
+            compact
+          />
         ) : (
           <ul className="va-list">
             {smsRouteSimulationRows.map((row) => (
@@ -159,11 +223,16 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         <p>Successful: <strong>{smsSuccess}</strong> | Failed: <strong>{smsFailed}</strong></p>
         <pre>{textBar(smsProcessedPercent)}</pre>
         {smsInvalidRecipients.length > 0 ? (
-          <p className="va-muted">
-            Suppression preview (invalid format): {smsInvalidRecipients.slice(0, 10).join(', ')}
-          </p>
+          <UiStatePanel
+            title="Recipient format warnings"
+            description={`Suppression preview: ${smsInvalidRecipients.slice(0, 10).join(', ')}`}
+            tone="warning"
+            compact
+          />
         ) : null}
       </div>
-    </section>
+        </section>
+      </section>
+    </>
   );
 }

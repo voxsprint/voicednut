@@ -7,6 +7,7 @@ import type {
   EmailJob,
 } from './types';
 import { selectOpsPageVm } from './vmSelectors';
+import { UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type OpsDashboardPageProps = {
   visible: boolean;
@@ -85,12 +86,46 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
     emailDlq,
     runAction,
     hasMeaningfulData,
+    loading,
   } = selectOpsPageVm(vm);
   const runtimeControlsEnabled = isFeatureEnabled('runtime_controls', true);
   const providerCardsEnabled = isFeatureEnabled('provider_cards', true);
 
   return (
     <>
+      <section className="va-page-intro">
+        <p className="va-kicker">Operations</p>
+        <h2 className="va-page-title">Control Plane Dashboard</h2>
+        <p className="va-muted">
+          Reliability, runtime controls, and recovery signals for calls, SMS, and email.
+        </p>
+        <div className="va-inline-metrics">
+          <span className="va-meta-chip">Sync {syncModeLabel}</span>
+          <span className="va-meta-chip">Feed {streamModeLabel}</span>
+          <span className="va-meta-chip">Poll failures {pollFailureCount}</span>
+          <span className="va-meta-chip">Bridge 5xx {bridgeHardFailures}</span>
+          <span className="va-meta-chip">Queue {queueBacklogTotal}</span>
+          <span className="va-meta-chip">Error budget {sloErrorBudgetPercent}%</span>
+        </div>
+      </section>
+
+      {loading && !hasMeaningfulData ? (
+        <section className="va-grid">
+          <div className="va-card">
+            <UiStatePanel
+              title="Refreshing operational telemetry"
+              description="Collecting the latest poll/stream metrics, runtime state, and job summaries."
+              tone="info"
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Reliability & Runtime</h3>
+          <p className="va-muted">Live sync posture, SLO telemetry, and runtime control operations.</p>
+        </header>
       <section className="va-grid">
         <div className={`va-card va-health ${isDashboardDegraded ? 'is-degraded' : 'is-healthy'}`}>
           <h3>Live Sync Health</h3>
@@ -228,14 +263,24 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         ) : (
           <div className="va-card">
             <h3>Voice Runtime Control</h3>
-            <p className="va-muted">Runtime controls are disabled by feature flag.</p>
+            <UiStatePanel
+              title="Runtime controls disabled"
+              description="Enable the runtime_controls feature flag to manage maintenance and canary rollout."
+              tone="warning"
+              compact
+            />
           </div>
         )}
 
         <div className="va-card">
           <h3>Activity Timeline</h3>
           {activityLog.length === 0 ? (
-            <p className="va-muted">No activity recorded yet.</p>
+            <UiStatePanel
+              title="No activity yet"
+              description="Recent action attempts and system transitions will appear here."
+              tone="info"
+              compact
+            />
           ) : (
             <ul className="va-list va-list-activity">
               {activityLog.map((entry: ActivityEntry) => (
@@ -250,16 +295,28 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           )}
         </div>
       </section>
+      </section>
 
       {providerCardsEnabled ? (
-        <section className="va-grid">
-          {renderProviderSection('call')}
-          {renderProviderSection('sms')}
-          {renderProviderSection('email')}
+        <section className="va-section-block">
+          <header className="va-section-header">
+            <h3 className="va-section-title">Provider Readiness</h3>
+            <p className="va-muted">Channel-level provider status and preflight control actions.</p>
+          </header>
+          <section className="va-grid">
+            {renderProviderSection('call')}
+            {renderProviderSection('sms')}
+            {renderProviderSection('email')}
+          </section>
         </section>
       ) : null}
 
-      <section className="va-grid">
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Messaging Throughput</h3>
+          <p className="va-muted">Bulk SMS and email execution trends across the latest 24-hour window.</p>
+        </header>
+        <section className="va-grid">
         <div className="va-card">
           <h3>SMS Bulk Status (24h)</h3>
           <p>Total recipients: <strong>{smsTotalRecipients}</strong></p>
@@ -280,8 +337,14 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           <pre>{textBar(emailDeliveredPercent)}</pre>
         </div>
       </section>
+      </section>
 
-      <section className="va-grid">
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Logs & Recovery</h3>
+          <p className="va-muted">Recent operational history and dead-letter replay workflows.</p>
+        </header>
+        <section className="va-grid">
         <div className="va-card">
           <h3>Recent Call Logs</h3>
           <p>
@@ -402,14 +465,18 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </ul>
         </div>
       </section>
+      </section>
 
       {!hasMeaningfulData ? (
         <section className="va-grid">
           <div className="va-card va-empty-state">
             <h3>No Recent Operational Activity</h3>
-            <p className="va-muted">
-              Connection is active. Metrics and recent events will appear as traffic and jobs are processed.
-            </p>
+            <UiStatePanel
+              title="Feed is connected"
+              description="Metrics and events will populate as live traffic and background jobs are processed."
+              tone="info"
+              compact
+            />
           </div>
         </section>
       ) : null}

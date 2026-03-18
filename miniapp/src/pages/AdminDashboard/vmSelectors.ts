@@ -80,6 +80,7 @@ const OPS_VM_KEYS = [
   'emailDlq',
   'runAction',
   'hasMeaningfulData',
+  'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
 const SMS_VM_KEYS = [
@@ -110,6 +111,7 @@ const SMS_VM_KEYS = [
   'smsFailed',
   'smsProcessedPercent',
   'textBar',
+  'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
 const MAILER_VM_KEYS = [
@@ -155,6 +157,7 @@ const MAILER_VM_KEYS = [
   'emailJobs',
   'toText',
   'toInt',
+  'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
 const PROVIDER_VM_KEYS = [
