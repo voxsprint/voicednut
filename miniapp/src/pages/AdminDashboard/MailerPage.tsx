@@ -59,6 +59,11 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
   const mailerHasTemplate = mailerTemplateIdInput.trim().length > 0;
   const mailerHasSubject = mailerSubjectInput.trim().length > 0;
   const mailerHasBody = mailerHtmlInput.trim().length > 0 || mailerTextInput.trim().length > 0;
+  const mailerSubjectRequired = !mailerHasTemplate;
+  const mailerBodyRequired = !mailerHasTemplate;
+  const mailerRecipientsInvalid = !mailerHasRecipients;
+  const mailerSubjectInvalid = mailerSubjectRequired && !mailerHasSubject;
+  const mailerBodyInvalid = mailerBodyRequired && !mailerHasBody;
   const mailerMissingRequirements: string[] = [];
   if (!mailerHasRecipients) {
     mailerMissingRequirements.push('add at least one valid recipient');
@@ -117,16 +122,24 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             ) : null}
             <p className="va-card-eyebrow">Audience</p>
             <textarea
+              id="va-mailer-recipients"
               className="va-input va-textarea"
               placeholder="Recipient emails separated by comma/newline"
               value={mailerRecipientsInput}
               onChange={(event) => setMailerRecipientsInput(event.target.value)}
+              aria-required
+              aria-invalid={mailerRecipientsInvalid}
+              aria-describedby="va-mailer-recipients-hint"
               rows={5}
             />
+            <p id="va-mailer-recipients-hint" className="va-field-hint">
+              Enter at least one valid recipient email to queue this batch.
+            </p>
             <div className="va-inline-tools">
               <input
                 type="file"
                 accept=".csv,.txt"
+                aria-label="Upload mailer recipients file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null;
                   void handleRecipientsFile(file, 'mailer');
@@ -142,25 +155,43 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             </div>
             <p className="va-card-eyebrow">Content</p>
             <input
+              id="va-mailer-subject"
               className="va-input"
               placeholder="Subject (supports {{variables}})"
               value={mailerSubjectInput}
               onChange={(event) => setMailerSubjectInput(event.target.value)}
+              aria-required={mailerSubjectRequired}
+              aria-invalid={mailerSubjectInvalid}
+              aria-describedby="va-mailer-subject-hint"
             />
+            <p id="va-mailer-subject-hint" className="va-field-hint">
+              Required when template ID is empty.
+            </p>
             <textarea
+              id="va-mailer-html-body"
               className="va-input va-textarea"
               placeholder="HTML body (optional)"
               value={mailerHtmlInput}
               onChange={(event) => setMailerHtmlInput(event.target.value)}
+              aria-required={mailerBodyRequired}
+              aria-invalid={mailerBodyInvalid}
+              aria-describedby="va-mailer-body-hint"
               rows={4}
             />
             <textarea
+              id="va-mailer-text-body"
               className="va-input va-textarea"
               placeholder="Text body (optional)"
               value={mailerTextInput}
               onChange={(event) => setMailerTextInput(event.target.value)}
+              aria-required={mailerBodyRequired}
+              aria-invalid={mailerBodyInvalid}
+              aria-describedby="va-mailer-body-hint"
               rows={3}
             />
+            <p id="va-mailer-body-hint" className="va-field-hint">
+              When template ID is empty, provide HTML or text body content.
+            </p>
             <p className="va-card-eyebrow">Template Variables</p>
             <textarea
               className="va-input va-textarea"

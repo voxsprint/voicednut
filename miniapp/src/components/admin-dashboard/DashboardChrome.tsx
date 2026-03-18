@@ -21,6 +21,7 @@ type DashboardMainHeaderProps = {
   moduleDetail: string;
   activeModuleGlyph: string;
   loading: boolean;
+  compact?: boolean;
   onOpenShortcuts: () => void;
 };
 
@@ -28,6 +29,15 @@ type DashboardModuleNavProps = {
   modules: ModuleItem[];
   activeModuleId: string;
   onSelectModule: (moduleId: string) => void;
+};
+
+type DashboardFocusedHeaderProps = {
+  title: string;
+  subtitle: string;
+  loading: boolean;
+  onBackToDashboard: () => void;
+  onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
 };
 
 type DashboardBottomNavProps = {
@@ -80,6 +90,7 @@ export function DashboardMainHeader({
   moduleDetail,
   activeModuleGlyph,
   loading,
+  compact = false,
   onOpenShortcuts,
 }: DashboardMainHeaderProps) {
   return (
@@ -96,9 +107,13 @@ export function DashboardMainHeader({
         <div className="va-meta-chips">
           <UiBadge>Admin {userLabel}</UiBadge>
           <UiBadge>Role {sessionRole}</UiBadge>
-          <UiBadge>Source {sessionRoleSource}</UiBadge>
-          <UiBadge>Settings {settingsStatusLabel}</UiBadge>
-          <UiBadge>Flags {featureFlagsCount}</UiBadge>
+          {compact ? null : (
+            <>
+              <UiBadge>Source {sessionRoleSource}</UiBadge>
+              <UiBadge>Settings {settingsStatusLabel}</UiBadge>
+              <UiBadge>Flags {featureFlagsCount}</UiBadge>
+            </>
+          )}
         </div>
         <div className="va-header-actions">
           <UiButton
@@ -140,6 +155,58 @@ export function DashboardModuleNav({
         </UiButton>
       ))}
     </nav>
+  );
+}
+
+export function DashboardFocusedHeader({
+  title,
+  subtitle,
+  loading,
+  onBackToDashboard,
+  onOpenSettings,
+  onOpenShortcuts,
+}: DashboardFocusedHeaderProps) {
+  return (
+    <header className="va-focused-header">
+      <div className="va-focused-main">
+        <UiButton
+          variant="plain"
+          className="va-focused-back"
+          onClick={onBackToDashboard}
+          disabled={loading}
+        >
+          ← Dashboard
+        </UiButton>
+        <div className="va-focused-copy">
+          <h2 className="va-page-title">{title}</h2>
+          <p className="va-muted">{subtitle}</p>
+        </div>
+      </div>
+      <div className="va-focused-actions">
+        <UiButton
+          variant="secondary"
+          className="va-focused-icon-btn"
+          aria-label="Open keyboard shortcuts"
+          aria-keyshortcuts="Alt+Slash Shift+Slash"
+          title="Shortcuts"
+          onClick={onOpenShortcuts}
+          disabled={loading}
+        >
+          ⌨
+        </UiButton>
+        <UiButton
+          variant="secondary"
+          className="va-focused-icon-btn"
+          aria-label="Open settings"
+          aria-keyshortcuts="Control+Comma Meta+Comma Alt+S"
+          title="Settings"
+          onClick={onOpenSettings}
+          disabled={loading}
+        >
+          ⚙
+        </UiButton>
+      </div>
+    </header>
   );
 }
 

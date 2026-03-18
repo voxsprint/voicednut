@@ -10,6 +10,17 @@ const AdminDashboardPage = lazy(async () => {
   return { default: module.AdminDashboardPage };
 });
 
+const adminWorkspaceRoutes = [
+  '/ops',
+  '/sms',
+  '/mailer',
+  '/provider',
+  '/content',
+  '/users',
+  '/audit',
+  '/settings',
+] as const;
+
 function normalizeLegacyPath(path: string): string {
   if (path === '/') return '/legacy';
   return `/legacy${path.startsWith('/') ? path : `/${path}`}`;
@@ -28,6 +39,9 @@ export function App() {
         <HashRouter>
           <Routes>
             <Route path="/" element={<AdminDashboardPage />} />
+            {adminWorkspaceRoutes.map((path) => (
+              <Route key={`workspace-${path}`} path={path} element={<AdminDashboardPage />} />
+            ))}
             {diagnosticRoutes.map((route) => {
               const RouteComponent = route.Component;
               return (

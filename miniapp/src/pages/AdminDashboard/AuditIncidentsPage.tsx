@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AuditRow, DashboardVm, IncidentRow, RunbookRow } from './types';
 import { selectAuditIncidentsPageVm } from './vmSelectors';
@@ -17,6 +17,7 @@ type AuditIncidentsPageProps = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 40] as const;
 const SAVED_QUERY_STORAGE_KEY = 'voxly-miniapp-audit-saved-queries';
+const AUDIT_VIEW_PREFS_STORAGE_KEY = 'voxly-miniapp-audit-view-prefs';
 
 type SavedQuery = {
   id: string;
@@ -32,12 +33,32 @@ type SavedQuery = {
   auditSeverity: string;
 };
 
+type AuditViewPrefs = {
+  incident_query?: unknown;
+  incident_status?: unknown;
+  incident_actor?: unknown;
+  incident_module?: unknown;
+  incident_severity?: unknown;
+  incident_page_size?: unknown;
+  audit_query?: unknown;
+  audit_actor?: unknown;
+  audit_module?: unknown;
+  audit_severity?: unknown;
+  audit_page_size?: unknown;
+};
+
 function statusBadgeVariant(status: string): 'success' | 'info' | 'error' | 'neutral' {
   const normalized = status.toLowerCase();
   if (normalized === 'ok' || normalized === 'healthy' || normalized === 'success') return 'success';
   if (normalized === 'warning' || normalized === 'degraded' || normalized === 'pending') return 'info';
   if (normalized === 'error' || normalized === 'failed' || normalized === 'critical') return 'error';
   return 'neutral';
+}
+
+function isTypingTarget(target: EventTarget | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
 export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
@@ -76,6 +97,121 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   const [auditPage, setAuditPage] = useState<number>(1);
   const [auditPageSize, setAuditPageSize] = useState<number>(20);
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+  const incidentQueryInputRef = useRef<HTMLInputElement | null>(null);
+  const refreshAlertsButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const restoreFocus = (target: HTMLElement | null): void => {
+    if (!target || typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      target.focus({ preventScroll: true });
+    });
+  };
+
+  const handleRefreshAuditModule = (target: HTMLElement | null = refreshAlertsButtonRef.current): void => {
+    void refreshAuditModule().finally(() => {
+      restoreFocus(target);
+    });
+  };
+
+  const handleRunbookAction = (
+    action: string,
+    payload: Record<string, unknown> = {},
+    target?: HTMLButtonElement | null,
+  ): void => {
+    void runbookAction(action, payload).finally(() => {
+      restoreFocus(target ?? null);
+    });
+  };
+
+  const focusIncidentQueryInput = (): void => {
+    const target = incidentQueryInputRef.current;
+    if (!target || typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      target.focus({ preventScroll: true });
+      target.select();
+    });
+  };
+
+  const handleSectionShortcutKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    const key = event.key.toLowerCase();
+    const typingTarget = isTypingTarget(event.target);
+    if (typingTarget && event.altKey && !event.ctrlKey && !event.metaKey && key === 'r') {
+      event.preventDefault();
+      event.stopPropagation();
+      handleRefreshAuditModule(event.target instanceof HTMLElement ? event.target : null);
+      return;
+    }
+    if (typingTarget) return;
+    if (key !== '/' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    focusIncidentQueryInput();
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(AUDIT_VIEW_PREFS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as AuditViewPrefs | null;
+      if (!parsed || typeof parsed !== 'object') return;
+      setIncidentQuery(typeof parsed.incident_query === 'string' ? parsed.incident_query : '');
+      setIncidentStatusFilter(typeof parsed.incident_status === 'string' ? parsed.incident_status : 'all');
+      setIncidentActorFilter(typeof parsed.incident_actor === 'string' ? parsed.incident_actor : 'all');
+      setIncidentModuleFilter(typeof parsed.incident_module === 'string' ? parsed.incident_module : 'all');
+      setIncidentSeverityFilter(typeof parsed.incident_severity === 'string' ? parsed.incident_severity : 'all');
+      const incidentPageSizeValue = Number(parsed.incident_page_size);
+      if (PAGE_SIZE_OPTIONS.includes(incidentPageSizeValue as (typeof PAGE_SIZE_OPTIONS)[number])) {
+        setIncidentPageSize(incidentPageSizeValue);
+      }
+      setAuditQuery(typeof parsed.audit_query === 'string' ? parsed.audit_query : '');
+      setAuditActorFilter(typeof parsed.audit_actor === 'string' ? parsed.audit_actor : 'all');
+      setAuditModuleFilter(typeof parsed.audit_module === 'string' ? parsed.audit_module : 'all');
+      setAuditSeverityFilter(typeof parsed.audit_severity === 'string' ? parsed.audit_severity : 'all');
+      const auditPageSizeValue = Number(parsed.audit_page_size);
+      if (PAGE_SIZE_OPTIONS.includes(auditPageSizeValue as (typeof PAGE_SIZE_OPTIONS)[number])) {
+        setAuditPageSize(auditPageSizeValue);
+      }
+    } catch {
+      // Ignore malformed persisted audit-view state.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      incident_query: incidentQuery,
+      incident_status: incidentStatusFilter,
+      incident_actor: incidentActorFilter,
+      incident_module: incidentModuleFilter,
+      incident_severity: incidentSeverityFilter,
+      incident_page_size: incidentPageSize,
+      audit_query: auditQuery,
+      audit_actor: auditActorFilter,
+      audit_module: auditModuleFilter,
+      audit_severity: auditSeverityFilter,
+      audit_page_size: auditPageSize,
+    };
+    try {
+      window.localStorage.setItem(AUDIT_VIEW_PREFS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore local storage failures in constrained clients.
+    }
+  }, [
+    auditActorFilter,
+    auditModuleFilter,
+    auditPageSize,
+    auditQuery,
+    auditSeverityFilter,
+    incidentActorFilter,
+    incidentModuleFilter,
+    incidentPageSize,
+    incidentQuery,
+    incidentSeverityFilter,
+    incidentStatusFilter,
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -246,45 +382,62 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   };
 
   return (
-    <section className="va-grid">
+    <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
       <div className="va-card">
         <h3>Audit & Incident Center</h3>
-        <div className="va-filter-grid">
-          <button type="button" onClick={() => { void refreshAuditModule(); }}>
+        <div className="va-filter-grid" role="toolbar" aria-label="Audit and incident actions">
+          <button
+            ref={refreshAlertsButtonRef}
+            type="button"
+            aria-keyshortcuts="Alt+R"
+            onClick={(event) => {
+              handleRefreshAuditModule(event.currentTarget);
+            }}
+          >
             Refresh Alerts
           </button>
           <button
             type="button"
             disabled={!hasCapability('sms_bulk_manage')}
-            onClick={() => { void runbookAction('runbook.sms.reconcile'); }}
+            onClick={(event) => {
+              handleRunbookAction('runbook.sms.reconcile', {}, event.currentTarget);
+            }}
           >
             Runbook: SMS Reconcile
           </button>
           <button
             type="button"
             disabled={!hasCapability('provider_manage')}
-            onClick={() => { void runbookAction('runbook.payment.reconcile'); }}
+            onClick={(event) => {
+              handleRunbookAction('runbook.payment.reconcile', {}, event.currentTarget);
+            }}
           >
             Runbook: Payment Reconcile
           </button>
           <button
             type="button"
             disabled={!hasCapability('provider_manage')}
-            onClick={() => { void runbookAction('runbook.provider.preflight'); }}
+            onClick={(event) => {
+              handleRunbookAction('runbook.provider.preflight', {}, event.currentTarget);
+            }}
           >
             Runbook: Provider Preflight
           </button>
           <button
             type="button"
             disabled={!hasCapability('provider_manage')}
-            onClick={() => { void runbookAction('runbook.provider.preflight', { channel: 'call' }); }}
+            onClick={(event) => {
+              handleRunbookAction('runbook.provider.preflight', { channel: 'call' }, event.currentTarget);
+            }}
           >
             Playbook: Provider Outage
           </button>
           <button
             type="button"
             disabled={!hasCapability('sms_bulk_manage')}
-            onClick={() => { void runbookAction('runbook.sms.reconcile', { scope: 'failure_spike' }); }}
+            onClick={(event) => {
+              handleRunbookAction('runbook.sms.reconcile', { scope: 'failure_spike' }, event.currentTarget);
+            }}
           >
             Playbook: SMS Failure Spike
           </button>
@@ -292,10 +445,22 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
             <input
+              ref={incidentQueryInputRef}
               className="va-input"
               placeholder="Filter incidents (service/status/message)"
               value={incidentQuery}
               onChange={(event) => setIncidentQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleRefreshAuditModule(event.currentTarget);
+                  return;
+                }
+                if (event.key === 'Escape' && incidentQuery.length > 0) {
+                  event.preventDefault();
+                  setIncidentQuery('');
+                }
+              }}
             />
             <select
               className="va-input"
@@ -429,7 +594,9 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
                     <button
                       type="button"
                       disabled={busyAction.length > 0 || !action || !hasCapability(capability)}
-                      onClick={() => { void runbookAction(action, {}); }}
+                      onClick={(event) => {
+                        handleRunbookAction(action, {}, event.currentTarget);
+                      }}
                     >
                       Execute
                     </button>
@@ -449,6 +616,17 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               placeholder="Filter audit timeline"
               value={auditQuery}
               onChange={(event) => setAuditQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleRefreshAuditModule(event.currentTarget);
+                  return;
+                }
+                if (event.key === 'Escape' && auditQuery.length > 0) {
+                  event.preventDefault();
+                  setAuditQuery('');
+                }
+              }}
             />
             <select
               className="va-input"

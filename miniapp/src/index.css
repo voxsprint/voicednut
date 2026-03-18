@@ -65,6 +65,11 @@ body,
   min-height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 *,
 *::before,
 *::after {
@@ -93,6 +98,14 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 :focus-visible {

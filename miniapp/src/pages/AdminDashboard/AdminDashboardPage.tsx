@@ -1,14 +1,14 @@
 import { backButton, hapticFeedback, initData, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import '@/pages/AdminDashboard/AdminDashboardPage.css';
 import { AuditIncidentsPage } from '@/pages/AdminDashboard/AuditIncidentsPage';
 import { MailerPage } from '@/pages/AdminDashboard/MailerPage';
 import { OpsDashboardPage } from '@/pages/AdminDashboard/OpsDashboardPage';
 import {
-  DashboardBottomNav,
+  DashboardFocusedHeader,
   DashboardMainHeader,
-  DashboardModuleNav,
   DashboardSettingsHeader,
 } from '@/components/admin-dashboard/DashboardChrome';
 import { ProviderChannelCard } from '@/components/admin-dashboard/ProviderChannelCard';
@@ -110,14 +110,283 @@ const STREAM_RECONNECT_BASE_MS = 2500;
 const STREAM_RECONNECT_MAX_MS = 30000;
 const STREAM_REFRESH_DEBOUNCE_MS = 350;
 const SMS_DEFAULT_COST_PER_SEGMENT = 0.0075;
+const ACTIVITY_INFO_DEDUPE_MS = 8000;
 const API_BASE_URL = String(
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || '',
 ).trim().replace(/\/+$/, '');
 const API_BASE_IS_NGROK = isNgrokApiBase(API_BASE_URL);
 const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 const SESSION_REFRESH_RETRY_COUNT = 1;
+const DASHBOARD_PREFS_STORAGE_KEY = 'voxly-miniapp-dashboard-prefs';
+const DASHBOARD_DEV_FIXTURES_ENABLED = import.meta.env.DEV && ['1', 'true', 'yes']
+  .includes(String(import.meta.env.VITE_ADMIN_DASHBOARD_DEV_FIXTURES || '').trim().toLowerCase());
+const DASHBOARD_ALL_CAPS = [
+  'dashboard_view',
+  'sms_bulk_manage',
+  'email_bulk_manage',
+  'provider_manage',
+  'caller_flags_manage',
+  'users_manage',
+] as const;
+const DASHBOARD_ALL_MODULES = ['ops', 'sms', 'mailer', 'provider', 'content', 'users', 'audit'] as const;
 
 type ProviderChannel = 'call' | 'sms' | 'email';
+
+function createDashboardFixturePayload(nowIso: string): DashboardApiPayload {
+  return {
+    success: true,
+    poll_interval_seconds: 15,
+    poll_at: nowIso,
+    server_time: nowIso,
+    session: {
+      telegram_id: 1,
+      role: 'admin',
+      role_source: 'dev_fixture',
+      caps: [...DASHBOARD_ALL_CAPS],
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    module_layout: {
+      active_module: 'ops',
+      modules: DASHBOARD_ALL_MODULES.map((id, index) => ({ id, enabled: true, order: index })),
+    },
+    provider: {
+      providers: {
+        call: {
+          provider: 'twilio',
+          supported_providers: ['twilio', 'vonage'],
+          readiness: { twilio: 'ready', vonage: 'ready' },
+        },
+        sms: {
+          provider: 'twilio',
+          supported_providers: ['twilio', 'vonage'],
+          readiness: { twilio: 'ready', vonage: 'ready' },
+        },
+        email: {
+          provider: 'ses',
+          supported_providers: ['ses', 'sendgrid'],
+          readiness: { ses: 'ready', sendgrid: 'ready' },
+        },
+      },
+    },
+    provider_compatibility: {
+      channels: {
+        call: {
+          twilio: { ready: true, degraded: false, parity_gaps: [] },
+          vonage: { ready: true, degraded: false, parity_gaps: [] },
+        },
+        sms: {
+          twilio: { ready: true, degraded: false, parity_gaps: [] },
+          vonage: { ready: true, degraded: false, parity_gaps: [] },
+        },
+        email: {
+          ses: { ready: true, degraded: false, parity_gaps: [] },
+          sendgrid: { ready: true, degraded: false, parity_gaps: [] },
+        },
+      },
+    },
+    sms_bulk: {
+      summary: {
+        totalRecipients: 0,
+        totalSuccessful: 0,
+        totalFailed: 0,
+      },
+    },
+    email_bulk_stats: {
+      stats: {
+        total_recipients: 0,
+        sent: 0,
+        failed: 0,
+        delivered: 0,
+        bounced: 0,
+        complained: 0,
+        suppressed: 0,
+      },
+    },
+    email_bulk_history: { jobs: [] },
+    dlq: {
+      call_open: 0,
+      email_open: 0,
+      call_preview: [],
+      email_preview: [],
+    },
+    call_logs: {
+      rows: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    },
+    call_scripts: {
+      scripts: [
+        {
+          id: 1,
+          name: 'Welcome Script',
+          description: 'Default fixture script for local QA flows.',
+          prompt: 'You are a helpful assistant.',
+          first_message: 'Hello, this is the fixture flow.',
+          default_profile: 'default',
+          objective_tags: ['support'],
+          flow_type: 'default',
+          lifecycle_state: 'draft',
+          version: 1,
+        },
+      ],
+      total: 1,
+      limit: 20,
+      flow_types: ['default'],
+    },
+    call_stats: {
+      total_calls: 0,
+      completed_calls: 0,
+      failed_calls: 0,
+      success_rate: 100,
+      recent_calls: 0,
+      unique_users: 0,
+    },
+    voice_runtime: {
+      runtime: {
+        effective_mode: 'legacy',
+        configured_mode: 'legacy',
+        mode_override: 'none',
+        effective_canary_percent: 0,
+        canary_percent_override: null,
+        circuit: {
+          is_open: false,
+          forced_legacy_until: null,
+        },
+      },
+      active_calls: {
+        total: 0,
+        legacy: 0,
+        voice_agent: 0,
+      },
+      actions: [],
+      applied: [],
+    },
+    users: {
+      rows: [
+        {
+          telegram_id: 1,
+          role: 'admin',
+          role_source: 'dev_fixture',
+          total_calls: 0,
+          successful_calls: 0,
+          failed_calls: 0,
+          last_activity: nowIso,
+        },
+      ],
+      total: 1,
+    },
+    audit: {
+      rows: [
+        {
+          id: 'fixture-audit-1',
+          service_name: 'miniapp',
+          status: 'ok',
+          details: 'Fixture audit event',
+          timestamp: nowIso,
+        },
+      ],
+      summary: {
+        total: 1,
+      },
+      hours: 24,
+    },
+    incidents: {
+      alerts: [],
+      total_alerts: 0,
+      runbooks: [
+        { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+      ],
+      summary: {
+        open: 0,
+      },
+    },
+    ops: {
+      queue_backlog: {
+        total: 0,
+        dlq_call_open: 0,
+        dlq_email_open: 0,
+        sms_failed: 0,
+        email_failed: 0,
+      },
+      status: 'healthy',
+      health: 'ok',
+    },
+    bridge: {
+      hard_failures: 0,
+      soft_failures: 0,
+    },
+  };
+}
+
+function resolveDashboardFixtureActionData(action: string, nowIso: string): Record<string, unknown> {
+  switch (action) {
+    case 'users.list':
+      return {
+        rows: [
+          {
+            telegram_id: 1,
+            role: 'admin',
+            role_source: 'dev_fixture',
+            total_calls: 0,
+            successful_calls: 0,
+            failed_calls: 0,
+            last_activity: nowIso,
+          },
+        ],
+        total: 1,
+      };
+    case 'audit.feed':
+      return {
+        rows: [
+          {
+            id: 'fixture-audit-1',
+            service_name: 'miniapp',
+            status: 'ok',
+            details: 'Fixture audit event',
+            timestamp: nowIso,
+          },
+        ],
+        summary: { total: 1 },
+        hours: 24,
+      };
+    case 'incidents.summary':
+      return {
+        alerts: [],
+        total_alerts: 0,
+        runbooks: [
+          { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+        ],
+        summary: { open: 0 },
+      };
+    case 'provider.preflight':
+      return { success: true, result: 'ok' };
+    default:
+      return { success: true, applied_at: nowIso };
+  }
+}
+
+function resolveDashboardFixtureRequest(path: string, options: RequestInit = {}): unknown {
+  const nowIso = new Date().toISOString();
+  if (path === '/miniapp/bootstrap' || path === '/miniapp/jobs/poll') {
+    return createDashboardFixturePayload(nowIso);
+  }
+  if (path === '/miniapp/action') {
+    const rawBody = typeof options.body === 'string' ? options.body : '{}';
+    let parsedBody: Record<string, unknown> = {};
+    try {
+      parsedBody = asRecord(JSON.parse(rawBody));
+    } catch {
+      parsedBody = {};
+    }
+    const action = toText(parsedBody.action, '');
+    return {
+      success: true,
+      data: resolveDashboardFixtureActionData(action, nowIso),
+    };
+  }
+  return { success: true };
+}
 
 function moduleGlyph(moduleId: string): string {
   switch (moduleId) {
@@ -335,6 +604,13 @@ interface MiniAppIncidentsPayload {
   summary?: unknown;
 }
 
+interface DashboardStoredPrefs {
+  active_module?: unknown;
+  user_search?: unknown;
+  user_sort_by?: unknown;
+  user_sort_dir?: unknown;
+}
+
 interface DashboardPayload {
   session?: unknown;
   provider?: ProviderPayload;
@@ -375,6 +651,8 @@ interface DashboardApiPayload extends DashboardPayload {
 
 type ActivityStatus = 'info' | 'success' | 'error';
 type DashboardModule = 'ops' | 'sms' | 'mailer' | 'provider' | 'content' | 'users' | 'audit';
+type DashboardNoticeTone = 'info' | 'success' | 'warning' | 'error';
+type WorkspaceRoute = DashboardModule | 'settings' | null;
 type ProviderSwitchStage = 'idle' | 'simulated' | 'confirmed' | 'applied' | 'failed';
 type ProviderSwitchPostCheck = 'idle' | 'ok' | 'failed';
 type ProviderSwitchPlanState = {
@@ -450,6 +728,20 @@ const MODULE_DEFAULT_ORDER: Record<DashboardModule, number> = {
   users: 5,
   audit: 6,
 };
+
+function moduleRoutePath(moduleId: DashboardModule): string {
+  return `/${moduleId}`;
+}
+
+function parseWorkspaceRoute(pathname: string): WorkspaceRoute {
+  const normalized = String(pathname || '/').trim().toLowerCase();
+  const slug = normalized.replace(/^\/+|\/+$/g, '');
+  if (!slug) return null;
+  if (slug === 'settings') return 'settings';
+  if (MODULE_ID_SET.has(slug as DashboardModule)) return slug as DashboardModule;
+  return null;
+}
+
 const FEATURE_FLAG_REGISTRY: FeatureFlagRegistryEntry[] = [
   {
     key: 'realtime_stream',
@@ -625,7 +917,27 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
+function resolveNoticeTone(message: string): DashboardNoticeTone {
+  const normalized = String(message || '').trim().toLowerCase();
+  if (!normalized) return 'info';
+  if (/error|failed|blocked|denied/.test(normalized)) return 'error';
+  if (/warning|degraded|cancelled|canceled|retry/.test(normalized)) return 'warning';
+  if (/success|completed|scheduled|synced|healthy|ready/.test(normalized)) return 'success';
+  return 'info';
+}
+
 export function AdminDashboardPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const workspaceRoute = useMemo(
+    () => (
+      parseWorkspaceRoute(location.pathname)
+      || parseWorkspaceRoute(location.hash.replace(/^#/, ''))
+    ),
+    [location.hash, location.pathname],
+  );
+  const focusedWorkspaceMode = workspaceRoute !== null;
+
   const initDataRawFromHook = useRawInitData();
   const initDataRaw = initDataRawFromHook;
   const initDataState = useSignal(initData.state) as SessionState | undefined;
@@ -637,6 +949,7 @@ export function AdminDashboardPage() {
   const [error, setError] = useState<string>('');
   const [errorCode, setErrorCode] = useState<string>('');
   const [notice, setNotice] = useState<string>('');
+  const [noticeTone, setNoticeTone] = useState<DashboardNoticeTone>('info');
   const [bootstrap, setBootstrap] = useState<DashboardApiPayload | null>(null);
   const [pollPayload, setPollPayload] = useState<DashboardApiPayload | null>(null);
   const [busyAction, setBusyAction] = useState<string>('');
@@ -701,6 +1014,12 @@ export function AdminDashboardPage() {
   const sessionRequestRef = useRef<Promise<string> | null>(null);
   const pollFailureNotedRef = useRef<boolean>(false);
   const initialServerModuleAppliedRef = useRef<boolean>(false);
+  const fixtureModeNotedRef = useRef<boolean>(false);
+  const lastActivityRef = useRef<{ signature: string; at: number; repeats: number }>({
+    signature: '',
+    at: 0,
+    repeats: 0,
+  });
   const shortcutsReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusSelectorRef = useRef<string>('#va-main-shortcuts-btn');
@@ -825,28 +1144,38 @@ export function AdminDashboardPage() {
     }
   }, []);
 
-  const toggleSettings = useCallback((next?: boolean): void => {
+  const toggleSettings = useCallback((next?: boolean, options?: { fallbackModule?: DashboardModule }): void => {
+    const target = typeof next === 'boolean' ? next : !settingsOpen;
     setSettingsOpen((prev) => {
-      const target = typeof next === 'boolean' ? next : !prev;
       if (!prev && target) {
         if (typeof document !== 'undefined') {
           const activeElement = document.activeElement as HTMLElement | null;
           if (activeElement?.id) {
             restoreFocusSelectorRef.current = `#${activeElement.id}`;
           } else {
-            restoreFocusSelectorRef.current = `#va-module-chip-${activeModule}, #va-module-bottom-${activeModule}, #va-main-shortcuts-btn`;
+            restoreFocusSelectorRef.current = `#va-launcher-module-${activeModule}, #va-main-shortcuts-btn, #va-view-stage-root`;
           }
         }
       }
       if (prev && !target) {
         shouldRestoreFocusRef.current = true;
       }
-      if (target !== prev) {
-        triggerHaptic('selection');
-      }
       return target;
     });
-  }, [activeModule, triggerHaptic]);
+    if (target === settingsOpen) return;
+    triggerHaptic('selection');
+    if (target) {
+      if (location.pathname !== '/settings') {
+        navigate('/settings');
+      }
+      return;
+    }
+    const fallbackModule = options?.fallbackModule || activeModule;
+    const fallbackPath = focusedWorkspaceMode ? moduleRoutePath(fallbackModule) : '/';
+    if (location.pathname !== fallbackPath) {
+      navigate(fallbackPath);
+    }
+  }, [activeModule, focusedWorkspaceMode, location.pathname, navigate, settingsOpen, triggerHaptic]);
 
   const toggleShortcuts = useCallback((next?: boolean): void => {
     setShortcutsOpen((prev) => {
@@ -871,21 +1200,61 @@ export function AdminDashboardPage() {
       triggerHaptic('selection');
       return moduleId;
     });
-  }, [triggerHaptic]);
+    const targetPath = moduleRoutePath(moduleId);
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  }, [location.pathname, navigate, triggerHaptic]);
 
   const pushActivity = useCallback((
     status: ActivityStatus,
     title: string,
     detail: string,
   ): void => {
+    const now = Date.now();
+    const signature = `${status}:${title}:${detail}`;
+    if (status === 'info'
+      && lastActivityRef.current.signature === signature
+      && (now - lastActivityRef.current.at) < ACTIVITY_INFO_DEDUPE_MS) {
+      const nextRepeats = lastActivityRef.current.repeats + 1;
+      lastActivityRef.current = {
+        signature,
+        at: now,
+        repeats: nextRepeats,
+      };
+      setActivityLog((prev) => {
+        if (prev.length === 0) return prev;
+        const [first, ...rest] = prev;
+        const baseDetail = first.detail.replace(/ \(x\d+\)$/, '');
+        if (first.status !== status || first.title !== title || baseDetail !== detail) {
+          return prev;
+        }
+        return [{
+          ...first,
+          detail: `${detail} (x${nextRepeats})`,
+          at: new Date(now).toISOString(),
+        }, ...rest];
+      });
+      return;
+    }
+    lastActivityRef.current = {
+      signature: status === 'info' ? signature : '',
+      at: now,
+      repeats: 1,
+    };
     const entry: ActivityEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       title,
       detail,
       status,
-      at: new Date().toISOString(),
+      at: new Date(now).toISOString(),
     };
     setActivityLog((prev) => [entry, ...prev].slice(0, MAX_ACTIVITY_ITEMS));
+  }, []);
+
+  const setNoticeMessage = useCallback((value: string): void => {
+    setNotice(value);
+    setNoticeTone(resolveNoticeTone(value));
   }, []);
 
   const resolveEventStreamUrl = useCallback((path: string): string => (
@@ -903,7 +1272,68 @@ export function AdminDashboardPage() {
     return 'Unknown admin';
   }, [initDataState]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_PREFS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as DashboardStoredPrefs | null;
+      if (!parsed || typeof parsed !== 'object') return;
+      const storedModule = typeof parsed.active_module === 'string'
+        ? parsed.active_module.trim().toLowerCase()
+        : '';
+      if (MODULE_ID_SET.has(storedModule as DashboardModule)) {
+        setActiveModule(storedModule as DashboardModule);
+        initialServerModuleAppliedRef.current = true;
+      }
+      setUserSearch(typeof parsed.user_search === 'string' ? parsed.user_search : '');
+      const sortBy = typeof parsed.user_sort_by === 'string' ? parsed.user_sort_by : 'last_activity';
+      if (sortBy === 'last_activity' || sortBy === 'total_calls' || sortBy === 'role') {
+        setUserSortBy(sortBy);
+      }
+      const sortDir = typeof parsed.user_sort_dir === 'string' ? parsed.user_sort_dir : 'desc';
+      if (sortDir === 'asc' || sortDir === 'desc') {
+        setUserSortDir(sortDir);
+      }
+    } catch {
+      // Ignore invalid persisted dashboard preferences.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      active_module: activeModule,
+      user_search: userSearch,
+      user_sort_by: userSortBy,
+      user_sort_dir: userSortDir,
+    };
+    try {
+      window.localStorage.setItem(DASHBOARD_PREFS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore local storage failures in constrained clients.
+    }
+  }, [activeModule, userSearch, userSortBy, userSortDir]);
+
+  useEffect(() => {
+    if (workspaceRoute === 'settings') {
+      setSettingsOpen((prev) => (prev ? prev : true));
+      return;
+    }
+    setSettingsOpen((prev) => (prev ? false : prev));
+    if (!workspaceRoute || workspaceRoute === activeModule) return;
+    initialServerModuleAppliedRef.current = true;
+    setActiveModule(workspaceRoute);
+  }, [activeModule, workspaceRoute]);
+
   const createSession = useCallback(async (): Promise<string> => {
+    if (DASHBOARD_DEV_FIXTURES_ENABLED) {
+      const fixtureToken = 'dev-fixture-token';
+      setToken(fixtureToken);
+      setErrorCode('');
+      setSessionBlocked(false);
+      return fixtureToken;
+    }
     const cached = readSessionCache(SESSION_STORAGE_KEY);
     if (cached?.token) {
       setToken(cached.token);
@@ -983,6 +1413,9 @@ export function AdminDashboardPage() {
   }, [initDataRaw, pushActivity]);
 
   const request = useCallback(async <T,>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> => {
+    if (DASHBOARD_DEV_FIXTURES_ENABLED) {
+      return resolveDashboardFixtureRequest(path, options) as T;
+    }
     const activeToken = token || await createSession();
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${activeToken}`);
@@ -1143,7 +1576,7 @@ export function AdminDashboardPage() {
     pushActivity,
     triggerHaptic,
     setBusyAction,
-    setNotice,
+    setNotice: setNoticeMessage,
     setError,
     setActionLatencyMsSamples,
     actionLatencySampleLimit: ACTION_LATENCY_SAMPLE_LIMIT,
@@ -1153,7 +1586,6 @@ export function AdminDashboardPage() {
     featureFlags,
     featureFlagsSourceLabel,
     featureFlagsUpdatedAtLabel,
-    featureFlagInspectorItems,
     isFeatureEnabled,
     realtimeStreamEnabled,
     moduleSkeletonsEnabled,
@@ -1169,6 +1601,14 @@ export function AdminDashboardPage() {
   }, [loadBootstrap]);
 
   useEffect(() => {
+    if (!DASHBOARD_DEV_FIXTURES_ENABLED) return;
+    if (fixtureModeNotedRef.current) return;
+    fixtureModeNotedRef.current = true;
+    setNoticeMessage('Dev fixture mode enabled: backend calls are bypassed for local QA.');
+    pushActivity('info', 'Dev fixture mode', 'Using local dashboard fixture data.');
+  }, [pushActivity, setNoticeMessage]);
+
+  useEffect(() => {
     if (!settingsButton.onClick.isAvailable()) {
       return undefined;
     }
@@ -1178,12 +1618,12 @@ export function AdminDashboardPage() {
   }, [toggleSettings]);
 
   useEffect(() => {
-    if (settingsOpen || activeModule !== 'ops') {
+    if (settingsOpen || focusedWorkspaceMode || activeModule !== 'ops') {
       backButton.show.ifAvailable();
       return;
     }
     backButton.hide.ifAvailable();
-  }, [activeModule, settingsOpen]);
+  }, [activeModule, focusedWorkspaceMode, settingsOpen]);
 
   useEffect(() => {
     if (!backButton.onClick.isAvailable()) {
@@ -1194,6 +1634,10 @@ export function AdminDashboardPage() {
         toggleSettings(false);
         return;
       }
+      if (focusedWorkspaceMode) {
+        navigate('/');
+        return;
+      }
       if (activeModule !== 'ops') {
         selectModule('ops', { fromKeyboard: true });
         return;
@@ -1202,7 +1646,7 @@ export function AdminDashboardPage() {
         window.history.back();
       }
     });
-  }, [activeModule, selectModule, settingsOpen, toggleSettings]);
+  }, [activeModule, focusedWorkspaceMode, navigate, selectModule, settingsOpen, toggleSettings]);
 
   useEffect(() => {
     if (settingsOpen) return;
@@ -1356,6 +1800,22 @@ export function AdminDashboardPage() {
     }
   }, [activeModule, visibleModules]);
   useEffect(() => {
+    if (!workspaceRoute || workspaceRoute === 'settings') return;
+    if (visibleModules.length === 0) {
+      if (location.pathname !== '/') {
+        navigate('/', { replace: true });
+      }
+      return;
+    }
+    if (visibleModules.some((module) => module.id === workspaceRoute)) return;
+    const fallbackModule = visibleModules[0]?.id;
+    if (!fallbackModule) return;
+    const fallbackPath = moduleRoutePath(fallbackModule);
+    if (location.pathname !== fallbackPath) {
+      navigate(fallbackPath, { replace: true });
+    }
+  }, [location.pathname, navigate, visibleModules, workspaceRoute]);
+  useEffect(() => {
     if (initialServerModuleAppliedRef.current) return;
     if (!preferredServerModule) return;
     if (!visibleModules.some((module) => module.id === preferredServerModule)) {
@@ -1369,6 +1829,8 @@ export function AdminDashboardPage() {
   const activeModuleLabel = useMemo(() => (
     MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label || activeModule
   ), [activeModule]);
+  const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;
+  const showFocusedModuleMode = focusedWorkspaceMode && !settingsOpen;
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -1412,10 +1874,10 @@ export function AdminDashboardPage() {
       const nextModule = visibleModules[moduleIndex - 1];
       if (!nextModule) return;
       event.preventDefault();
-      restoreFocusSelectorRef.current = `#va-module-chip-${nextModule.id}, #va-module-bottom-${nextModule.id}, #va-main-shortcuts-btn`;
+      restoreFocusSelectorRef.current = `#va-launcher-module-${nextModule.id}, #va-main-shortcuts-btn, #va-view-stage-root`;
       if (settingsOpen) {
+        toggleSettings(false, { fallbackModule: nextModule.id });
         selectModule(nextModule.id);
-        toggleSettings(false);
         return;
       }
       selectModule(nextModule.id, { fromKeyboard: true });
@@ -1530,7 +1992,6 @@ export function AdminDashboardPage() {
     lastPollLabel,
     lastSuccessfulPollLabel,
     pollFreshnessLabel,
-    uptimeScore,
     callTotal,
     callCompleted,
     callFailed,
@@ -1636,7 +2097,7 @@ export function AdminDashboardPage() {
     setToken(null);
     setError('');
     setErrorCode('');
-    setNotice('');
+    setNoticeMessage('');
     setSessionBlocked(false);
     setBootstrap(null);
     setPollPayload(null);
@@ -1661,7 +2122,7 @@ export function AdminDashboardPage() {
     setActivityLog([]);
     pollFailureNotedRef.current = false;
     void loadBootstrap();
-  }, [loadBootstrap, triggerHaptic]);
+  }, [loadBootstrap, setNoticeMessage, triggerHaptic]);
 
   const handleRecipientsFile = useCallback(async (
     file: File | null,
@@ -1767,7 +2228,7 @@ export function AdminDashboardPage() {
     runAction,
     pushActivity,
     setError,
-    setNotice,
+    setNotice: setNoticeMessage,
     setBusyAction,
     formatTime,
     smsRecipientsParsed,
@@ -1802,7 +2263,7 @@ export function AdminDashboardPage() {
     triggerHaptic,
     loadBootstrap,
     setError,
-    setNotice,
+    setNotice: setNoticeMessage,
     setProviderPreflightBusy,
     setProviderPreflightRows,
     setProviderRollbackByChannel,
@@ -2119,63 +2580,69 @@ export function AdminDashboardPage() {
               onBack={() => toggleSettings(false)}
               onSync={handleRefresh}
             />
-          ) : (
+          ) : showOverviewMode ? (
             <DashboardMainHeader
               userLabel={userLabel}
               sessionRole={sessionRole}
               sessionRoleSource={sessionRoleSource}
               settingsStatusLabel={settingsStatusLabel}
               featureFlagsCount={Object.keys(featureFlags).length || 'default'}
-              moduleDetail={activeModuleMeta.detail}
-              activeModuleGlyph={moduleGlyph(activeModule)}
+              moduleDetail="Choose a workspace to continue."
+              activeModuleGlyph="⌂"
               loading={loading}
+              compact
+              onOpenShortcuts={() => toggleShortcuts(true)}
+            />
+          ) : (
+            <DashboardFocusedHeader
+              title={activeModuleLabel}
+              subtitle={activeModuleMeta.subtitle}
+              loading={loading}
+              onBackToDashboard={() => navigate('/')}
+              onOpenSettings={() => toggleSettings(true)}
               onOpenShortcuts={() => toggleShortcuts(true)}
             />
           )}
-          {!settingsOpen && visibleModules.length > 0 ? (
-            <DashboardModuleNav
-              modules={visibleModules}
-              activeModuleId={activeModule}
-              onSelectModule={(moduleId) => selectModule(moduleId as DashboardModule)}
-            />
-          ) : null}
         </section>
 
-        <DashboardStatusRail
-          loading={loading}
-          error={error}
-          notice={notice}
-          busyAction={busyAction}
-          syncModeLabel={syncModeLabel}
-          pollFailureCount={pollFailureCount}
-          streamFailureCount={streamFailureCount}
-          bridgeHardFailures={bridgeHardFailures}
-          bridgeSoftFailures={bridgeSoftFailures}
-          actionTelemetry={actionTelemetry}
-        />
+        {showOverviewMode && (error || notice || busyAction.length > 0 || isDashboardDegraded) ? (
+          <DashboardStatusRail
+            loading={loading}
+            error={error}
+            notice={notice}
+            noticeTone={noticeTone}
+            busyAction={busyAction}
+            syncModeLabel={syncModeLabel}
+            pollFailureCount={pollFailureCount}
+            streamFailureCount={streamFailureCount}
+            bridgeHardFailures={bridgeHardFailures}
+            bridgeSoftFailures={bridgeSoftFailures}
+            actionTelemetry={actionTelemetry}
+          />
+        ) : null}
       {settingsOpen ? (
         <section id="va-view-stage-root" className="va-view-stage va-view-stage-settings" tabIndex={-1}>
         <SettingsPage
           userLabel={userLabel}
           sessionRole={sessionRole}
-          sessionRoleSource={sessionRoleSource}
             pollingPaused={pollingPaused}
             loading={loading}
           busy={busyAction.length > 0}
           settingsStatusLabel={settingsStatusLabel}
-          apiBaseUrl={API_BASE_URL || 'same-origin'}
-          visibleModules={visibleModules}
-          featureFlags={featureFlagInspectorItems}
+          apiBaseLabel={API_BASE_URL || 'same-origin'}
+          featureFlagsCount={Object.keys(featureFlags).length || 'default'}
           featureFlagsSourceLabel={featureFlagsSourceLabel}
           featureFlagsUpdatedAtLabel={featureFlagsUpdatedAtLabel}
+          visibleModules={visibleModules}
           onTogglePolling={() => setPollingPaused((prev) => !prev)}
           onSyncNow={handleRefresh}
           onRetrySession={resetSession}
+            onOpenShortcuts={() => toggleShortcuts(true)}
             onJumpToModule={(moduleId) => {
-              if (!MODULE_DEFINITIONS.some((module) => module.id === moduleId)) return;
-              restoreFocusSelectorRef.current = `#va-module-chip-${moduleId}, #va-module-bottom-${moduleId}, #va-main-shortcuts-btn`;
+              if (!visibleModules.some((module) => module.id === moduleId)) return;
+              restoreFocusSelectorRef.current = `#va-launcher-module-${moduleId}, #va-main-shortcuts-btn, #va-view-stage-root`;
+              toggleSettings(false, { fallbackModule: moduleId as DashboardModule });
               selectModule(moduleId as DashboardModule);
-              toggleSettings(false);
             }}
           />
         </section>
@@ -2189,111 +2656,118 @@ export function AdminDashboardPage() {
           retryDisabled={loading || busyAction.length > 0}
         />
       ) : null}
-
-      <section className="va-grid va-grid-hero">
-        <div className="va-card va-hero">
-          <div className="va-hero-top">
-            <span className="va-kicker">Operational Health</span>
-            <strong>{uptimeScore}%</strong>
-            <p className="va-muted">
-              Live status from poll stability, bridge responses, and queue pressure.
-            </p>
-          </div>
-          <div className="va-hero-stats">
-            <article>
-              <span>Session</span>
-              <strong>{token ? 'Active' : 'Pending'}</strong>
-            </article>
-            <article>
-              <span>Sync Mode</span>
-              <strong>{syncModeLabel}</strong>
-            </article>
-            <article>
-              <span>Open DLQ</span>
-              <strong>{toInt(dlqPayload.call_open, callDlq.length) + toInt(dlqPayload.email_open, emailDlq.length)}</strong>
-            </article>
-            <article>
-              <span>Data Feed</span>
-              <strong>{streamConnected ? 'Realtime' : hasBootstrapData ? 'Polling' : 'Initializing'}</strong>
-            </article>
-          </div>
-        </div>
-      </section>
-      {visibleModules.length === 0 ? (
-        <EmptyModulesCard
-          onRefreshAccess={handleRefresh}
-          refreshDisabled={loading || busyAction.length > 0}
-        />
-      ) : null}
-      {showModuleSkeleton ? (
-        <ModuleSkeletonGrid />
-      ) : (
+      {showOverviewMode ? (
         <>
-          {wrapModulePane(
-            'ops',
-            'Ops Dashboard',
-            <OpsDashboardPage
-              visible={activeModule === 'ops' && hasCapability('dashboard_view')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'sms',
-            'SMS Sender',
-            <SmsSenderPage
-              visible={activeModule === 'sms' && hasCapability('sms_bulk_manage')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'mailer',
-            'Mailer Console',
-            <MailerPage
-              visible={activeModule === 'mailer' && hasCapability('email_bulk_manage')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'provider',
-            'Provider Control',
-            <ProviderControlPage
-              visible={activeModule === 'provider' && hasCapability('provider_manage')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'content',
-            'Script Studio',
-            <ScriptStudioPage
-              visible={activeModule === 'content' && hasCapability('caller_flags_manage')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'users',
-            'User & Role Admin',
-            <UsersRolePage
-              visible={activeModule === 'users' && hasCapability('users_manage')}
-              vm={moduleVm}
-            />,
-          )}
-          {wrapModulePane(
-            'audit',
-            'Audit & Incidents',
-            <AuditIncidentsPage
-              visible={activeModule === 'audit' && hasCapability('dashboard_view')}
-              vm={moduleVm}
-            />,
+          {visibleModules.length === 0 ? (
+            <EmptyModulesCard
+              onRefreshAccess={handleRefresh}
+              refreshDisabled={loading || busyAction.length > 0}
+            />
+          ) : null}
+          {showModuleSkeleton ? (
+            <ModuleSkeletonGrid />
+          ) : visibleModules.length > 0 ? (
+            <section className="va-overview-launcher" aria-labelledby="va-overview-launcher-title">
+              <div className="va-overview-head">
+                <h2 id="va-overview-launcher-title" className="va-section-title">Workspace Launcher</h2>
+                <p className="va-muted">
+                  Open a dedicated workspace. Each module runs in focused mode for less visual noise.
+                </p>
+              </div>
+              <div className="va-launcher-grid">
+                {visibleModules.map((module, index) => (
+                  <UiButton
+                    key={`launcher-${module.id}`}
+                    id={`va-launcher-module-${module.id}`}
+                    variant="plain"
+                    className={`va-launcher-card ${activeModule === module.id ? 'is-active' : ''}`}
+                    aria-label={`Open ${module.label} workspace`}
+                    aria-keyshortcuts={`Alt+${index + 1}`}
+                    onClick={() => selectModule(module.id)}
+                  >
+                    <span className="va-launcher-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
+                    <span className="va-launcher-copy">
+                      <strong>{module.label}</strong>
+                      <span>{MODULE_CONTEXT[module.id].subtitle}</span>
+                    </span>
+                  </UiButton>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+      {showFocusedModuleMode ? (
+        <>
+          {visibleModules.length === 0 ? (
+            <EmptyModulesCard
+              onRefreshAccess={handleRefresh}
+              refreshDisabled={loading || busyAction.length > 0}
+            />
+          ) : null}
+          {showModuleSkeleton ? (
+            <ModuleSkeletonGrid />
+          ) : (
+            <>
+              {wrapModulePane(
+                'ops',
+                'Ops Dashboard',
+                <OpsDashboardPage
+                  visible={activeModule === 'ops' && hasCapability('dashboard_view')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'sms',
+                'SMS Sender',
+                <SmsSenderPage
+                  visible={activeModule === 'sms' && hasCapability('sms_bulk_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'mailer',
+                'Mailer Console',
+                <MailerPage
+                  visible={activeModule === 'mailer' && hasCapability('email_bulk_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'provider',
+                'Provider Control',
+                <ProviderControlPage
+                  visible={activeModule === 'provider' && hasCapability('provider_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'content',
+                'Script Studio',
+                <ScriptStudioPage
+                  visible={activeModule === 'content' && hasCapability('caller_flags_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'users',
+                'User & Role Admin',
+                <UsersRolePage
+                  visible={activeModule === 'users' && hasCapability('users_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'audit',
+                'Audit & Incidents',
+                <AuditIncidentsPage
+                  visible={activeModule === 'audit' && hasCapability('dashboard_view')}
+                  vm={moduleVm}
+                />,
+              )}
+            </>
           )}
         </>
-      )}
-      {visibleModules.length > 0 ? (
-        <DashboardBottomNav
-          modules={visibleModules}
-          activeModuleId={activeModule}
-          moduleGlyph={moduleGlyph}
-          onSelectModule={(moduleId) => selectModule(moduleId as DashboardModule)}
-        />
       ) : null}
         </section>
       ) : null}
@@ -2329,6 +2803,10 @@ export function AdminDashboardPage() {
               <li>
                 <span>Refresh dashboard</span>
                 <kbd>Alt + R</kbd>
+              </li>
+              <li>
+                <span>Focus active panel search</span>
+                <kbd>/</kbd>
               </li>
               {visibleModules.map((module, index) => (
                 <li key={`shortcut-module-${module.id}`}>

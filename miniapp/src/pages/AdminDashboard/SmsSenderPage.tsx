@@ -42,6 +42,8 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
   } = selectSmsPageVm(vm);
   const smsHasRecipients = smsRecipientsParsed.length > 0;
   const smsHasMessage = smsMessageInput.trim().length > 0;
+  const smsRecipientsInvalid = !smsHasRecipients;
+  const smsMessageInvalid = !smsHasMessage;
   const smsCanSubmit = smsHasRecipients && smsHasMessage;
   const smsReadinessHint = !smsHasRecipients && !smsHasMessage
     ? 'Add at least one valid recipient and a message body to enable batch execution.'
@@ -96,16 +98,24 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         ) : null}
         <p className="va-card-eyebrow">Audience</p>
         <textarea
+          id="va-sms-recipients"
           className="va-input va-textarea"
           placeholder="Recipients (+15551230001), separated by comma/newline"
           value={smsRecipientsInput}
           onChange={(event) => setSmsRecipientsInput(event.target.value)}
+          aria-required
+          aria-invalid={smsRecipientsInvalid}
+          aria-describedby="va-sms-recipients-hint"
           rows={5}
         />
+        <p id="va-sms-recipients-hint" className="va-field-hint">
+          Enter one or more valid phone numbers. This field is required for batch send.
+        </p>
         <div className="va-inline-tools">
           <input
             type="file"
             accept=".csv,.txt"
+            aria-label="Upload SMS recipients file"
             onChange={(event) => {
               const file = event.target.files?.[0] || null;
               void handleRecipientsFile(file, 'sms');
@@ -121,12 +131,19 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         </div>
         <p className="va-card-eyebrow">Message</p>
         <textarea
+          id="va-sms-message"
           className="va-input va-textarea"
           placeholder="Message body"
           value={smsMessageInput}
           onChange={(event) => setSmsMessageInput(event.target.value)}
+          aria-required
+          aria-invalid={smsMessageInvalid}
+          aria-describedby="va-sms-message-hint"
           rows={4}
         />
+        <p id="va-sms-message-hint" className="va-field-hint">
+          Message content is required to execute a send or schedule operation.
+        </p>
         <p className="va-card-eyebrow">Delivery Settings</p>
         <div className="va-inline-tools">
           <label className="va-muted">

@@ -5,6 +5,7 @@ type DashboardStatusRailProps = {
   loading: boolean;
   error: string;
   notice: string;
+  noticeTone: 'info' | 'success' | 'warning' | 'error';
   busyAction: string;
   syncModeLabel: string;
   pollFailureCount: number;
@@ -31,6 +32,7 @@ export function DashboardStatusRail({
   loading,
   error,
   notice,
+  noticeTone,
   busyAction,
   syncModeLabel,
   pollFailureCount,
@@ -66,7 +68,15 @@ export function DashboardStatusRail({
       </UiCard>
       {loading ? <p className="va-muted" role="status" aria-live="polite">Preparing dashboard…</p> : null}
       {error ? <p className="va-error" role="alert" aria-live="assertive">{error}</p> : null}
-      {notice ? <p className="va-notice" role="status" aria-live="polite">{notice}</p> : null}
+      {notice ? (
+        <p
+          className={`va-notice is-${noticeTone}`}
+          role={noticeTone === 'error' ? 'alert' : 'status'}
+          aria-live={noticeTone === 'error' ? 'assertive' : 'polite'}
+        >
+          {notice}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { DashboardVm, UserRow } from './types';
 import { selectUsersRolePageVm } from './vmSelectors';
@@ -11,6 +11,13 @@ type UsersRolePageProps = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 40, 80] as const;
+const USERS_VIEW_PREFS_STORAGE_KEY = 'voxly-miniapp-users-view-prefs';
+
+type UsersViewPrefs = {
+  role_filter?: unknown;
+  page_size?: unknown;
+  reason_template?: unknown;
+};
 
 function roleBadgeVariant(role: string): 'success' | 'info' | 'neutral' {
   switch (role.toLowerCase()) {
@@ -21,6 +28,12 @@ function roleBadgeVariant(role: string): 'success' | 'info' | 'neutral' {
     default:
       return 'neutral';
   }
+}
+
+function isTypingTarget(target: EventTarget | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
 export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
@@ -50,7 +63,104 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   const [page, setPage] = useState<number>(1);
   const [reasonTemplate, setReasonTemplate] = useState<string>(roleReasonTemplates[0] || '');
   const [reasonDetail, setReasonDetail] = useState<string>('');
+  const userSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const refreshUsersButtonRef = useRef<HTMLButtonElement | null>(null);
   const composedReason = [reasonTemplate, reasonDetail.trim()].filter(Boolean).join(' - ');
+
+  const restoreFocus = (target: HTMLElement | null): void => {
+    if (!target || typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      target.focus({ preventScroll: true });
+    });
+  };
+
+  const handleUsersRefresh = (target: HTMLElement | null = refreshUsersButtonRef.current): void => {
+    void refreshUsersModule().finally(() => {
+      restoreFocus(target);
+    });
+  };
+
+  const focusUserSearchInput = (): void => {
+    const target = userSearchInputRef.current;
+    if (!target || typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      target.focus({ preventScroll: true });
+      target.select();
+    });
+  };
+
+  const handleRoleAction = (
+    target: HTMLButtonElement | null,
+    telegramId: string,
+    role: 'admin' | 'operator' | 'viewer',
+  ): void => {
+    void handleApplyUserRole(telegramId, role, composedReason).finally(() => {
+      restoreFocus(target);
+    });
+  };
+
+  const handleSectionShortcutKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    const key = event.key.toLowerCase();
+    const typingTarget = isTypingTarget(event.target);
+    if (typingTarget && event.altKey && !event.ctrlKey && !event.metaKey && key === 'r') {
+      event.preventDefault();
+      event.stopPropagation();
+      handleUsersRefresh(event.target instanceof HTMLElement ? event.target : null);
+      return;
+    }
+    if (typingTarget) return;
+    if (key !== '/' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    focusUserSearchInput();
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(USERS_VIEW_PREFS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as UsersViewPrefs | null;
+      if (!parsed || typeof parsed !== 'object') return;
+      const roleFilterValue = typeof parsed.role_filter === 'string'
+        ? parsed.role_filter
+        : 'all';
+      if (roleFilterValue === 'all'
+        || roleFilterValue === 'admin'
+        || roleFilterValue === 'operator'
+        || roleFilterValue === 'viewer') {
+        setRoleFilter(roleFilterValue);
+      }
+      const pageSizeValue = Number(parsed.page_size);
+      if (PAGE_SIZE_OPTIONS.includes(pageSizeValue as (typeof PAGE_SIZE_OPTIONS)[number])) {
+        setPageSize(pageSizeValue);
+      }
+      const reasonTemplateValue = typeof parsed.reason_template === 'string'
+        ? parsed.reason_template
+        : '';
+      if (reasonTemplateValue && roleReasonTemplates.includes(reasonTemplateValue)) {
+        setReasonTemplate(reasonTemplateValue);
+      }
+    } catch {
+      // Ignore malformed persisted users-view state.
+    }
+  }, [roleReasonTemplates]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      role_filter: roleFilter,
+      page_size: pageSize,
+      reason_template: reasonTemplate,
+    };
+    try {
+      window.localStorage.setItem(USERS_VIEW_PREFS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore local storage failures in constrained clients.
+    }
+  }, [pageSize, reasonTemplate, roleFilter]);
 
   const filteredAndSortedUsers = useMemo(() => {
     return selectUsersRows({
@@ -100,15 +210,27 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   };
 
   return (
-    <section className="va-grid">
+    <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
       <div className="va-card">
         <h3>User & Role Admin</h3>
-        <div className="va-filter-grid">
+        <div className="va-filter-grid" role="toolbar" aria-label="User filters and actions">
           <input
+            ref={userSearchInputRef}
             className="va-input"
             placeholder="Search Telegram ID"
             value={userSearch}
             onChange={(event) => setUserSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                handleUsersRefresh(event.currentTarget);
+                return;
+              }
+              if (event.key === 'Escape' && userSearch.length > 0) {
+                event.preventDefault();
+                setUserSearch('');
+              }
+            }}
           />
           <select
             className="va-input"
@@ -127,7 +249,14 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             <option value="desc">DESC</option>
             <option value="asc">ASC</option>
           </select>
-          <button type="button" onClick={() => { void refreshUsersModule(); }}>
+          <button
+            ref={refreshUsersButtonRef}
+            type="button"
+            aria-keyshortcuts="Alt+R"
+            onClick={(event) => {
+              handleUsersRefresh(event.currentTarget);
+            }}
+          >
             Refresh Users
           </button>
         </div>
@@ -174,6 +303,12 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             placeholder="Reason details (required for audit)"
             value={reasonDetail}
             onChange={(event) => setReasonDetail(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && reasonDetail.length > 0) {
+                event.preventDefault();
+                setReasonDetail('');
+              }
+            }}
           />
         </div>
         <p className="va-muted">
@@ -205,21 +340,27 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
                 <div className="va-entity-actions">
                   <button
                     type="button"
-                    onClick={() => { void handleApplyUserRole(telegramId, 'admin', composedReason); }}
+                    onClick={(event) => {
+                      handleRoleAction(event.currentTarget, telegramId, 'admin');
+                    }}
                     disabled={!telegramId}
                   >
                     Promote Admin
                   </button>
                   <button
                     type="button"
-                    onClick={() => { void handleApplyUserRole(telegramId, 'operator', composedReason); }}
+                    onClick={(event) => {
+                      handleRoleAction(event.currentTarget, telegramId, 'operator');
+                    }}
                     disabled={!telegramId}
                   >
                     Set Operator
                   </button>
                   <button
                     type="button"
-                    onClick={() => { void handleApplyUserRole(telegramId, 'viewer', composedReason); }}
+                    onClick={(event) => {
+                      handleRoleAction(event.currentTarget, telegramId, 'viewer');
+                    }}
                     disabled={!telegramId}
                   >
                     Demote Viewer
