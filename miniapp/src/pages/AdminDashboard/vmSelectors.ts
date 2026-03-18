@@ -34,6 +34,7 @@ const OPS_VM_KEYS = [
   'callFailureRate',
   'callSuccessRate',
   'queueBacklogTotal',
+  'opsQaSummary',
   'providerReadinessTotals',
   'providerReadinessPercent',
   'textBar',

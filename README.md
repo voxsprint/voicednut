@@ -102,6 +102,22 @@ Admin replay endpoints:
 - `GET /admin/call-jobs/dlq`, `POST /admin/call-jobs/dlq/:id/replay`
 - `GET /admin/email/dlq`, `POST /admin/email/dlq/:id/replay`
 
+### Post-Call QA Scoring (Safe Rollout Scaffold)
+
+- Post-call QA is now gated behind default-off feature flags:
+  - `POST_CALL_QA_ENABLED=false`
+  - `POST_CALL_QA_SHADOW_MODE=true`
+  - `POST_CALL_QA_ROLLOUT_PERCENT=0`
+  - `POST_CALL_QA_ALLOWLIST=`
+  - `POST_CALL_QA_KILL_SWITCH=false`
+  - `POST_CALL_QA_PROFILE_THRESHOLDS=` (optional, example: `collections:78,support:72,sales:74,verification:80`)
+  - `POST_CALL_QA_RUBRIC_WEIGHTS=` (optional JSON weights for `compliance`, `resolution`, `empathy`, `clarity`)
+- When enabled for selected traffic, call-end processing stores QA scorecards in `call_quality_reports` and writes call-state audit events (`post_call_qa_scored`, `post_call_qa_skipped`, `post_call_qa_error`).
+- API endpoints:
+  - `GET /api/qa/summary` (aggregate QA trends by status/profile + top findings)
+  - `GET /api/calls/:callSid/qa` (fetch latest QA report for a call)
+  - `POST /api/calls/:callSid/qa/evaluate?force=1` (manual on-demand evaluation, bypasses rollout gate by default)
+
 ## 🏗️ System Architecture
 
 ```mermaid

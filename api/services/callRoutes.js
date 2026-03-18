@@ -1,3 +1,5 @@
+const { runPostCallQaEvaluation } = require("./postCallQaService");
+
 function createOutboundCallHandler(ctx = {}) {
   const {
     sendApiError,
@@ -127,6 +129,8 @@ function createOutboundCallHandler(ctx = {}) {
         error?.code === "payment_policy_requires_script";
       const paymentPolicyInvalid = error?.code === "payment_policy_invalid";
       const paymentValidationError = error?.code === "payment_validation_error";
+      const outboundPersistenceFailed =
+        error?.code === "outbound_persistence_failed";
       const idempotencyConflict = error?.code === "idempotency_conflict";
       const idempotencyInProgress = error?.code === "idempotency_in_progress";
       const isValidation =
@@ -138,9 +142,11 @@ function createOutboundCallHandler(ctx = {}) {
         message.includes("Invalid phone number format");
       const status = idempotencyConflict || idempotencyInProgress
         ? 409
-        : paymentRequiresScript || paymentPolicyRequiresScript || isValidation
-          ? 400
-          : 500;
+        : outboundPersistenceFailed
+          ? 503
+          : paymentRequiresScript || paymentPolicyRequiresScript || isValidation
+            ? 400
+            : 500;
       let code = "outbound_call_failed";
       if (paymentRequiresScript) {
         code = "payment_requires_script";
@@ -154,6 +160,8 @@ function createOutboundCallHandler(ctx = {}) {
         code = "idempotency_conflict";
       } else if (idempotencyInProgress) {
         code = "idempotency_in_progress";
+      } else if (outboundPersistenceFailed) {
+        code = "outbound_persistence_failed";
       } else if (isValidation) {
         code = "validation_error";
       }
@@ -171,6 +179,8 @@ function createOutboundCallHandler(ctx = {}) {
             ? "Payment policy requires a valid script_id."
             : paymentPolicyInvalid || paymentValidationError
               ? message || "Invalid payment configuration."
+          : outboundPersistenceFailed
+            ? "Call provider accepted the request but persistence failed; retry with the same idempotency key."
           : "Failed to create outbound call",
         req.requestId || null,
         { details: buildErrorDetails(error) },
@@ -556,6 +566,186 @@ function createGetTranscriptAudioHandler(ctx = {}) {
   };
 }
 
+function createGetCallQaHandler(ctx = {}) {
+  const { isSafeId } = ctx;
+
+  return async function handleGetCallQa(req, res) {
+    try {
+      const db = typeof ctx.getDb === "function" ? ctx.getDb() : ctx.db;
+      if (!db) {
+        return res.status(500).json({ error: "Database unavailable" });
+      }
+
+      const { callSid } = req.params;
+      if (!isSafeId(callSid, { max: 128 })) {
+        return res.status(400).json({ error: "Invalid call identifier" });
+      }
+
+      const call = await db.getCall(callSid);
+      if (!call) {
+        return res.status(404).json({ error: "Call not found" });
+      }
+
+      const requesterChatId = getRequesterChatId(req);
+      if (isOwnedByDifferentChat(call, requesterChatId)) {
+        return res.status(403).json({ error: "Not authorized for this call" });
+      }
+
+      const report =
+        typeof db.getCallQualityReport === "function"
+          ? await db.getCallQualityReport(callSid).catch(() => null)
+          : null;
+      return res.json({
+        success: true,
+        call_sid: callSid,
+        qa: report,
+      });
+    } catch (error) {
+      console.error("Error fetching call QA report:", error);
+      return res.status(500).json({ error: "Failed to fetch call QA report" });
+    }
+  };
+}
+
+function createEvaluateCallQaHandler(ctx = {}) {
+  const { isSafeId } = ctx;
+
+  return async function handleEvaluateCallQa(req, res) {
+    try {
+      const db = typeof ctx.getDb === "function" ? ctx.getDb() : ctx.db;
+      if (!db) {
+        return res.status(500).json({ error: "Database unavailable" });
+      }
+
+      const { callSid } = req.params;
+      if (!isSafeId(callSid, { max: 128 })) {
+        return res.status(400).json({ error: "Invalid call identifier" });
+      }
+
+      const call = await db.getCall(callSid);
+      if (!call) {
+        return res.status(404).json({ error: "Call not found" });
+      }
+
+      const requesterChatId = getRequesterChatId(req);
+      if (isOwnedByDifferentChat(call, requesterChatId)) {
+        return res.status(403).json({ error: "Not authorized for this call" });
+      }
+
+      const transcripts = await db.getCallTranscripts(callSid).catch(() => []);
+      const force = String(req.query?.force || "1").toLowerCase() !== "0";
+      const evaluation = await runPostCallQaEvaluation({
+        callSid,
+        call,
+        transcripts,
+        durationSeconds: Number(call.duration) || 0,
+        config: ctx.config || {},
+        db,
+        logger: console,
+        force,
+      });
+      if (typeof db.updateCallState === "function") {
+        const stateName =
+          evaluation.status === "scored" || evaluation.status === "insufficient_transcript"
+            ? "post_call_qa_scored"
+            : "post_call_qa_skipped";
+        await db
+          .updateCallState(callSid, stateName, {
+            status: evaluation.status,
+            reason: evaluation.evaluation_reason || evaluation.reason || null,
+            score: Number.isFinite(Number(evaluation.score))
+              ? Number(evaluation.score)
+              : null,
+            passed: evaluation.passed === true,
+            shadow_mode: evaluation.shadow_mode === true,
+            persisted: evaluation.persisted === true,
+            version: evaluation.version || null,
+            evaluated_at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      }
+
+      return res.json({
+        success: true,
+        call_sid: callSid,
+        qa: evaluation,
+      });
+    } catch (error) {
+      console.error("Error evaluating call QA report:", error);
+      return res.status(500).json({ error: "Failed to evaluate call QA report" });
+    }
+  };
+}
+
+function createGetQaSummaryHandler(ctx = {}) {
+  return async function handleGetQaSummary(req, res) {
+    try {
+      const db = typeof ctx.getDb === "function" ? ctx.getDb() : ctx.db;
+      if (!db) {
+        return res.status(500).json({ error: "Database unavailable" });
+      }
+      if (typeof db.getCallQualitySummary !== "function") {
+        return res.status(501).json({ error: "QA summary is not available" });
+      }
+
+      const hoursRaw = Number(req.query?.hours);
+      const hours = Number.isFinite(hoursRaw)
+        ? Math.max(1, Math.min(24 * 30, Math.floor(hoursRaw)))
+        : 24 * 7;
+      const topFindingsRaw = Number(req.query?.top_findings);
+      const topFindingsLimit = Number.isFinite(topFindingsRaw)
+        ? Math.max(3, Math.min(20, Math.floor(topFindingsRaw)))
+        : 8;
+      const lowScoreRaw = Number(req.query?.low_score_limit);
+      const lowScoreLimit = Number.isFinite(lowScoreRaw)
+        ? Math.max(3, Math.min(50, Math.floor(lowScoreRaw)))
+        : 10;
+
+      const summary = await db.getCallQualitySummary({
+        hours,
+        topFindingsLimit,
+        lowScoreLimit,
+      });
+      const qaConfig = ctx.config?.postCallQa || {};
+      const normalizeThreshold = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        return Math.max(0, Math.min(100, Number(numeric.toFixed(2))));
+      };
+      const profileThresholdsRaw =
+        qaConfig.profileThresholds && typeof qaConfig.profileThresholds === "object"
+          ? qaConfig.profileThresholds
+          : {};
+      const profileThresholds = {};
+      for (const [rawProfile, rawThreshold] of Object.entries(profileThresholdsRaw)) {
+        const profile = String(rawProfile || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[^\w-]+/g, "_");
+        const threshold = normalizeThreshold(rawThreshold);
+        if (!profile || threshold === null) continue;
+        profileThresholds[profile] = threshold;
+      }
+      const defaultThreshold = normalizeThreshold(qaConfig.minScore);
+      if (defaultThreshold !== null && !Object.prototype.hasOwnProperty.call(profileThresholds, "default")) {
+        profileThresholds.default = defaultThreshold;
+      }
+      const enrichedSummary = {
+        ...(summary && typeof summary === "object" ? summary : {}),
+        profile_thresholds: profileThresholds,
+        updated_at: new Date().toISOString(),
+      };
+      return res.json({
+        success: true,
+        summary: enrichedSummary,
+      });
+    } catch (error) {
+      console.error("Error fetching QA summary:", error);
+      return res.status(500).json({ error: "Failed to fetch QA summary" });
+    }
+  };
+}
+
 function createListCallsHandler(ctx = {}) {
   const { parsePagination, normalizeCallRecordForApi } = ctx;
 
@@ -909,6 +1099,9 @@ function registerCallRoutes(app, ctx = {}) {
   const handleListCalls = createListCallsHandler(ctx);
   const handleListCallsFiltered = createListCallsFilteredHandler(ctx);
   const handleSearchCalls = createSearchCallsHandler(ctx);
+  const handleGetCallQa = createGetCallQaHandler(ctx);
+  const handleEvaluateCallQa = createEvaluateCallQaHandler(ctx);
+  const handleGetQaSummary = createGetQaSummaryHandler(ctx);
 
   app.post(
     "/outbound-call",
@@ -924,6 +1117,18 @@ function registerCallRoutes(app, ctx = {}) {
   app.get("/api/calls", requireOutboundAuthorization, handleListCalls);
   app.get("/api/calls/list", requireOutboundAuthorization, handleListCallsFiltered);
   app.get("/api/calls/search", requireOutboundAuthorization, handleSearchCalls);
+  app.get("/api/qa/summary", requireOutboundAuthorization, handleGetQaSummary);
+  app.get("/api/calls/:callSid/qa", requireOutboundAuthorization, handleGetCallQa);
+  app.post(
+    "/api/calls/:callSid/qa/evaluate",
+    requireOutboundAuthorization,
+    handleEvaluateCallQa,
+  );
 }
 
-module.exports = { registerCallRoutes };
+module.exports = {
+  registerCallRoutes,
+  __testables: {
+    createOutboundCallHandler,
+  },
+};

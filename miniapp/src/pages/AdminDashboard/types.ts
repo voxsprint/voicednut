@@ -20,6 +20,55 @@ export interface ProviderReadinessTotals {
   total: number;
 }
 
+export interface QaTopFinding {
+  finding: string;
+  count: number;
+}
+
+export interface QaProfileBreakdown {
+  profile: string;
+  total: number;
+  passed: number;
+  passRate: number;
+  avgScore: number | null;
+}
+
+export interface QaLowScoreCall {
+  callSid: string;
+  profile: string;
+  status: string;
+  score: number | null;
+  passed: boolean;
+  shadowMode: boolean;
+  evaluatedAt: string;
+}
+
+export interface QaTrendPoint {
+  bucket: string;
+  total: number;
+  passed: number;
+  passRate: number;
+  avgScore: number | null;
+}
+
+export interface OpsQaSummary {
+  windowHours: number;
+  total: number;
+  passed: number;
+  passRate: number;
+  avgScore: number | null;
+  scored: number;
+  insufficientTranscript: number;
+  skipped: number;
+  trendBucket: string;
+  trendSeries: QaTrendPoint[];
+  topFindings: QaTopFinding[];
+  profileBreakdown: QaProfileBreakdown[];
+  profileThresholds: Record<string, number>;
+  lowScoreCalls: QaLowScoreCall[];
+  updatedAt: string;
+}
+
 export interface SmsSegmentEstimate {
   segments: number;
   perSegment: number;
@@ -194,6 +243,7 @@ export interface DashboardVm {
   callFailureRate: number;
   callSuccessRate: number;
   queueBacklogTotal: number;
+  opsQaSummary: OpsQaSummary | null;
   providerReadinessTotals: ProviderReadinessTotals;
   providerReadinessPercent: number;
   runtimeEffectiveMode: string;

@@ -56,6 +56,55 @@ function parseList(rawValue) {
     .filter(Boolean);
 }
 
+function parseNumericMap(rawValue, options = {}) {
+  const min = Number.isFinite(Number(options.min)) ? Number(options.min) : -Infinity;
+  const max = Number.isFinite(Number(options.max)) ? Number(options.max) : Infinity;
+  if (rawValue === undefined || rawValue === null || rawValue === "") return {};
+
+  const normalizeKey = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w-]+/g, "_");
+
+  const normalizeNumber = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(min, Math.min(max, parsed));
+  };
+
+  const map = {};
+  if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)) {
+    for (const [key, value] of Object.entries(rawValue)) {
+      const normalizedKey = normalizeKey(key);
+      const normalizedValue = normalizeNumber(value);
+      if (!normalizedKey || normalizedValue === null) continue;
+      map[normalizedKey] = normalizedValue;
+    }
+    return map;
+  }
+
+  const text = String(rawValue || "").trim();
+  if (!text) return map;
+  if (text.startsWith("{") && text.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(text);
+      return parseNumericMap(parsed, options);
+    } catch {
+      return map;
+    }
+  }
+
+  for (const token of text.split(",")) {
+    const [rawKey, rawNumber] = String(token || "").split(":");
+    const normalizedKey = normalizeKey(rawKey);
+    const normalizedValue = normalizeNumber(rawNumber);
+    if (!normalizedKey || normalizedValue === null) continue;
+    map[normalizedKey] = normalizedValue;
+  }
+  return map;
+}
+
 function readBooleanEnv(name, fallback = false) {
   const value = readEnv(name);
   if (value === undefined) return fallback;
@@ -557,6 +606,24 @@ const callCanarySloMaxTimeoutEvents = Number(
 );
 const callCanarySloMaxStallEvents = Number(
   readEnv("CALL_CANARY_SLO_MAX_STALL_EVENTS") || "2",
+);
+const postCallQaEnabled = readBooleanEnv("POST_CALL_QA_ENABLED", false);
+const postCallQaShadowMode = readBooleanEnv("POST_CALL_QA_SHADOW_MODE", true);
+const postCallQaKillSwitch = readBooleanEnv("POST_CALL_QA_KILL_SWITCH", false);
+const postCallQaRolloutPercent = Number(
+  readEnv("POST_CALL_QA_ROLLOUT_PERCENT") || "0",
+);
+const postCallQaAllowlist = parseList(readEnv("POST_CALL_QA_ALLOWLIST") || "");
+const postCallQaMinTurns = Number(readEnv("POST_CALL_QA_MIN_TURNS") || "4");
+const postCallQaMinScore = Number(readEnv("POST_CALL_QA_MIN_SCORE") || "70");
+const postCallQaVersion = String(readEnv("POST_CALL_QA_VERSION") || "post_call_qa_v1").trim();
+const postCallQaProfileThresholds = parseNumericMap(
+  readEnv("POST_CALL_QA_PROFILE_THRESHOLDS"),
+  { min: 0, max: 100 },
+);
+const postCallQaRubricWeights = parseJsonObject(
+  readEnv("POST_CALL_QA_RUBRIC_WEIGHTS"),
+  "POST_CALL_QA_RUBRIC_WEIGHTS",
 );
 const webhookRetryBaseMs = Number(readEnv("WEBHOOK_RETRY_BASE_MS") || "5000");
 const webhookRetryMaxMs = Number(readEnv("WEBHOOK_RETRY_MAX_MS") || "60000");
@@ -1431,6 +1498,26 @@ module.exports = {
         ? Math.max(1, Math.floor(callCanarySloMaxStallEvents))
         : 2,
     },
+  },
+  postCallQa: {
+    enabled: postCallQaEnabled,
+    shadowMode: postCallQaShadowMode,
+    killSwitch: postCallQaKillSwitch,
+    rolloutPercent: Number.isFinite(postCallQaRolloutPercent)
+      ? Math.max(0, Math.min(100, Math.floor(postCallQaRolloutPercent)))
+      : 0,
+    allowlist: postCallQaAllowlist
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean),
+    minTurns: Number.isFinite(postCallQaMinTurns)
+      ? Math.max(2, Math.floor(postCallQaMinTurns))
+      : 4,
+    minScore: Number.isFinite(postCallQaMinScore)
+      ? Math.max(0, Math.min(100, Math.floor(postCallQaMinScore)))
+      : 70,
+    version: postCallQaVersion || "post_call_qa_v1",
+    profileThresholds: postCallQaProfileThresholds,
+    rubricWeights: postCallQaRubricWeights,
   },
   payment: {
     enabled: paymentFeatureEnabled,

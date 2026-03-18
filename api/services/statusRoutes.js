@@ -501,9 +501,14 @@ function registerStatusRoutes(app, ctx = {}) {
   app.get("/api/calls/:callSid/status", requireOutboundAuthorization, handleGetCallStatus);
   app.get("/api/observability/gpt", requireOutboundAuthorization, handleGptObservability);
   app.get("/status/provider-compat", requireOutboundAuthorization, handleProviderCompatibility);
-  app.get("/ready", requireOutboundAuthorization, handleHealth);
+  app.get("/ready", handleHealth);
   app.get("/status", handleSystemStatus);
   app.get("/health", handleHealth);
 }
 
-module.exports = { registerStatusRoutes };
+module.exports = {
+  registerStatusRoutes,
+  __testables: {
+    createHealthHandler,
+  },
+};

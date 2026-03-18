@@ -410,6 +410,17 @@ class EnhancedDatabase {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
 
+            // Durable idempotency lock/result store for call-script mutations
+            `CREATE TABLE IF NOT EXISTS call_script_mutation_idempotency (
+                idempotency_key TEXT PRIMARY KEY,
+                fingerprint TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done')),
+                response_status INTEGER,
+                response_body TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+
             // Durable Vonage UUID -> call SID mapping for restart-safe reconciliation
             `CREATE TABLE IF NOT EXISTS vonage_call_mappings (
                 vonage_uuid TEXT PRIMARY KEY,
@@ -430,6 +441,29 @@ class EnhancedDatabase {
                 snapshot TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+
+            // Post-call QA scorecards (single latest report per call_sid)
+            `CREATE TABLE IF NOT EXISTS call_quality_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                call_sid TEXT NOT NULL UNIQUE,
+                profile TEXT,
+                status TEXT NOT NULL,
+                score INTEGER,
+                passed INTEGER DEFAULT 0,
+                shadow_mode INTEGER DEFAULT 1,
+                model_version TEXT,
+                transcript_turns INTEGER DEFAULT 0,
+                user_turns INTEGER DEFAULT 0,
+                ai_turns INTEGER DEFAULT 0,
+                duration_seconds INTEGER DEFAULT 0,
+                findings TEXT,
+                metrics TEXT,
+                recommendations TEXT,
+                evaluated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(call_sid) REFERENCES calls(call_sid)
             )`,
 
         ];
@@ -477,6 +511,7 @@ class EnhancedDatabase {
             'live_by'
         ]);
         await this.ensureNotificationColumns(['last_attempt_at', 'next_attempt_at']);
+        await this.ensureCallQualityReportColumns(['profile']);
 
         // Create comprehensive indexes for optimal performance
         const indexes = [
@@ -552,9 +587,14 @@ class EnhancedDatabase {
             'CREATE INDEX IF NOT EXISTS idx_outbound_call_idem_provider ON outbound_call_idempotency(provider)',
             'CREATE INDEX IF NOT EXISTS idx_outbound_call_idem_status ON outbound_call_idempotency(status)',
             'CREATE INDEX IF NOT EXISTS idx_outbound_call_idem_updated ON outbound_call_idempotency(updated_at)',
+            'CREATE INDEX IF NOT EXISTS idx_call_script_mutation_idem_status ON call_script_mutation_idempotency(status)',
+            'CREATE INDEX IF NOT EXISTS idx_call_script_mutation_idem_updated ON call_script_mutation_idempotency(updated_at)',
             'CREATE INDEX IF NOT EXISTS idx_vonage_call_map_call_sid ON vonage_call_mappings(call_sid)',
             'CREATE INDEX IF NOT EXISTS idx_vonage_call_map_updated ON vonage_call_mappings(updated_at)',
             'CREATE INDEX IF NOT EXISTS idx_call_runtime_state_updated ON call_runtime_state(updated_at)',
+            'CREATE INDEX IF NOT EXISTS idx_call_quality_reports_call_sid ON call_quality_reports(call_sid)',
+            'CREATE INDEX IF NOT EXISTS idx_call_quality_reports_status ON call_quality_reports(status)',
+            'CREATE INDEX IF NOT EXISTS idx_call_quality_reports_updated_at ON call_quality_reports(updated_at)',
         ];
 
         for (const index of indexes) {
@@ -764,6 +804,36 @@ class EnhancedDatabase {
                 await addColumn('last_attempt_at', 'DATETIME');
             } else if (column === 'next_attempt_at') {
                 await addColumn('next_attempt_at', 'DATETIME');
+            }
+        }
+    }
+
+    async ensureCallQualityReportColumns(columns = []) {
+        if (!columns.length) return;
+        const existing = await new Promise((resolve, reject) => {
+            this.db.all('PRAGMA table_info(call_quality_reports)', (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows || []);
+                }
+            });
+        });
+        const existingNames = new Set(existing.map((row) => row.name));
+        const addColumn = (name, definition) => new Promise((resolve, reject) => {
+            this.db.run(`ALTER TABLE call_quality_reports ADD COLUMN ${name} ${definition}`, (err) => {
+                if (err) {
+                    if (String(err.message || '').includes('duplicate')) resolve();
+                    else reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        for (const column of columns) {
+            if (existingNames.has(column)) continue;
+            if (column === 'profile') {
+                await addColumn('profile', 'TEXT');
             }
         }
     }
@@ -2335,6 +2405,103 @@ class EnhancedDatabase {
         });
     }
 
+    async reserveCallScriptMutationIdempotency(idempotencyKey, fingerprint) {
+        const key = String(idempotencyKey || '').trim();
+        const normalizedFingerprint = String(fingerprint || '').trim();
+        if (!key || !normalizedFingerprint) {
+            return { reserved: false, record: null };
+        }
+        const dbInstance = this;
+        return new Promise((resolve, reject) => {
+            const sql = `
+                INSERT OR IGNORE INTO call_script_mutation_idempotency (
+                    idempotency_key, fingerprint, status, updated_at
+                )
+                VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)
+            `;
+            this.db.run(sql, [key, normalizedFingerprint], function(err) {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                const reserved = (this.changes || 0) > 0;
+                dbInstance
+                    .getCallScriptMutationIdempotency(key)
+                    .then((record) => resolve({ reserved, record }))
+                    .catch(reject);
+            });
+        });
+    }
+
+    async getCallScriptMutationIdempotency(idempotencyKey) {
+        const key = String(idempotencyKey || '').trim();
+        if (!key) return null;
+        return new Promise((resolve, reject) => {
+            const sql = `
+                SELECT *
+                FROM call_script_mutation_idempotency
+                WHERE idempotency_key = ?
+                LIMIT 1
+            `;
+            this.db.get(sql, [key], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row || null);
+                }
+            });
+        });
+    }
+
+    async completeCallScriptMutationIdempotency(idempotencyKey, fingerprint, statusCode, body) {
+        const key = String(idempotencyKey || '').trim();
+        const normalizedFingerprint = String(fingerprint || '').trim();
+        if (!key || !normalizedFingerprint) return 0;
+        const responseStatus = Number.isFinite(Number(statusCode))
+            ? Math.max(100, Math.floor(Number(statusCode)))
+            : 200;
+        const responseBody = body !== undefined ? JSON.stringify(body) : null;
+        return new Promise((resolve, reject) => {
+            const sql = `
+                INSERT INTO call_script_mutation_idempotency (
+                    idempotency_key, fingerprint, status, response_status, response_body, updated_at
+                )
+                VALUES (?, ?, 'done', ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(idempotency_key) DO UPDATE SET
+                    fingerprint = excluded.fingerprint,
+                    status = 'done',
+                    response_status = excluded.response_status,
+                    response_body = excluded.response_body,
+                    updated_at = CURRENT_TIMESTAMP
+            `;
+            this.db.run(sql, [key, normalizedFingerprint, responseStatus, responseBody], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes || 0);
+                }
+            });
+        });
+    }
+
+    async clearCallScriptMutationIdempotency(idempotencyKey) {
+        const key = String(idempotencyKey || '').trim();
+        if (!key) return 0;
+        return new Promise((resolve, reject) => {
+            const sql = `
+                DELETE FROM call_script_mutation_idempotency
+                WHERE idempotency_key = ?
+            `;
+            this.db.run(sql, [key], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes || 0);
+                }
+            });
+        });
+    }
+
     async upsertVonageCallMapping(call_sid, vonage_uuid, source = null) {
         const callSid = String(call_sid || '').trim();
         const vonageUuid = String(vonage_uuid || '').trim();
@@ -3317,6 +3484,332 @@ class EnhancedDatabase {
                 }
             });
         });
+    }
+
+    async upsertCallQualityReport(report = {}) {
+        return new Promise((resolve, reject) => {
+            const normalizedCallSid = String(report.call_sid || report.callSid || '').trim();
+            if (!normalizedCallSid) {
+                reject(new Error('call_sid is required'));
+                return;
+            }
+
+            const findings = Array.isArray(report.findings) ? report.findings : [];
+            const metrics = report.metrics && typeof report.metrics === 'object' ? report.metrics : {};
+            const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
+            const status = String(report.status || 'scored').trim().toLowerCase() || 'scored';
+            const score = Number.isFinite(Number(report.score)) ? Math.max(0, Math.min(100, Math.floor(Number(report.score)))) : null;
+            const profile = String(report.profile || report.call_profile || '').trim().toLowerCase() || 'general';
+            const transcriptTurns = Number.isFinite(Number(metrics.total_turns))
+                ? Math.max(0, Math.floor(Number(metrics.total_turns)))
+                : 0;
+            const userTurns = Number.isFinite(Number(metrics.user_turns))
+                ? Math.max(0, Math.floor(Number(metrics.user_turns)))
+                : 0;
+            const aiTurns = Number.isFinite(Number(metrics.ai_turns))
+                ? Math.max(0, Math.floor(Number(metrics.ai_turns)))
+                : 0;
+            const durationSeconds = Number.isFinite(Number(metrics.duration_seconds))
+                ? Math.max(0, Math.floor(Number(metrics.duration_seconds)))
+                : 0;
+            const passed = report.passed ? 1 : 0;
+            const shadowMode = report.shadow_mode === true || report.shadowMode === true ? 1 : 0;
+            const modelVersion = String(report.version || report.model_version || 'post_call_qa_v1').trim();
+            const evaluatedAt = report.evaluated_at
+                ? String(report.evaluated_at)
+                : new Date().toISOString();
+            const nowIso = new Date().toISOString();
+
+            const sql = `
+                INSERT INTO call_quality_reports (
+                    call_sid,
+                    profile,
+                    status,
+                    score,
+                    passed,
+                    shadow_mode,
+                    model_version,
+                    transcript_turns,
+                    user_turns,
+                    ai_turns,
+                    duration_seconds,
+                    findings,
+                    metrics,
+                    recommendations,
+                    evaluated_at,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(call_sid) DO UPDATE SET
+                    profile = excluded.profile,
+                    status = excluded.status,
+                    score = excluded.score,
+                    passed = excluded.passed,
+                    shadow_mode = excluded.shadow_mode,
+                    model_version = excluded.model_version,
+                    transcript_turns = excluded.transcript_turns,
+                    user_turns = excluded.user_turns,
+                    ai_turns = excluded.ai_turns,
+                    duration_seconds = excluded.duration_seconds,
+                    findings = excluded.findings,
+                    metrics = excluded.metrics,
+                    recommendations = excluded.recommendations,
+                    evaluated_at = excluded.evaluated_at,
+                    updated_at = excluded.updated_at
+            `;
+
+            const params = [
+                normalizedCallSid,
+                profile,
+                status,
+                score,
+                passed,
+                shadowMode,
+                modelVersion || 'post_call_qa_v1',
+                transcriptTurns,
+                userTurns,
+                aiTurns,
+                durationSeconds,
+                JSON.stringify(findings),
+                JSON.stringify(metrics),
+                JSON.stringify(recommendations),
+                evaluatedAt,
+                nowIso,
+                nowIso,
+            ];
+
+            this.db.run(sql, params, function(err) {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve({ ok: true, changes: this.changes || 0 });
+            });
+        });
+    }
+
+    async getCallQualityReport(call_sid) {
+        return new Promise((resolve, reject) => {
+            const normalizedCallSid = String(call_sid || '').trim();
+            if (!normalizedCallSid) {
+                resolve(null);
+                return;
+            }
+            const sql = `SELECT * FROM call_quality_reports WHERE call_sid = ? LIMIT 1`;
+            this.db.get(sql, [normalizedCallSid], (err, row) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                if (!row) {
+                    resolve(null);
+                    return;
+                }
+                const parseJson = (value, fallback) => {
+                    if (value === undefined || value === null || value === '') return fallback;
+                    try {
+                        const parsed = JSON.parse(value);
+                        return parsed === undefined ? fallback : parsed;
+                    } catch (_error) {
+                        return fallback;
+                    }
+                };
+                resolve({
+                    ...row,
+                    passed: Number(row.passed) === 1,
+                    shadow_mode: Number(row.shadow_mode) === 1,
+                    findings: parseJson(row.findings, []),
+                    metrics: parseJson(row.metrics, {}),
+                    recommendations: parseJson(row.recommendations, []),
+                });
+            });
+        });
+    }
+
+    async getCallQualitySummary(options = {}) {
+        const hoursRaw = Number(options.hours);
+        const hours = Number.isFinite(hoursRaw) ? Math.max(1, Math.min(24 * 30, Math.floor(hoursRaw))) : 24 * 7;
+        const topFindingsRaw = Number(options.topFindingsLimit);
+        const topFindingsLimit = Number.isFinite(topFindingsRaw)
+            ? Math.max(3, Math.min(20, Math.floor(topFindingsRaw)))
+            : 8;
+        const lowScoreRaw = Number(options.lowScoreLimit);
+        const lowScoreLimit = Number.isFinite(lowScoreRaw)
+            ? Math.max(3, Math.min(50, Math.floor(lowScoreRaw)))
+            : 10;
+        const sinceExpr = `-${hours} hours`;
+        const trendBucket = hours <= 72 ? 'hour' : 'day';
+        const trendBucketExpr =
+            trendBucket === 'hour'
+                ? "strftime('%Y-%m-%dT%H:00:00Z', evaluated_at)"
+                : "strftime('%Y-%m-%d', evaluated_at)";
+
+        const queryAll = (sql, params = []) =>
+            new Promise((resolve, reject) => {
+                this.db.all(sql, params, (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows || []);
+                });
+            });
+        const queryOne = (sql, params = []) =>
+            new Promise((resolve, reject) => {
+                this.db.get(sql, params, (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row || null);
+                });
+            });
+
+        const totals = await queryOne(
+            `SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) AS passed,
+                AVG(CASE WHEN score IS NOT NULL THEN score END) AS avg_score,
+                SUM(CASE WHEN status = 'scored' THEN 1 ELSE 0 END) AS scored,
+                SUM(CASE WHEN status = 'insufficient_transcript' THEN 1 ELSE 0 END) AS insufficient_transcript,
+                SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS skipped
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)`,
+            [sinceExpr],
+        );
+
+        const statusBreakdown = await queryAll(
+            `SELECT status,
+                    COUNT(*) AS total,
+                    AVG(CASE WHEN score IS NOT NULL THEN score END) AS avg_score,
+                    SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) AS passed
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)
+             GROUP BY status
+             ORDER BY total DESC`,
+            [sinceExpr],
+        );
+
+        const profileBreakdown = await queryAll(
+            `SELECT COALESCE(NULLIF(profile, ''), 'general') AS profile,
+                    COUNT(*) AS total,
+                    AVG(CASE WHEN score IS NOT NULL THEN score END) AS avg_score,
+                    SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) AS passed
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)
+             GROUP BY COALESCE(NULLIF(profile, ''), 'general')
+             ORDER BY total DESC, avg_score DESC`,
+            [sinceExpr],
+        );
+
+        const lowScoreCalls = await queryAll(
+            `SELECT call_sid, profile, status, score, passed, shadow_mode, evaluated_at
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)
+               AND score IS NOT NULL
+             ORDER BY score ASC, evaluated_at DESC
+             LIMIT ?`,
+            [sinceExpr, lowScoreLimit],
+        );
+
+        const trendRows = await queryAll(
+            `SELECT ${trendBucketExpr} AS bucket,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) AS passed,
+                    AVG(CASE WHEN score IS NOT NULL THEN score END) AS avg_score
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)
+               AND ${trendBucketExpr} IS NOT NULL
+             GROUP BY ${trendBucketExpr}
+             ORDER BY bucket ASC`,
+            [sinceExpr],
+        );
+
+        const findingRows = await queryAll(
+            `SELECT findings
+             FROM call_quality_reports
+             WHERE evaluated_at >= datetime('now', ?)
+             ORDER BY evaluated_at DESC
+             LIMIT 1200`,
+            [sinceExpr],
+        );
+        const findingCounts = new Map();
+        for (const row of findingRows) {
+            let findings = [];
+            try {
+                const parsed = JSON.parse(row?.findings || '[]');
+                if (Array.isArray(parsed)) findings = parsed;
+            } catch (_error) {
+                findings = [];
+            }
+            for (const finding of findings) {
+                const key = String(finding || '').trim();
+                if (!key) continue;
+                findingCounts.set(key, (findingCounts.get(key) || 0) + 1);
+            }
+        }
+        const topFindings = Array.from(findingCounts.entries())
+            .sort((left, right) => right[1] - left[1])
+            .slice(0, topFindingsLimit)
+            .map(([finding, count]) => ({ finding, count }));
+
+        const total = Number(totals?.total || 0);
+        const passed = Number(totals?.passed || 0);
+        const passRate = total > 0 ? Number(((passed / total) * 100).toFixed(2)) : 0;
+        const avgScore = Number.isFinite(Number(totals?.avg_score))
+            ? Number(Number(totals.avg_score).toFixed(2))
+            : null;
+
+        return {
+            window_hours: hours,
+            totals: {
+                total,
+                passed,
+                pass_rate: passRate,
+                avg_score: avgScore,
+                scored: Number(totals?.scored || 0),
+                insufficient_transcript: Number(totals?.insufficient_transcript || 0),
+                skipped: Number(totals?.skipped || 0),
+            },
+            status_breakdown: statusBreakdown.map((row) => ({
+                status: String(row.status || ''),
+                total: Number(row.total || 0),
+                passed: Number(row.passed || 0),
+                pass_rate: Number(row.total || 0) > 0
+                    ? Number(((Number(row.passed || 0) / Number(row.total || 0)) * 100).toFixed(2))
+                    : 0,
+                avg_score: Number.isFinite(Number(row.avg_score))
+                    ? Number(Number(row.avg_score).toFixed(2))
+                    : null,
+            })),
+            profile_breakdown: profileBreakdown.map((row) => ({
+                profile: String(row.profile || 'general'),
+                total: Number(row.total || 0),
+                passed: Number(row.passed || 0),
+                pass_rate: Number(row.total || 0) > 0
+                    ? Number(((Number(row.passed || 0) / Number(row.total || 0)) * 100).toFixed(2))
+                    : 0,
+                avg_score: Number.isFinite(Number(row.avg_score))
+                    ? Number(Number(row.avg_score).toFixed(2))
+                    : null,
+            })),
+            trend_bucket: trendBucket,
+            trend_series: trendRows.map((row) => ({
+                bucket: String(row.bucket || ''),
+                total: Number(row.total || 0),
+                passed: Number(row.passed || 0),
+                pass_rate: Number(row.total || 0) > 0
+                    ? Number(((Number(row.passed || 0) / Number(row.total || 0)) * 100).toFixed(2))
+                    : 0,
+                avg_score: Number.isFinite(Number(row.avg_score))
+                    ? Number(Number(row.avg_score).toFixed(2))
+                    : null,
+            })),
+            top_findings: topFindings,
+            low_score_calls: lowScoreCalls.map((row) => ({
+                call_sid: row.call_sid,
+                profile: row.profile || 'general',
+                status: row.status,
+                score: Number.isFinite(Number(row.score)) ? Number(row.score) : null,
+                passed: Number(row.passed) === 1,
+                shadow_mode: Number(row.shadow_mode) === 1,
+                evaluated_at: row.evaluated_at,
+            })),
+        };
     }
 
     // Get enhanced call transcripts (supports both table names)
@@ -6032,6 +6525,7 @@ class EnhancedDatabase {
            { name: 'gpt_memory_facts', dateField: 'last_seen_at' },
            { name: 'provider_event_idempotency', dateField: 'created_at' },
            { name: 'outbound_call_idempotency', dateField: 'updated_at' },
+           { name: 'call_script_mutation_idempotency', dateField: 'updated_at' },
            { name: 'vonage_call_mappings', dateField: 'updated_at' },
            { name: 'call_runtime_state', dateField: 'updated_at' }
        ];

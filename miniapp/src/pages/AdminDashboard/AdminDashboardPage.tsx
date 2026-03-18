@@ -96,6 +96,7 @@ import { SmsSenderPage } from '@/pages/AdminDashboard/SmsSenderPage';
 import { UsersRolePage } from '@/pages/AdminDashboard/UsersRolePage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { UiButton, UiInput } from '@/components/ui/AdminPrimitives';
+import type { OpsQaSummary } from '@/pages/AdminDashboard/types';
 
 const POLL_BASE_INTERVAL_MS = 10000;
 const POLL_MAX_INTERVAL_MS = 60000;
@@ -311,6 +312,55 @@ function createDashboardFixturePayload(nowIso: string): DashboardApiPayload {
       },
       status: 'healthy',
       health: 'ok',
+      qa: {
+        window_hours: 168,
+        totals: {
+          total: 12,
+          passed: 10,
+          pass_rate: 83.33,
+          avg_score: 91.2,
+          scored: 12,
+          insufficient_transcript: 0,
+          skipped: 0,
+        },
+        top_findings: [
+          { finding: 'Long hold time before first response', count: 2 },
+          { finding: 'Compliance disclosure delayed', count: 1 },
+        ],
+        profile_breakdown: [
+          {
+            profile: 'customer_support',
+            total: 8,
+            passed: 7,
+            pass_rate: 87.5,
+            avg_score: 92.1,
+          },
+          {
+            profile: 'lead_qualification',
+            total: 4,
+            passed: 3,
+            pass_rate: 75,
+            avg_score: 89.5,
+          },
+        ],
+        trend_bucket: 'day',
+        trend_series: [
+          { bucket: '2026-03-12', total: 1, passed: 1, pass_rate: 100, avg_score: 94 },
+          { bucket: '2026-03-13', total: 2, passed: 2, pass_rate: 100, avg_score: 93.5 },
+          { bucket: '2026-03-14', total: 2, passed: 1, pass_rate: 50, avg_score: 82 },
+          { bucket: '2026-03-15', total: 1, passed: 1, pass_rate: 100, avg_score: 95 },
+          { bucket: '2026-03-16', total: 3, passed: 2, pass_rate: 66.67, avg_score: 88 },
+          { bucket: '2026-03-17', total: 2, passed: 2, pass_rate: 100, avg_score: 96 },
+          { bucket: '2026-03-18', total: 1, passed: 1, pass_rate: 100, avg_score: 90 },
+        ],
+        profile_thresholds: {
+          default: 70,
+          customer_support: 85,
+          lead_qualification: 90,
+        },
+        low_score_calls: [],
+        updated_at: nowIso,
+      },
     },
     bridge: {
       hard_failures: 0,
@@ -584,6 +634,7 @@ interface OpsPayload {
   queue_backlog?: OpsQueueBacklogPayload;
   status?: unknown;
   health?: unknown;
+  qa?: unknown;
 }
 
 interface MiniAppUsersPayload {
@@ -908,6 +959,169 @@ function asIncidentRows(value: unknown): IncidentRow[] {
 function asRunbooks(value: unknown): RunbookRow[] {
   if (!Array.isArray(value)) return [];
   return value.map((entry) => asRecord(entry) as RunbookRow);
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function asOpsQaSummary(value: unknown): OpsQaSummary | null {
+  const payload = asRecord(value);
+  if (Object.keys(payload).length === 0) return null;
+
+  const totals = asRecord(payload.totals);
+  const total = Math.max(0, Math.floor(toFiniteNumber(totals.total, 0)));
+  const passed = Math.max(0, Math.floor(toFiniteNumber(totals.passed, 0)));
+  const passRateRaw = toFiniteNumber(totals.pass_rate, NaN);
+  const passRate = Number.isFinite(passRateRaw)
+    ? Number(Math.max(0, Math.min(100, passRateRaw)).toFixed(2))
+    : total > 0
+      ? Number(((passed / total) * 100).toFixed(2))
+      : 0;
+  const avgScoreRaw = toFiniteNumber(totals.avg_score, NaN);
+  const avgScore = Number.isFinite(avgScoreRaw)
+    ? Number(Math.max(0, Math.min(100, avgScoreRaw)).toFixed(2))
+    : null;
+
+  const topFindings = Array.isArray(payload.top_findings)
+    ? payload.top_findings
+      .map((entry) => {
+        const finding = toText(asRecord(entry).finding, '').trim();
+        const count = Math.max(0, Math.floor(toFiniteNumber(asRecord(entry).count, 0)));
+        return finding ? { finding, count } : null;
+      })
+      .filter((entry): entry is { finding: string; count: number } => entry !== null)
+      .slice(0, 8)
+    : [];
+
+  const profileBreakdown = Array.isArray(payload.profile_breakdown)
+    ? payload.profile_breakdown
+      .map((entry) => {
+        const row = asRecord(entry);
+        const profile = toText(row.profile, 'general');
+        const rowTotal = Math.max(0, Math.floor(toFiniteNumber(row.total, 0)));
+        const rowPassed = Math.max(0, Math.floor(toFiniteNumber(row.passed, 0)));
+        const rowPassRateRaw = toFiniteNumber(row.pass_rate, NaN);
+        const rowPassRate = Number.isFinite(rowPassRateRaw)
+          ? Number(Math.max(0, Math.min(100, rowPassRateRaw)).toFixed(2))
+          : rowTotal > 0
+            ? Number(((rowPassed / rowTotal) * 100).toFixed(2))
+            : 0;
+        const rowAvgScoreRaw = toFiniteNumber(row.avg_score, NaN);
+        const rowAvgScore = Number.isFinite(rowAvgScoreRaw)
+          ? Number(Math.max(0, Math.min(100, rowAvgScoreRaw)).toFixed(2))
+          : null;
+        return {
+          profile,
+          total: rowTotal,
+          passed: rowPassed,
+          passRate: rowPassRate,
+          avgScore: rowAvgScore,
+        };
+      })
+      .slice(0, 8)
+    : [];
+
+  const trendSeries = Array.isArray(payload.trend_series)
+    ? payload.trend_series
+      .map((entry) => {
+        const row = asRecord(entry);
+        const bucket = toText(row.bucket, '').trim();
+        if (!bucket) return null;
+        const rowTotal = Math.max(0, Math.floor(toFiniteNumber(row.total, 0)));
+        const rowPassed = Math.max(0, Math.floor(toFiniteNumber(row.passed, 0)));
+        const rowPassRateRaw = toFiniteNumber(row.pass_rate, NaN);
+        const rowPassRate = Number.isFinite(rowPassRateRaw)
+          ? Number(Math.max(0, Math.min(100, rowPassRateRaw)).toFixed(2))
+          : rowTotal > 0
+            ? Number(((rowPassed / rowTotal) * 100).toFixed(2))
+            : 0;
+        const rowAvgScoreRaw = toFiniteNumber(row.avg_score, NaN);
+        const rowAvgScore = Number.isFinite(rowAvgScoreRaw)
+          ? Number(Math.max(0, Math.min(100, rowAvgScoreRaw)).toFixed(2))
+          : null;
+        return {
+          bucket,
+          total: rowTotal,
+          passed: rowPassed,
+          passRate: rowPassRate,
+          avgScore: rowAvgScore,
+        };
+      })
+      .filter((entry): entry is {
+        bucket: string;
+        total: number;
+        passed: number;
+        passRate: number;
+        avgScore: number | null;
+      } => entry !== null)
+      .slice(-14)
+    : [];
+
+  const profileThresholds: Record<string, number> = {};
+  const thresholdPayload = asRecord(payload.profile_thresholds);
+  for (const [rawProfile, rawThreshold] of Object.entries(thresholdPayload)) {
+    const profile = toText(rawProfile, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w-]+/g, '_');
+    const threshold = toFiniteNumber(rawThreshold, NaN);
+    if (!profile || !Number.isFinite(threshold)) continue;
+    profileThresholds[profile] = Number(Math.max(0, Math.min(100, threshold)).toFixed(2));
+  }
+  if (!Object.prototype.hasOwnProperty.call(profileThresholds, 'default')) {
+    profileThresholds.default = 70;
+  }
+
+  const lowScoreCalls = Array.isArray(payload.low_score_calls)
+    ? payload.low_score_calls
+      .map((entry) => {
+        const row = asRecord(entry);
+        const callSid = toText(row.call_sid, '').trim();
+        if (!callSid) return null;
+        const scoreRaw = toFiniteNumber(row.score, NaN);
+        return {
+          callSid,
+          profile: toText(row.profile, 'general'),
+          status: toText(row.status, 'unknown'),
+          score: Number.isFinite(scoreRaw)
+            ? Number(Math.max(0, Math.min(100, scoreRaw)).toFixed(2))
+            : null,
+          passed: row.passed === true,
+          shadowMode: row.shadow_mode === true,
+          evaluatedAt: toText(row.evaluated_at, ''),
+        };
+      })
+      .filter((entry): entry is {
+        callSid: string;
+        profile: string;
+        status: string;
+        score: number | null;
+        passed: boolean;
+        shadowMode: boolean;
+        evaluatedAt: string;
+      } => entry !== null)
+      .slice(0, 10)
+    : [];
+
+  return {
+    windowHours: Math.max(1, Math.floor(toFiniteNumber(payload.window_hours, 24 * 7))),
+    total,
+    passed,
+    passRate,
+    avgScore,
+    scored: Math.max(0, Math.floor(toFiniteNumber(totals.scored, 0))),
+    insufficientTranscript: Math.max(0, Math.floor(toFiniteNumber(totals.insufficient_transcript, 0))),
+    skipped: Math.max(0, Math.floor(toFiniteNumber(totals.skipped, 0))),
+    trendBucket: toText(payload.trend_bucket, 'day'),
+    trendSeries,
+    topFindings,
+    profileBreakdown,
+    profileThresholds,
+    lowScoreCalls,
+    updatedAt: toText(payload.updated_at, ''),
+  };
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -1750,6 +1964,7 @@ export function AdminDashboardPage() {
   const voiceRuntimePayload = pollPayload?.voice_runtime || dashboard?.voice_runtime || {};
   const opsPayload = pollPayload?.ops || dashboard?.ops || {};
   const opsQueueBacklog = opsPayload.queue_backlog || {};
+  const opsQaSummary = asOpsQaSummary(opsPayload.qa);
   const usersPayload = usersSnapshot || dashboard?.users || {};
   const auditPayload = auditSnapshot || dashboard?.audit || {};
   const incidentsPayload = incidentsSnapshot || dashboard?.incidents || {};
@@ -2331,6 +2546,7 @@ export function AdminDashboardPage() {
     callFailureRate,
     callSuccessRate,
     queueBacklogTotal,
+    opsQaSummary,
     providerReadinessTotals,
     providerReadinessPercent,
     textBar,

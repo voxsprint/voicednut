@@ -14,6 +14,18 @@ type OpsDashboardPageProps = {
   vm: DashboardVm;
 };
 
+function buildAsciiSparkline(values: number[]): string {
+  if (!Array.isArray(values) || values.length === 0) return '';
+  const levels = '._-:=+*#%@';
+  return values
+    .map((value) => {
+      const normalized = Math.max(0, Math.min(100, Number(value) || 0));
+      const index = Math.round((normalized / 100) * (levels.length - 1));
+      return levels[index] || levels[0];
+    })
+    .join('');
+}
+
 export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
   if (!visible) return null;
 
@@ -40,6 +52,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
     callFailureRate,
     callSuccessRate,
     queueBacklogTotal,
+    opsQaSummary,
     providerReadinessTotals,
     providerReadinessPercent,
     textBar,
@@ -190,6 +203,116 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </p>
           <pre>{textBar(providerReadinessPercent)}</pre>
         </div>
+
+        {opsQaSummary ? (
+          <div className="va-card">
+            <h3>Post-Call QA</h3>
+            <p>
+              Window: <strong>{opsQaSummary.windowHours}h</strong>
+              {' '}| Evaluations: <strong>{opsQaSummary.total}</strong>
+            </p>
+            <p>
+              Pass rate: <strong>{opsQaSummary.passRate}%</strong>
+              {' '}({opsQaSummary.passed}/{opsQaSummary.total})
+            </p>
+            <p>
+              Avg score: <strong>{opsQaSummary.avgScore ?? 'n/a'}</strong>
+              {' '}| Scored: <strong>{opsQaSummary.scored}</strong>
+            </p>
+            <p>
+              Insufficient transcript: <strong>{opsQaSummary.insufficientTranscript}</strong>
+              {' '}| Skipped: <strong>{opsQaSummary.skipped}</strong>
+            </p>
+            <pre>{textBar(opsQaSummary.passRate)}</pre>
+            {opsQaSummary.trendSeries.length > 0 ? (
+              <>
+                <p>
+                  Trend bucket: <strong>{opsQaSummary.trendBucket}</strong>
+                  {' '}| Points: <strong>{opsQaSummary.trendSeries.length}</strong>
+                </p>
+                <pre>{buildAsciiSparkline(opsQaSummary.trendSeries.map((point) => point.passRate))}</pre>
+              </>
+            ) : null}
+            <details className="va-drilldown">
+              <summary>QA trend ({opsQaSummary.trendSeries.length})</summary>
+              {opsQaSummary.trendSeries.length === 0 ? (
+                <p className="va-muted">No trend points available in this window.</p>
+              ) : (
+                <ul className="va-list">
+                  {opsQaSummary.trendSeries.map((point) => (
+                    <li key={`qa-trend-${point.bucket}`}>
+                      <strong>{point.bucket}</strong>
+                      <span>{point.passed}/{point.total} passed ({point.passRate}%)</span>
+                      <span>Avg score: {point.avgScore ?? 'n/a'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+            <details className="va-drilldown">
+              <summary>Top findings ({opsQaSummary.topFindings.length})</summary>
+              {opsQaSummary.topFindings.length === 0 ? (
+                <p className="va-muted">No recurring findings in this window.</p>
+              ) : (
+                <ul className="va-list">
+                  {opsQaSummary.topFindings.map((finding) => (
+                    <li key={`qa-finding-${finding.finding}`}>
+                      <strong>{finding.finding}</strong>
+                      <span>{finding.count} calls</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+            <details className="va-drilldown">
+              <summary>Profile breakdown ({opsQaSummary.profileBreakdown.length})</summary>
+              {opsQaSummary.profileBreakdown.length === 0 ? (
+                <p className="va-muted">No profile-specific QA data yet.</p>
+              ) : (
+                <ul className="va-list">
+                  {opsQaSummary.profileBreakdown.map((profile) => {
+                    const threshold =
+                      opsQaSummary.profileThresholds[profile.profile]
+                      ?? opsQaSummary.profileThresholds.default
+                      ?? 70;
+                    const belowThreshold =
+                      profile.avgScore !== null && profile.avgScore < threshold;
+                    const thresholdStatus = profile.avgScore === null
+                      ? 'info'
+                      : belowThreshold
+                        ? 'error'
+                        : 'success';
+                    const thresholdLabel = profile.avgScore === null
+                      ? 'No score'
+                      : belowThreshold
+                        ? 'Below threshold'
+                        : 'Within threshold';
+
+                    return (
+                      <li key={`qa-profile-${profile.profile}`}>
+                        <strong>{profile.profile}</strong>
+                        <span>{profile.passed}/{profile.total} passed ({profile.passRate}%)</span>
+                        <span>Avg score: {profile.avgScore ?? 'n/a'}</span>
+                        <span>Threshold: {threshold}</span>
+                        <span className={`va-pill va-pill-${thresholdStatus}`}>{thresholdLabel}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </details>
+          </div>
+        ) : (
+          <div className="va-card">
+            <h3>Post-Call QA</h3>
+            <UiStatePanel
+              title="QA summary unavailable"
+              description="Enable and collect post-call QA evaluations to unlock quality trends."
+              tone="info"
+              compact
+            />
+          </div>
+        )}
 
         {runtimeControlsEnabled ? (
           <div className="va-card">

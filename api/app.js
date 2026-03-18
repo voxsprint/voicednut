@@ -121,6 +121,8 @@ const {
   runCallCanarySweep,
   evaluateCallCanarySloGuardrail,
 } = require("./services/callCanary");
+const { runPostCallQaEvaluation } = require("./services/postCallQaService");
+const { assertWebhookAuthConfiguration } = require("./services/webhookAuthConfig");
 const {
   VOICE_RUNTIME_CONTROL_SETTING_KEY,
   clampCanaryPercent: clampVoiceRuntimeCanaryPercent,
@@ -7183,6 +7185,67 @@ function recordMiniAppRouteTelemetry(req, res, durationMs) {
   db?.logServiceHealth?.("miniapp_route", payload.ok ? "ok" : "error", payload).catch(() => {});
 }
 
+function shouldTrackApiRouteTelemetry(path = "") {
+  if (!path) return false;
+  if (path.startsWith("/assets/") || path.startsWith("/miniapp/assets/")) return false;
+  return (
+    path === "/outbound-call" ||
+    path === "/ready" ||
+    path === "/status" ||
+    path === "/health" ||
+    path.startsWith("/api/") ||
+    path.startsWith("/admin/") ||
+    path.startsWith("/email/") ||
+    path.startsWith("/webhook/") ||
+    path === "/va" ||
+    path === "/ve" ||
+    path === "/answer" ||
+    path === "/event" ||
+    path === "/vs" ||
+    path === "/vd"
+  );
+}
+
+function normalizeTelemetryRouteLabel(req, fallbackPath = "") {
+  const base = String(req?.baseUrl || "");
+  const routePath = req?.route?.path;
+  if (typeof routePath === "string" && routePath.trim()) {
+    return `${base}${routePath}`;
+  }
+  return fallbackPath || "unknown";
+}
+
+function resolveApiRouteTelemetryKind(path = "") {
+  if (!path) return "unknown";
+  if (path.startsWith("/webhook/") || ["/va", "/ve", "/answer", "/event", "/vs", "/vd"].includes(path)) {
+    return "webhook";
+  }
+  if (path.startsWith("/admin/")) return "admin";
+  if (path.startsWith("/email/")) return "email";
+  if (path === "/ready" || path === "/health" || path === "/status") return "status";
+  if (path === "/outbound-call" || path.startsWith("/api/")) return "api";
+  return "other";
+}
+
+function recordApiRouteTelemetry(req, res, durationMs, rawPath = "") {
+  const route = normalizeTelemetryRouteLabel(req, rawPath);
+  const statusCode = Number(res?.statusCode || 0);
+  const payload = {
+    route,
+    kind: resolveApiRouteTelemetryKind(rawPath),
+    method: String(req?.method || "GET").toUpperCase(),
+    status: statusCode,
+    ok: statusCode >= 200 && statusCode < 400,
+    error_code: String(res?.locals?.apiErrorCode || "").trim() || null,
+    webhook_auth_policy: String(res?.locals?.webhookAuthPolicy || "").trim() || null,
+    duration_ms: Number.isFinite(Number(durationMs))
+      ? Math.max(0, Math.floor(Number(durationMs)))
+      : null,
+    request_id: req?.requestId || null,
+  };
+  db?.logServiceHealth?.("api_route", payload.ok ? "ok" : "error", payload).catch(() => {});
+}
+
 function getConfiguredMiniAppRoles() {
   const roles = new Map();
   const append = (values, role) => {
@@ -8654,6 +8717,13 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   const path = String(req.path || req.originalUrl || "").split("?")[0];
+  if (shouldTrackApiRouteTelemetry(path)) {
+    const startedAt = Date.now();
+    res.on("finish", () => {
+      const durationMs = Date.now() - startedAt;
+      recordApiRouteTelemetry(req, res, durationMs, path);
+    });
+  }
   if (!path.startsWith("/miniapp")) {
     return next();
   }
@@ -11640,27 +11710,6 @@ function warnIfMachineDetectionDisabled(context = "") {
   warnedMachineDetection = true;
 }
 
-function assertEmailWebhookAuthConfiguration() {
-  const mode = String(config.email?.webhookValidation || "warn").toLowerCase();
-  if (mode !== "strict") return;
-  const hasEmailSecret = Boolean(String(config.email?.webhookSecret || "").trim());
-  const hasHmacSecret = Boolean(String(config.apiAuth?.hmacSecret || "").trim());
-  if (hasEmailSecret || hasHmacSecret) return;
-  throw new Error(
-    "EMAIL_WEBHOOK_VALIDATION is strict but no email webhook auth secret is configured. Set EMAIL_WEBHOOK_SECRET or API_SECRET/API_HMAC_SECRET.",
-  );
-}
-
-function assertVonageWebhookAuthConfiguration() {
-  const mode = String(config.vonage?.webhookValidation || "warn").toLowerCase();
-  if (mode !== "strict") return;
-  const hasSecret = Boolean(String(config.vonage?.webhookSignatureSecret || "").trim());
-  if (hasSecret) return;
-  throw new Error(
-    "VONAGE_WEBHOOK_VALIDATION is strict but VONAGE_WEBHOOK_SIGNATURE_SECRET is missing. Configure a webhook signature secret before startup.",
-  );
-}
-
 function getAwsConnectAdapter() {
   if (!awsConnectAdapter) {
     awsConnectAdapter = new AwsConnectAdapter(config.aws);
@@ -12510,8 +12559,7 @@ async function startServer(options = {}) {
   try {
     console.log("🚀 Initializing Adaptive AI Call System...");
     warnIfMachineDetectionDisabled("startup");
-    assertEmailWebhookAuthConfiguration();
-    assertVonageWebhookAuthConfiguration();
+    assertWebhookAuthConfiguration(config);
     validateProfilePacksAtStartup();
 
     // Initialize database first
@@ -15927,6 +15975,50 @@ async function handleCallEnd(callSid, callStartTime) {
     }
 
     const callDetails = await db.getCall(callSid);
+    const qaCallRecord = callDetails || initialCallDetails || {};
+
+    void runPostCallQaEvaluation({
+      callSid,
+      call: qaCallRecord,
+      transcripts,
+      durationSeconds: duration,
+      config,
+      db,
+      logger: console,
+    })
+      .then(async (qaResult) => {
+        const stateName =
+          qaResult?.status === "scored" ||
+          qaResult?.status === "insufficient_transcript"
+            ? "post_call_qa_scored"
+            : "post_call_qa_skipped";
+        await db
+          .updateCallState(callSid, stateName, {
+            status: qaResult?.status || "unknown",
+            reason: qaResult?.evaluation_reason || qaResult?.reason || null,
+            score: Number.isFinite(Number(qaResult?.score))
+              ? Number(qaResult.score)
+              : null,
+            passed: qaResult?.passed === true,
+            shadow_mode: qaResult?.shadow_mode === true,
+            persisted: qaResult?.persisted === true,
+            version: qaResult?.version || null,
+            evaluated_at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      })
+      .catch(async (qaError) => {
+        console.error("post_call_qa_evaluation_failed", {
+          call_sid: callSid,
+          error: qaError?.message || "post_call_qa_failed",
+        });
+        await db
+          .updateCallState(callSid, "post_call_qa_error", {
+            error: qaError?.message || "post_call_qa_failed",
+            at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      });
 
     // Create enhanced webhook notification for completion
     if (callDetails && callDetails.user_chat_id) {
@@ -16889,6 +16981,7 @@ async function buildMiniAppBootstrapPayload(req) {
     emailHistoryResult,
     systemStatusResult,
     healthResult,
+    qaSummaryResult,
     voiceRuntimeResult,
     callScripts,
     dlqSnapshot,
@@ -16941,6 +17034,12 @@ async function buildMiniAppBootstrapPayload(req) {
       callMiniAppBridgeApi({
         method: "GET",
         path: "/health",
+        requestId,
+      }).catch(() => ({ ok: false, status: 500, data: null })),
+      callMiniAppBridgeApi({
+        method: "GET",
+        path: "/api/qa/summary",
+        query: { hours: 24 * 7, top_findings: 5, low_score_limit: 5 },
         requestId,
       }).catch(() => ({ ok: false, status: 500, data: null })),
       callMiniAppBridgeApi({
@@ -17005,6 +17104,7 @@ async function buildMiniAppBootstrapPayload(req) {
     + queueBacklog.dlq_email_open
     + queueBacklog.sms_failed
     + queueBacklog.email_failed;
+  const qaSummary = qaSummaryResult.ok ? qaSummaryResult.data?.summary || null : null;
 
   return {
     provider: providerResult.ok ? providerResult.data : null,
@@ -17028,6 +17128,7 @@ async function buildMiniAppBootstrapPayload(req) {
       },
       status: systemStatusResult.ok ? systemStatusResult.data : null,
       health: healthResult.ok ? healthResult.data : null,
+      qa: qaSummary,
     },
     bridge: {
       provider_status: providerResult.status,
@@ -17038,6 +17139,7 @@ async function buildMiniAppBootstrapPayload(req) {
       email_history_status: emailHistoryResult.status,
       status_path_status: systemStatusResult.status,
       health_path_status: healthResult.status,
+      qa_summary_status: qaSummaryResult.status,
       voice_runtime_status: voiceRuntimeResult.status,
     },
   };
@@ -18049,7 +18151,7 @@ app.get("/miniapp/jobs/poll", requireMiniAppSession, async (req, res) => {
       .filter((value) => isSafeId(value, { max: 128 }))
       .slice(0, 20);
 
-    const [smsResult, emailStatsResult, emailHistoryResult, voiceRuntimeResult, dlqSnapshot, emailJobs, callLogs] =
+    const [smsResult, emailStatsResult, emailHistoryResult, voiceRuntimeResult, qaSummaryResult, dlqSnapshot, emailJobs, callLogs] =
       await Promise.all([
         callMiniAppBridgeApi({
           method: "GET",
@@ -18074,6 +18176,12 @@ app.get("/miniapp/jobs/poll", requireMiniAppSession, async (req, res) => {
           path: "/admin/voice-runtime",
           requestId: req.requestId || null,
         }).catch(() => ({ ok: false, status: 500, data: null })),
+        callMiniAppBridgeApi({
+          method: "GET",
+          path: "/api/qa/summary",
+          query: { hours: 24 * 7, top_findings: 5, low_score_limit: 5 },
+          requestId: req.requestId || null,
+        }).catch(() => ({ ok: false, status: 500, data: null })),
         getMiniAppDlqSnapshot().catch(() => ({
           call_open: null,
           email_open: null,
@@ -18095,6 +18203,20 @@ app.get("/miniapp/jobs/poll", requireMiniAppSession, async (req, res) => {
           total: 0,
         })),
       ]);
+    const smsSummary = smsResult.ok ? smsResult.data?.summary || null : null;
+    const emailSummary = emailStatsResult.ok ? emailStatsResult.data?.stats || null : null;
+    const queueBacklog = {
+      dlq_call_open: Number(dlqSnapshot?.call_open) || 0,
+      dlq_email_open: Number(dlqSnapshot?.email_open) || 0,
+      sms_failed: Number(smsSummary?.totalFailed) || 0,
+      email_failed: Number(emailSummary?.failed) || 0,
+    };
+    const queueBacklogTotal =
+      queueBacklog.dlq_call_open
+      + queueBacklog.dlq_email_open
+      + queueBacklog.sms_failed
+      + queueBacklog.email_failed;
+    const qaSummary = qaSummaryResult.ok ? qaSummaryResult.data?.summary || null : null;
 
     return res.json({
       success: true,
@@ -18107,11 +18229,19 @@ app.get("/miniapp/jobs/poll", requireMiniAppSession, async (req, res) => {
       email_jobs: emailJobs.filter(Boolean),
       dlq: dlqSnapshot,
       call_logs: callLogs,
+      ops: {
+        queue_backlog: {
+          ...queueBacklog,
+          total: queueBacklogTotal,
+        },
+        qa: qaSummary,
+      },
       bridge: {
         sms_status: smsResult.status,
         email_stats_status: emailStatsResult.status,
         email_history_status: emailHistoryResult.status,
         voice_runtime_status: voiceRuntimeResult.status,
+        qa_summary_status: qaSummaryResult.status,
       },
       request_id: req.requestId || null,
     });
@@ -19055,7 +19185,7 @@ function resetCallScriptMutationIdempotencyForTests() {
   callScriptMutationIdempotency.clear();
 }
 
-function beginCallScriptMutationIdempotency(req, action, target, payload) {
+async function beginCallScriptMutationIdempotency(req, action, target, payload) {
   const key = String(
     req.headers["idempotency-key"] || req.headers["Idempotency-Key"] || "",
   ).trim();
@@ -19099,6 +19229,71 @@ function beginCallScriptMutationIdempotency(req, action, target, payload) {
     }
   }
 
+  if (db?.reserveCallScriptMutationIdempotency) {
+    try {
+      const reservation = await db.reserveCallScriptMutationIdempotency(
+        key,
+        fingerprint,
+      );
+      const record = reservation?.record || null;
+      if (!reservation?.reserved && record) {
+        if (String(record.fingerprint || "") !== fingerprint) {
+          return {
+            enabled: true,
+            key,
+            error: {
+              status: 409,
+              code: "idempotency_conflict",
+              message: "Idempotency key reuse with different payload",
+            },
+          };
+        }
+        const existingStatus = String(record.status || "").trim().toLowerCase();
+        if (existingStatus === "pending") {
+          return {
+            enabled: true,
+            key,
+            error: {
+              status: 409,
+              code: "idempotency_in_progress",
+              message: "Idempotency key is currently processing",
+            },
+          };
+        }
+        if (existingStatus === "done" && record.response_body) {
+          let replayBody = null;
+          try {
+            replayBody = JSON.parse(record.response_body);
+          } catch {
+            replayBody = null;
+          }
+          if (replayBody && typeof replayBody === "object") {
+            const replay = {
+              status: Number(record.response_status) || 200,
+              body: replayBody,
+            };
+            callScriptMutationIdempotency.set(key, {
+              at: now,
+              status: "done",
+              fingerprint,
+              response: replay,
+            });
+            return {
+              enabled: true,
+              key,
+              replay,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("call_script_idempotency_db_unavailable", {
+        request_id: req?.requestId || null,
+        code: error?.code || null,
+      });
+    }
+  }
+
   callScriptMutationIdempotency.set(key, {
     at: now,
     status: "pending",
@@ -19110,21 +19305,45 @@ function beginCallScriptMutationIdempotency(req, action, target, payload) {
 
 function completeCallScriptMutationIdempotency(idem, status, body) {
   if (!idem?.enabled || !idem?.key) return;
+  const fingerprint =
+    callScriptMutationIdempotency.get(idem.key)?.fingerprint || null;
   callScriptMutationIdempotency.set(idem.key, {
     at: Date.now(),
     status: "done",
-    fingerprint:
-      callScriptMutationIdempotency.get(idem.key)?.fingerprint || null,
+    fingerprint,
     response: {
       status: Number(status) || 200,
       body,
     },
   });
+  if (db?.completeCallScriptMutationIdempotency && fingerprint) {
+    db
+      .completeCallScriptMutationIdempotency(
+        idem.key,
+        fingerprint,
+        Number(status) || 200,
+        body,
+      )
+      .catch((error) => {
+        console.warn("call_script_idempotency_complete_failed", {
+          code: error?.code || null,
+          idempotency_key: idem.key,
+        });
+      });
+  }
 }
 
 function failCallScriptMutationIdempotency(idem) {
   if (!idem?.enabled || !idem?.key) return;
   callScriptMutationIdempotency.delete(idem.key);
+  if (db?.clearCallScriptMutationIdempotency) {
+    db.clearCallScriptMutationIdempotency(idem.key).catch((error) => {
+      console.warn("call_script_idempotency_clear_failed", {
+        code: error?.code || null,
+        idempotency_key: idem.key,
+      });
+    });
+  }
 }
 
 function applyIdempotencyResponse(res, idem) {
@@ -19434,7 +19653,7 @@ app.get("/api/call-scripts/:id", requireAdminToken, async (req, res) => {
 });
 
 app.post("/api/call-scripts", requireAdminToken, async (req, res) => {
-  const idempotency = beginCallScriptMutationIdempotency(
+  const idempotency = await beginCallScriptMutationIdempotency(
     req,
     "create",
     "new",
@@ -19560,7 +19779,7 @@ app.post("/api/call-scripts", requireAdminToken, async (req, res) => {
 
 app.put("/api/call-scripts/:id", requireAdminToken, async (req, res) => {
   const scriptIdForIdem = Number(req.params.id);
-  const idempotency = beginCallScriptMutationIdempotency(
+  const idempotency = await beginCallScriptMutationIdempotency(
     req,
     "update",
     Number.isFinite(scriptIdForIdem) ? scriptIdForIdem : req.params.id,
@@ -19738,7 +19957,7 @@ app.put("/api/call-scripts/:id", requireAdminToken, async (req, res) => {
 
 app.delete("/api/call-scripts/:id", requireAdminToken, async (req, res) => {
   const scriptIdForIdem = Number(req.params.id);
-  const idempotency = beginCallScriptMutationIdempotency(
+  const idempotency = await beginCallScriptMutationIdempotency(
     req,
     "delete",
     Number.isFinite(scriptIdForIdem) ? scriptIdForIdem : req.params.id,
@@ -19780,7 +19999,7 @@ app.delete("/api/call-scripts/:id", requireAdminToken, async (req, res) => {
 
 app.post("/api/call-scripts/:id/clone", requireAdminToken, async (req, res) => {
   const scriptIdForIdem = Number(req.params.id);
-  const idempotency = beginCallScriptMutationIdempotency(
+  const idempotency = await beginCallScriptMutationIdempotency(
     req,
     "clone",
     Number.isFinite(scriptIdForIdem) ? scriptIdForIdem : req.params.id,
@@ -19998,7 +20217,7 @@ app.get("/api/call-scripts/:id/diff", requireAdminToken, async (req, res) => {
 
 app.post("/api/call-scripts/:id/rollback", requireAdminToken, async (req, res) => {
   const scriptIdForIdem = Number(req.params.id);
-  const idempotency = beginCallScriptMutationIdempotency(
+  const idempotency = await beginCallScriptMutationIdempotency(
     req,
     "rollback",
     Number.isFinite(scriptIdForIdem) ? scriptIdForIdem : req.params.id,
@@ -20805,7 +21024,7 @@ function normalizeOutboundIdempotencyKey(value = "") {
   return key;
 }
 
-function buildVonageOutboundIdempotencyRequestHash(payload = {}) {
+function buildOutboundCallIdempotencyRequestHash(payload = {}) {
   const normalized = {
     number: String(payload?.number || "").trim(),
     script_id: normalizeScriptId(payload?.script_id),
@@ -20835,19 +21054,24 @@ function buildVonageOutboundIdempotencyRequestHash(payload = {}) {
     .digest("hex");
 }
 
-async function reserveVonageOutboundIdempotency(payload = {}) {
+async function reserveOutboundCallIdempotency(payload = {}, preferredProvider = "") {
   const idempotencyKey = normalizeOutboundIdempotencyKey(payload.idempotency_key);
   if (!idempotencyKey || !db?.reserveOutboundCallIdempotency) {
-    return { enabled: false, idempotencyKey: "", requestHash: "" };
+    return { enabled: false, idempotencyKey: "", requestHash: "", provider: "" };
   }
-  const requestHash = buildVonageOutboundIdempotencyRequestHash(payload);
+  const provider =
+    normalizeProviderName(preferredProvider) ||
+    normalizeProviderName(payload?.preferred_provider || payload?.provider) ||
+    normalizeProviderName(currentProvider) ||
+    "twilio";
+  const requestHash = buildOutboundCallIdempotencyRequestHash(payload);
   const reservation = await db.reserveOutboundCallIdempotency({
     idempotency_key: idempotencyKey,
-    provider: "vonage",
+    provider,
     request_hash: requestHash,
   });
   if (reservation?.reserved) {
-    return { enabled: true, idempotencyKey, requestHash };
+    return { enabled: true, idempotencyKey, requestHash, provider };
   }
 
   const existing = await db.getOutboundCallIdempotency(idempotencyKey);
@@ -20873,10 +21097,15 @@ async function reserveVonageOutboundIdempotency(payload = {}) {
         enabled: true,
         idempotencyKey,
         requestHash,
+        provider: String(existing.provider || provider).trim().toLowerCase(),
         replay: {
           callId: String(existing.call_sid),
           callStatus:
             String(responsePayload?.call_status || "").trim() || "queued",
+          provider:
+            String(responsePayload?.provider || existing.provider || provider)
+              .trim()
+              .toLowerCase() || "twilio",
           providerMetadata:
             responsePayload?.provider_metadata &&
             typeof responsePayload.provider_metadata === "object"
@@ -20893,13 +21122,15 @@ async function reserveVonageOutboundIdempotency(payload = {}) {
   throw pendingError;
 }
 
-async function completeVonageOutboundIdempotency(context = {}, status = "failed", details = {}) {
+async function completeOutboundCallIdempotency(context = {}, status = "failed", details = {}) {
   if (!context?.enabled || !context?.idempotencyKey || !db?.completeOutboundCallIdempotency) {
     return;
   }
   await db.completeOutboundCallIdempotency({
     idempotency_key: context.idempotencyKey,
-    provider: "vonage",
+    provider:
+      normalizeProviderName(details.provider || context.provider) ||
+      "twilio",
     request_hash: context.requestHash || null,
     call_sid: details.callSid || null,
     status,
@@ -21167,11 +21398,57 @@ async function placeOutboundCall(payload, hostOverride = null) {
   if (!attemptProviders.length) {
     throw new Error("No eligible outbound call providers are currently available");
   }
+  const outboundIdempotencyContext = await reserveOutboundCallIdempotency(
+    {
+      ...payloadObject,
+      idempotency_key: normalizedOutboundIdempotencyKey,
+    },
+    providerPlan.selected_provider || preferredProvider || currentProvider,
+  );
+  if (outboundIdempotencyContext?.replay) {
+    callId = outboundIdempotencyContext.replay.callId;
+    callStatus = outboundIdempotencyContext.replay.callStatus || "queued";
+    providerMetadata =
+      outboundIdempotencyContext.replay.providerMetadata || {};
+    if (!providerMetadata.idempotency_key && normalizedOutboundIdempotencyKey) {
+      providerMetadata = {
+        ...providerMetadata,
+        idempotency_key: normalizedOutboundIdempotencyKey,
+      };
+    }
+    idempotentReplay = true;
+    if (providerMetadata?.vonage_uuid) {
+      rememberVonageCallMapping(
+        callId,
+        providerMetadata.vonage_uuid,
+        "idempotent_replay",
+      );
+    }
+    const replayProvider =
+      normalizeProviderName(outboundIdempotencyContext.replay.provider) ||
+      providerPlan.selected_provider ||
+      preferredProvider ||
+      currentProvider;
+    recordProviderFlowMetric("outbound_call_idempotent_replay", {
+      channel: "call",
+      flow: keypadRequired ? "digit_capture" : "outbound_voice",
+      provider: replayProvider || null,
+      attempt: 0,
+      call_sid: callId,
+    });
+    return {
+      callId,
+      callStatus,
+      functionSystem,
+      provider: replayProvider || currentProvider,
+      idempotentReplay,
+      warnings: callWarnings,
+    };
+  }
   let lastError = null;
 
   for (let providerIndex = 0; providerIndex < attemptProviders.length; providerIndex += 1) {
     const provider = attemptProviders[providerIndex];
-    let vonageIdempotencyContext = null;
     try {
       recordProviderFlowMetric("outbound_call_attempt", {
         channel: "call",
@@ -21229,41 +21506,6 @@ async function placeOutboundCall(payload, hostOverride = null) {
         }
         callStatus = "queued";
       } else if (provider === "vonage") {
-        vonageIdempotencyContext = await reserveVonageOutboundIdempotency({
-          ...payloadObject,
-          idempotency_key: normalizedOutboundIdempotencyKey,
-        });
-        if (vonageIdempotencyContext?.replay) {
-          callId = vonageIdempotencyContext.replay.callId;
-          callStatus = vonageIdempotencyContext.replay.callStatus || "queued";
-          providerMetadata = {
-            ...(vonageIdempotencyContext.replay.providerMetadata || {}),
-            idempotency_key: normalizedOutboundIdempotencyKey || null,
-          };
-          idempotentReplay = true;
-          if (providerMetadata?.vonage_uuid) {
-            rememberVonageCallMapping(
-              callId,
-              providerMetadata.vonage_uuid,
-              "idempotent_replay",
-            );
-          }
-          recordProviderFlowMetric("outbound_call_idempotent_replay", {
-            channel: "call",
-            flow: keypadRequired ? "digit_capture" : "outbound_voice",
-            provider: "vonage",
-            attempt: providerIndex + 1,
-            call_sid: callId,
-          });
-          return {
-            callId,
-            callStatus,
-            functionSystem,
-            provider: "vonage",
-            idempotentReplay,
-            warnings: callWarnings,
-          };
-        }
         const vonageAdapter = getVonageVoiceAdapter();
         callId = uuidv4();
         const webhookReq = reqForHost(host);
@@ -21313,20 +21555,22 @@ async function placeOutboundCall(payload, hostOverride = null) {
           rememberVonageCallMapping(callId, vonageUuid, "outbound_create");
         }
         callStatus = response?.status || "queued";
-        await completeVonageOutboundIdempotency(
-          vonageIdempotencyContext,
-          "completed",
-          {
-            callSid: callId,
-            responsePayload: {
-              call_status: callStatus,
-              provider_metadata: providerMetadata,
-            },
-          },
-        );
       } else {
         throw new Error(`Unsupported provider ${provider}`);
       }
+      await completeOutboundCallIdempotency(
+        outboundIdempotencyContext,
+        "completed",
+        {
+          provider,
+          callSid: callId,
+          responsePayload: {
+            call_status: callStatus,
+            provider,
+            provider_metadata: providerMetadata,
+          },
+        },
+      );
       recordProviderSuccess(provider);
       recordProviderFlowMetric("outbound_call_success", {
         channel: "call",
@@ -21337,30 +21581,6 @@ async function placeOutboundCall(payload, hostOverride = null) {
       selectedProvider = provider;
       break;
     } catch (error) {
-      if (
-        provider === "vonage" &&
-        error?.code !== "idempotency_conflict" &&
-        error?.code !== "idempotency_in_progress"
-      ) {
-        try {
-          await completeVonageOutboundIdempotency(
-            vonageIdempotencyContext || {
-              enabled: normalizedOutboundIdempotencyKey !== "",
-              idempotencyKey: normalizedOutboundIdempotencyKey,
-              requestHash: buildVonageOutboundIdempotencyRequestHash({
-                ...payloadObject,
-                idempotency_key: normalizedOutboundIdempotencyKey,
-              }),
-            },
-            "failed",
-            {
-              errorMessage: error?.message || "vonage_outbound_failed",
-            },
-          );
-        } catch (_) {
-          // Ignore idempotency persistence failures in provider attempt loop.
-        }
-      }
       if (
         error?.code === "idempotency_conflict" ||
         error?.code === "idempotency_in_progress"
@@ -21384,6 +21604,16 @@ async function placeOutboundCall(payload, hostOverride = null) {
   }
 
   if (!selectedProvider) {
+    await completeOutboundCallIdempotency(
+      outboundIdempotencyContext,
+      "failed",
+      {
+        provider:
+          providerPlan.selected_provider || preferredProvider || currentProvider,
+        errorMessage:
+          lastError?.message || "outbound_call_provider_attempts_exhausted",
+      },
+    ).catch(() => {});
     throw lastError || new Error("Failed to place outbound call");
   }
   if (keypadOverride) {
@@ -21716,6 +21946,13 @@ async function placeOutboundCall(payload, hostOverride = null) {
     );
   } catch (dbError) {
     console.error("Database error:", dbError);
+    const persistenceError = new Error(
+      "Outbound call was created but persistence failed",
+    );
+    persistenceError.code = "outbound_persistence_failed";
+    persistenceError.status = 503;
+    persistenceError.retryable = true;
+    throw persistenceError;
   }
 
   return {

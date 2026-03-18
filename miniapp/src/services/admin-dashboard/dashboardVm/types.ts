@@ -25,6 +25,7 @@ type OpsVmKeys =
   | 'callFailureRate'
   | 'callSuccessRate'
   | 'queueBacklogTotal'
+  | 'opsQaSummary'
   | 'providerReadinessTotals'
   | 'providerReadinessPercent'
   | 'textBar'

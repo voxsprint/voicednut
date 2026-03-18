@@ -91,6 +91,24 @@ LIVE_SMOKE=1 npm run parity:providers
   - `GET /admin/email/dlq`
   - `POST /admin/email/dlq/:id/replay`
 
+## Post-Call QA Scoring (Feature-Flagged)
+
+Post-call QA evaluation can now run at call-end with default-safe gates:
+
+- `POST_CALL_QA_ENABLED=false`
+- `POST_CALL_QA_SHADOW_MODE=true`
+- `POST_CALL_QA_ROLLOUT_PERCENT=0`
+- `POST_CALL_QA_ALLOWLIST=`
+- `POST_CALL_QA_KILL_SWITCH=false`
+- `POST_CALL_QA_PROFILE_THRESHOLDS=` (optional: `collections:78,support:72,sales:74,verification:80`)
+- `POST_CALL_QA_RUBRIC_WEIGHTS=` (optional JSON object for rubric weighting)
+
+Manual API controls:
+
+- `GET /api/qa/summary`
+- `GET /api/calls/:callSid/qa`
+- `POST /api/calls/:callSid/qa/evaluate?force=1`
+
 ## Adaptive Persona and Mood Profiles
 
 The API ships with adaptive persona handling that inspects call metadata (business domain, purpose, channel, urgency, and mood signals) and produces the appropriate system prompt and greeting. Personality and profile logic currently live in:

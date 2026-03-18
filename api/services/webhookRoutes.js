@@ -4,6 +4,123 @@ const {
   buildCanonicalSmsDeliveryEvent,
 } = require("../adapters/providerFlowPolicy");
 
+const WEBHOOK_AUTH_POLICIES = Object.freeze({
+  telegram: Object.freeze({
+    id: "telegram",
+    label: "/webhook/telegram",
+    verifier: "requireValidTelegramWebhook",
+  }),
+  twilio_call_status: Object.freeze({
+    id: "twilio_call_status",
+    label: "/webhook/call-status",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_stream: Object.freeze({
+    id: "twilio_stream",
+    label: "/webhook/twilio-stream",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_pay_start: Object.freeze({
+    id: "twilio_pay_start",
+    label: "/webhook/twilio-pay/start",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_pay_complete: Object.freeze({
+    id: "twilio_pay_complete",
+    label: "/webhook/twilio-pay/complete",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_pay_status: Object.freeze({
+    id: "twilio_pay_status",
+    label: "/webhook/twilio-pay/status",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_sms: Object.freeze({
+    id: "twilio_sms",
+    label: "/webhook/sms",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_sms_status: Object.freeze({
+    id: "twilio_sms_status",
+    label: "/webhook/sms-status",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_sms_delivery: Object.freeze({
+    id: "twilio_sms_delivery",
+    label: "/webhook/sms-delivery",
+    verifier: "requireValidTwilioSignature",
+  }),
+  twilio_gather: Object.freeze({
+    id: "twilio_gather",
+    label: "/webhook/twilio-gather",
+    verifier: "requireValidTwilioSignature",
+  }),
+  aws_status: Object.freeze({
+    id: "aws_status",
+    label: "/webhook/aws/status",
+    verifier: "requireValidAwsWebhook",
+  }),
+  vonage_answer: Object.freeze({
+    id: "vonage_answer",
+    label: "/va",
+    verifier: "requireValidVonageWebhook",
+  }),
+  vonage_event: Object.freeze({
+    id: "vonage_event",
+    label: "/ve",
+    verifier: "requireValidVonageWebhook",
+  }),
+  vonage_sms: Object.freeze({
+    id: "vonage_sms",
+    label: "/vs",
+    verifier: "requireValidVonageWebhook",
+  }),
+  vonage_delivery: Object.freeze({
+    id: "vonage_delivery",
+    label: "/vd",
+    verifier: "requireValidVonageWebhook",
+  }),
+  email_events: Object.freeze({
+    id: "email_events",
+    label: "/webhook/email",
+    verifier: "requireValidEmailWebhook",
+  }),
+});
+
+function createWebhookAuthGuard(ctx = {}) {
+  return function withWebhookAuth(policyKey, handler) {
+    const policy = WEBHOOK_AUTH_POLICIES[policyKey];
+    if (!policy || typeof handler !== "function") {
+      return handler;
+    }
+    return function guardedWebhookHandler(req, res, next) {
+      if (res?.locals) {
+        res.locals.webhookAuthPolicy = policy.id;
+      }
+      const verifier = ctx[policy.verifier];
+      if (typeof verifier !== "function") {
+        console.warn("webhook_auth_verifier_missing", {
+          policy: policy.id,
+          verifier: policy.verifier,
+          request_id: req?.requestId || null,
+        });
+        return handler(req, res, next);
+      }
+      const label = req?.path || req?.originalUrl || policy.label;
+      const ok = verifier(req, res, label);
+      if (!ok) {
+        console.warn("webhook_auth_rejected", {
+          policy: policy.id,
+          request_id: req?.requestId || null,
+          path: label,
+        });
+        return;
+      }
+      return handler(req, res, next);
+    };
+  };
+}
+
 function getDb(ctx = {}) {
   return typeof ctx.getDb === "function" ? ctx.getDb() : ctx.db;
 }
@@ -2230,6 +2347,7 @@ function createVonageAnswerWebhookHandler(ctx = {}) {
 }
 
 function registerWebhookRoutes(app, ctx = {}) {
+  const withWebhookAuth = createWebhookAuthGuard(ctx);
   const handleSecureCaptureView =
     ctx.handleSecureCaptureView || createSecureCaptureViewHandler(ctx);
   const handleSecureCaptureSubmit =
@@ -2270,30 +2388,58 @@ function registerWebhookRoutes(app, ctx = {}) {
 
   app.get("/capture/secure", handleSecureCaptureView);
   app.post("/capture/secure", handleSecureCaptureSubmit);
-  app.post("/webhook/telegram", handleTelegramWebhook);
-  app.get("/va", handleVonageAnswer);
-  app.get("/answer", handleVonageAnswer);
-  app.post("/ve", handleVonageEvent);
-  app.post("/event", handleVonageEvent);
-  app.post("/webhook/aws/status", handleAwsStatusWebhook);
-  app.post("/webhook/call-status", handleCallStatusWebhook);
-  app.post("/webhook/twilio-stream", handleTwilioStreamWebhook);
-  app.post("/webhook/twilio-pay/start", handleTwilioPayStart);
-  app.post("/webhook/twilio-pay/complete", handleTwilioPayComplete);
-  app.post("/webhook/twilio-pay/status", handleTwilioPayStatus);
-  app.post("/webhook/sms", handleSmsWebhook);
-  app.post("/webhook/sms-status", handleSmsStatusWebhook);
-  app.get("/vs", handleVonageSmsWebhook);
-  app.post("/vs", handleVonageSmsWebhook);
-  app.get("/vd", handleVonageSmsDeliveryWebhook);
-  app.post("/vd", handleVonageSmsDeliveryWebhook);
-  app.post("/webhook/email", handleEmailWebhook);
+  app.post("/webhook/telegram", withWebhookAuth("telegram", handleTelegramWebhook));
+  app.get("/va", withWebhookAuth("vonage_answer", handleVonageAnswer));
+  app.get("/answer", withWebhookAuth("vonage_answer", handleVonageAnswer));
+  app.post("/ve", withWebhookAuth("vonage_event", handleVonageEvent));
+  app.post("/event", withWebhookAuth("vonage_event", handleVonageEvent));
+  app.post("/webhook/aws/status", withWebhookAuth("aws_status", handleAwsStatusWebhook));
+  app.post(
+    "/webhook/call-status",
+    withWebhookAuth("twilio_call_status", handleCallStatusWebhook),
+  );
+  app.post(
+    "/webhook/twilio-stream",
+    withWebhookAuth("twilio_stream", handleTwilioStreamWebhook),
+  );
+  app.post(
+    "/webhook/twilio-pay/start",
+    withWebhookAuth("twilio_pay_start", handleTwilioPayStart),
+  );
+  app.post(
+    "/webhook/twilio-pay/complete",
+    withWebhookAuth("twilio_pay_complete", handleTwilioPayComplete),
+  );
+  app.post(
+    "/webhook/twilio-pay/status",
+    withWebhookAuth("twilio_pay_status", handleTwilioPayStatus),
+  );
+  app.post("/webhook/sms", withWebhookAuth("twilio_sms", handleSmsWebhook));
+  app.post(
+    "/webhook/sms-status",
+    withWebhookAuth("twilio_sms_status", handleSmsStatusWebhook),
+  );
+  app.get("/vs", withWebhookAuth("vonage_sms", handleVonageSmsWebhook));
+  app.post("/vs", withWebhookAuth("vonage_sms", handleVonageSmsWebhook));
+  app.get("/vd", withWebhookAuth("vonage_delivery", handleVonageSmsDeliveryWebhook));
+  app.post("/vd", withWebhookAuth("vonage_delivery", handleVonageSmsDeliveryWebhook));
+  app.post("/webhook/email", withWebhookAuth("email_events", handleEmailWebhook));
   app.get("/webhook/email-unsubscribe", handleEmailUnsubscribeWebhook);
-  app.post("/webhook/twilio-gather", ctx.handleTwilioGatherWebhook);
-  app.post("/webhook/sms-delivery", handleSmsDeliveryWebhook);
+  app.post(
+    "/webhook/twilio-gather",
+    withWebhookAuth("twilio_gather", ctx.handleTwilioGatherWebhook),
+  );
+  app.post(
+    "/webhook/sms-delivery",
+    withWebhookAuth("twilio_sms_delivery", handleSmsDeliveryWebhook),
+  );
 }
 
 module.exports = {
   registerWebhookRoutes,
   createVonageEventWebhookHandler,
+  __testables: {
+    WEBHOOK_AUTH_POLICIES,
+    createWebhookAuthGuard,
+  },
 };
