@@ -12,6 +12,7 @@ type UseDashboardEventStreamOptions = {
   reconnectBaseMs: number;
   reconnectMaxMs: number;
   refreshDebounceMs: number;
+  staleAfterMs: number;
 };
 
 type UseDashboardEventStreamResult = {
@@ -31,6 +32,7 @@ export function useDashboardEventStream({
   reconnectBaseMs,
   reconnectMaxMs,
   refreshDebounceMs,
+  staleAfterMs,
 }: UseDashboardEventStreamOptions): UseDashboardEventStreamResult {
   const [streamMode, setStreamMode] = useState<StreamConnectionMode>('disabled');
   const [streamConnected, setStreamConnected] = useState<boolean>(false);
@@ -51,6 +53,9 @@ export function useDashboardEventStream({
         .map((entry) => String(entry || '').trim())
         .filter(Boolean)
       : [];
+    const inactivityTimeoutMs = Number.isFinite(staleAfterMs)
+      ? Math.max(5000, Math.floor(staleAfterMs))
+      : 45000;
     if (!enabled || !token || streamEndpoints.length === 0) {
       setStreamMode('disabled');
       setStreamConnected(false);
@@ -64,6 +69,7 @@ export function useDashboardEventStream({
 
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let activeStream: EventSource | null = null;
     let attemptCount = 0;
     let endpointIndex = 0;
@@ -74,6 +80,11 @@ export function useDashboardEventStream({
         activeStream = null;
       }
     };
+    const clearInactivityTimer = (): void => {
+      if (!inactivityTimer) return;
+      clearTimeout(inactivityTimer);
+      inactivityTimer = null;
+    };
 
     const scheduleStreamRefresh = (): void => {
       if (refreshTimerRef.current) return;
@@ -82,13 +93,50 @@ export function useDashboardEventStream({
         void refreshPoll();
       }, refreshDebounceMs);
     };
+    const scheduleReconnect = (): void => {
+      if (reconnectTimer) return;
+      const delay = Math.min(
+        reconnectMaxMs,
+        Math.round(reconnectBaseMs * Math.pow(1.5, Math.max(0, attemptCount - 1))),
+      );
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+    const markFallback = (): void => {
+      setStreamMode('fallback');
+      setStreamConnected(false);
+      setStreamFailureCount((prev) => prev + 1);
+      scheduleStreamRefresh();
+    };
+    const scheduleInactivityTimeout = (): void => {
+      clearInactivityTimer();
+      inactivityTimer = setTimeout(() => {
+        if (disposed || !activeStream) return;
+        closeStream();
+        endpointIndex = 0;
+        attemptCount += 1;
+        markFallback();
+        scheduleReconnect();
+      }, inactivityTimeoutMs);
+    };
 
     const connect = (): void => {
       if (disposed) return;
       setStreamMode('connecting');
       const nextEndpoint = streamEndpoints[Math.max(0, Math.min(endpointIndex, streamEndpoints.length - 1))];
       const streamUrl = buildEventStreamUrl(nextEndpoint);
-      const source = new EventSource(streamUrl);
+      let source: EventSource;
+      try {
+        source = new EventSource(streamUrl);
+      } catch {
+        endpointIndex = 0;
+        attemptCount += 1;
+        markFallback();
+        scheduleReconnect();
+        return;
+      }
       activeStream = source;
 
       source.onopen = () => {
@@ -97,11 +145,13 @@ export function useDashboardEventStream({
         setStreamMode('connected');
         setStreamConnected(true);
         setStreamFailureCount(0);
+        scheduleInactivityTimeout();
       };
 
       source.onmessage = (event) => {
         if (disposed) return;
         setStreamLastEventAt(Date.now());
+        scheduleInactivityTimeout();
         const eventText = typeof event.data === 'string' ? event.data : String(event.data ?? '');
         let parsed: unknown = eventText;
         try {
@@ -118,6 +168,7 @@ export function useDashboardEventStream({
       source.onerror = () => {
         if (disposed) return;
         closeStream();
+        clearInactivityTimer();
         setStreamConnected(false);
         if (endpointIndex < streamEndpoints.length - 1) {
           endpointIndex += 1;
@@ -126,16 +177,8 @@ export function useDashboardEventStream({
         }
         endpointIndex = 0;
         attemptCount += 1;
-        setStreamMode('fallback');
-        setStreamFailureCount((prev) => prev + 1);
-        const delay = Math.min(
-          reconnectMaxMs,
-          Math.round(reconnectBaseMs * Math.pow(1.5, Math.max(0, attemptCount - 1))),
-        );
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          connect();
-        }, delay);
+        markFallback();
+        scheduleReconnect();
       };
     };
 
@@ -143,6 +186,7 @@ export function useDashboardEventStream({
     return () => {
       disposed = true;
       closeStream();
+      clearInactivityTimer();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
@@ -155,6 +199,7 @@ export function useDashboardEventStream({
     reconnectMaxMs,
     refreshDebounceMs,
     refreshPoll,
+    staleAfterMs,
     token,
     endpoints,
   ]);

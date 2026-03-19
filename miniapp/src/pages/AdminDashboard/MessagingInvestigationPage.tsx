@@ -55,6 +55,10 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
   const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
   const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
   const controlsBusy = busy.length > 0 || busyAction.length > 0;
+  const statusSid = statusSidInput.trim();
+  const conversationPhone = conversationPhoneInput.trim();
+  const messageId = messageIdInput.trim();
+  const jobId = jobIdInput.trim();
   const hasSmsInvestigationData = Boolean(
     statusSnapshot
     || smsStatsSnapshot
@@ -66,6 +70,15 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     || jobSnapshot
     || historySnapshot.length > 0,
   );
+  const smsArtifactsCount = Number(statusSnapshot ? 1 : 0)
+    + Number(smsStatsSnapshot ? 1 : 0)
+    + (recentMessages.length > 0 ? 1 : 0)
+    + (conversationMessages.length > 0 ? 1 : 0);
+  const emailArtifactsCount = Number(messageSnapshot ? 1 : 0)
+    + Number(jobSnapshot ? 1 : 0)
+    + (historySnapshot.length > 0 ? 1 : 0);
+  const activeFilterCount = [statusSid, conversationPhone, messageId, jobId]
+    .filter((value) => value.length > 0).length;
 
   const runAction = async (
     action: string,
@@ -84,6 +97,60 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     }
   };
 
+  const runSmsStatusLookup = (): void => {
+    if (!statusSid) return;
+    void runAction('sms.message.status', { message_sid: statusSid }, (payload) => {
+      setStatusSnapshot(asRecord(payload.message) || payload);
+    });
+  };
+
+  const runSmsConversationLookup = (): void => {
+    if (!conversationPhone) return;
+    void runAction('sms.messages.conversation', { phone: conversationPhone, limit: 20 }, (payload) => {
+      setConversationMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
+    });
+  };
+
+  const runSmsRecentLookup = (): void => {
+    void runAction('sms.messages.recent', { limit: 12, offset: 0 }, (payload) => {
+      setRecentMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
+    });
+  };
+
+  const runSmsStatsLookup = (): void => {
+    void runAction('sms.stats', { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
+  };
+
+  const runEmailMessageLookup = (): void => {
+    if (!messageId) return;
+    void runAction('email.message.status', { message_id: messageId }, (payload) => {
+      setMessageSnapshot(asRecord(payload.message) || payload);
+    });
+  };
+
+  const runEmailJobLookup = (): void => {
+    if (!jobId) return;
+    void runAction('email.bulk.job', { job_id: jobId }, (payload) => setJobSnapshot(payload));
+  };
+
+  const runEmailHistoryLookup = (): void => {
+    void runAction('email.bulk.history', { limit: 12, offset: 0 }, (payload) => {
+      setHistorySnapshot(Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : []);
+    });
+  };
+
+  const clearInvestigationSnapshots = (): void => {
+    setError('');
+    setBusy('');
+    setStatusSnapshot(null);
+    setRecentMessages([]);
+    setConversationMessages([]);
+    setSmsStatsSnapshot(null);
+    setMessageSnapshot(null);
+    setJobSnapshot(null);
+    setHistorySnapshot([]);
+  };
+
   return (
     <>
       <section className="va-page-intro">
@@ -94,9 +161,122 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           <UiBadge>SMS recent {recentMessages.length}</UiBadge>
           <UiBadge>SMS conversation {conversationMessages.length}</UiBadge>
           <UiBadge>Email jobs {historySnapshot.length}</UiBadge>
+          <UiBadge>Filters {activeFilterCount}</UiBadge>
           <UiBadge variant={error ? 'error' : controlsBusy ? 'info' : 'success'}>
             {error ? 'State error' : controlsBusy ? 'State busy' : 'State ready'}
           </UiBadge>
+        </div>
+      </section>
+
+      <section className={`va-overview-metrics va-investigation-metrics ${error ? 'is-degraded' : 'is-healthy'}`} aria-label="Investigation summary">
+        <article className="va-overview-metric-card">
+          <span>SMS artifacts</span>
+          <strong>{smsArtifactsCount}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Email artifacts</span>
+          <strong>{emailArtifactsCount}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Active filters</span>
+          <strong>{activeFilterCount}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Request state</span>
+          <strong>{error ? 'Attention required' : controlsBusy ? 'In progress' : 'Ready'}</strong>
+        </article>
+      </section>
+
+      <section className="va-overview-quick va-investigation-quick" aria-labelledby="va-investigation-quick-title">
+        <div className="va-overview-head">
+          <h3 id="va-investigation-quick-title" className="va-section-title">Quick Queries</h3>
+          <p className="va-muted">Run common diagnostics fast before drilling into detailed lists.</p>
+        </div>
+        <div className="va-overview-quick-grid">
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={runSmsRecentLookup}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>✉</span>
+            <span className="va-quick-action-copy">
+              <strong>Load SMS recent</strong>
+              <span>Fetch latest SMS events.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={runSmsStatsLookup}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>⌁</span>
+            <span className="va-quick-action-copy">
+              <strong>Load SMS stats</strong>
+              <span>Inspect 24-hour delivery posture.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={runEmailHistoryLookup}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>✦</span>
+            <span className="va-quick-action-copy">
+              <strong>Load email history</strong>
+              <span>Fetch recent bulk email jobs.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy || (!statusSid && !messageId)}
+            onClick={() => {
+              if (statusSid) {
+                runSmsStatusLookup();
+                return;
+              }
+              runEmailMessageLookup();
+            }}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>⌕</span>
+            <span className="va-quick-action-copy">
+              <strong>Lookup message ID</strong>
+              <span>Use SMS SID or email message ID.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy || !jobId}
+            onClick={runEmailJobLookup}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>⚑</span>
+            <span className="va-quick-action-copy">
+              <strong>Lookup job ID</strong>
+              <span>Inspect an email bulk job snapshot.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={clearInvestigationSnapshots}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>↺</span>
+            <span className="va-quick-action-copy">
+              <strong>Clear results</strong>
+              <span>Reset loaded snapshots and lists.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
         </div>
       </section>
 
@@ -148,12 +328,8 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !statusSidInput.trim()}
-              onClick={() => {
-                void runAction('sms.message.status', { message_sid: statusSidInput.trim() }, (payload) => {
-                  setStatusSnapshot(asRecord(payload.message) || payload);
-                });
-              }}
+              disabled={controlsBusy || !statusSid}
+              onClick={runSmsStatusLookup}
             >
               Check Status
             </UiButton>
@@ -166,32 +342,22 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !conversationPhoneInput.trim()}
-              onClick={() => {
-                void runAction('sms.messages.conversation', { phone: conversationPhoneInput.trim(), limit: 20 }, (payload) => {
-                  setConversationMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
-                });
-              }}
+              disabled={controlsBusy || !conversationPhone}
+              onClick={runSmsConversationLookup}
             >
               Load Conversation
             </UiButton>
             <UiButton
               variant="secondary"
               disabled={controlsBusy}
-              onClick={() => {
-                void runAction('sms.messages.recent', { limit: 12, offset: 0 }, (payload) => {
-                  setRecentMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
-                });
-              }}
+              onClick={runSmsRecentLookup}
             >
               Recent
             </UiButton>
             <UiButton
               variant="secondary"
               disabled={controlsBusy}
-              onClick={() => {
-                void runAction('sms.stats', { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
-              }}
+              onClick={runSmsStatsLookup}
             >
               Stats
             </UiButton>
@@ -370,12 +536,8 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !messageIdInput.trim()}
-              onClick={() => {
-                void runAction('email.message.status', { message_id: messageIdInput.trim() }, (payload) => {
-                  setMessageSnapshot(asRecord(payload.message) || payload);
-                });
-              }}
+              disabled={controlsBusy || !messageId}
+              onClick={runEmailMessageLookup}
             >
               Message Status
             </UiButton>
@@ -388,21 +550,15 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !jobIdInput.trim()}
-              onClick={() => {
-                void runAction('email.bulk.job', { job_id: jobIdInput.trim() }, (payload) => setJobSnapshot(payload));
-              }}
+              disabled={controlsBusy || !jobId}
+              onClick={runEmailJobLookup}
             >
               Job Status
             </UiButton>
             <UiButton
               variant="secondary"
               disabled={controlsBusy}
-              onClick={() => {
-                void runAction('email.bulk.history', { limit: 12, offset: 0 }, (payload) => {
-                  setHistorySnapshot(Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : []);
-                });
-              }}
+              onClick={runEmailHistoryLookup}
             >
               Load History
             </UiButton>

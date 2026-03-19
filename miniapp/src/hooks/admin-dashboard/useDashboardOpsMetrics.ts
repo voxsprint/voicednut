@@ -131,11 +131,13 @@ export function useDashboardOpsMetrics({
         ? `Realtime (${syncStateLabel.toLowerCase()})`
         : syncStateLabel;
 
-    const nextPollLabel = pollingPaused || streamConnected
+    const nextPollLabel = pollingPaused
       ? 'Paused'
-      : nextPollAt
-        ? formatTime(new Date(nextPollAt).toISOString())
-        : '—';
+      : streamConnected
+        ? 'Realtime'
+        : nextPollAt
+          ? formatTime(new Date(nextPollAt).toISOString())
+          : '—';
     const lastPollLabel = lastPollAt ? formatTime(new Date(lastPollAt).toISOString()) : '—';
     const lastSuccessfulPollLabel = lastSuccessfulPollAt
       ? formatTime(new Date(lastSuccessfulPollAt).toISOString())

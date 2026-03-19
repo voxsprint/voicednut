@@ -129,6 +129,9 @@ export function SettingsPage({
   const actionsDisabled = loading || busy;
   const liveUpdatesLabel = pollingPaused ? 'Off' : 'On';
   const roleLabel = sessionRole.slice(0, 1).toUpperCase() + sessionRole.slice(1);
+  const hasModuleAccess = (moduleId: string): boolean => (
+    visibleModules.some((module) => module.id === moduleId)
+  );
 
   return (
     <section className="va-settings-page">
@@ -248,6 +251,36 @@ export function SettingsPage({
             value={String(featureFlagsCount)}
           />
           <div className="va-settings-footnote">Updated {featureFlagsUpdatedAtLabel}</div>
+        </div>
+      </section>
+
+      <section className="va-settings-cluster">
+        <p className="va-settings-section-label">Support tools</p>
+        <div className="va-settings-group">
+          <SettingsRow
+            icon="⚑"
+            iconTone="is-red"
+            title="Incident runbooks"
+            description="Open runbooks and incident timelines."
+            value={hasModuleAccess('audit') ? 'Open' : 'Locked'}
+            onClick={hasModuleAccess('audit') ? () => onJumpToModule('audit') : undefined}
+          />
+          <SettingsRow
+            icon="⛭"
+            iconTone="is-orange"
+            title="Provider diagnostics"
+            description="Check provider readiness and preflight controls."
+            value={hasModuleAccess('provider') ? 'Open' : 'Locked'}
+            onClick={hasModuleAccess('provider') ? () => onJumpToModule('provider') : undefined}
+          />
+          <SettingsRow
+            icon="✉"
+            iconTone="is-green"
+            title="Messaging diagnostics"
+            description="Review SMS/email investigation and delivery health."
+            value={hasModuleAccess('messaging') ? 'Open' : 'Locked'}
+            onClick={hasModuleAccess('messaging') ? () => onJumpToModule('messaging') : undefined}
+          />
         </div>
       </section>
     </section>

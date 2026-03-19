@@ -17,6 +17,7 @@ type DashboardMainHeaderProps = {
   activeModuleGlyph: string;
   loading: boolean;
   compact?: boolean;
+  onOpenNavigation: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
 };
@@ -34,6 +35,7 @@ type DashboardFocusedHeaderProps = {
   userAvatarFallback: string;
   loading: boolean;
   onBackToDashboard: () => void;
+  onOpenNavigation: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
 };
@@ -57,6 +59,7 @@ export function DashboardMainHeader({
   activeModuleGlyph,
   loading,
   compact = false,
+  onOpenNavigation,
   onOpenSettings,
   onOpenShortcuts,
 }: DashboardMainHeaderProps) {
@@ -115,6 +118,15 @@ export function DashboardMainHeader({
           >
             Shortcuts
           </UiButton>
+          <UiButton
+            variant="secondary"
+            aria-label="Open navigation menu"
+            title="Menu"
+            onClick={onOpenNavigation}
+            disabled={loading}
+          >
+            Menu
+          </UiButton>
         </div>
       </div>
     </header>
@@ -155,6 +167,7 @@ export function DashboardFocusedHeader({
   userAvatarFallback,
   loading,
   onBackToDashboard,
+  onOpenNavigation,
   onOpenSettings,
   onOpenShortcuts,
 }: DashboardFocusedHeaderProps) {
@@ -210,13 +223,12 @@ export function DashboardFocusedHeader({
         <UiButton
           variant="secondary"
           className="va-focused-icon-btn"
-          aria-label="Open settings"
-          aria-keyshortcuts="Control+Comma Meta+Comma Alt+S"
-          title="Settings"
-          onClick={onOpenSettings}
+          aria-label="Open navigation menu"
+          title="Menu"
+          onClick={onOpenNavigation}
           disabled={loading}
         >
-          ⚙
+          ☰
         </UiButton>
       </div>
     </header>

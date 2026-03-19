@@ -81,6 +81,10 @@ function main() {
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validateBootstrapPayload');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validatePollPayload');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validateStreamPayload');
+  expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'isSessionCacheEntryExpired');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'Session token expired, refreshing.');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'const STREAM_STALE_FALLBACK_MS = 45000;');
+  expectContains('src/hooks/admin-dashboard/useDashboardEventStream.ts', 'staleAfterMs');
 
   expectContains('src/pages/AdminDashboard/OpsDashboardPage.tsx', 'selectOpsPageVm(vm)');
   expectContains('src/pages/AdminDashboard/SmsSenderPage.tsx', 'selectSmsPageVm(vm)');
@@ -95,6 +99,13 @@ function main() {
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'onKeyDownCapture={handleSectionShortcutKeyDown}');
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'if (key !== \'/\'');
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'aria-keyshortcuts="Alt+R"');
+  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'Quick Queries');
+  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'clearExplorerSnapshots');
+  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'Quick Queries');
+  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'clearInvestigationSnapshots');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'resolveTelegramIdentity');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'va-nav-drawer-overlay');
+  expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'onOpenNavigation');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'Focus active panel search');
   expectContains('src/components/App.tsx', 'const adminWorkspaceRoutes = [');
   expectContains('src/components/App.tsx', "path={path} element={<AdminDashboardPage />}");

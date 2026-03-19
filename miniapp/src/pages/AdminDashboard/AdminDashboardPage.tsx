@@ -109,6 +109,7 @@ const ACTION_LATENCY_SAMPLE_LIMIT = 40;
 const STREAM_RECONNECT_BASE_MS = 2500;
 const STREAM_RECONNECT_MAX_MS = 30000;
 const STREAM_REFRESH_DEBOUNCE_MS = 350;
+const STREAM_STALE_FALLBACK_MS = 45000;
 const SMS_DEFAULT_COST_PER_SEGMENT = 0.0075;
 const ACTIVITY_INFO_DEDUPE_MS = 8000;
 const API_BASE_URL = String(
@@ -852,6 +853,17 @@ const MODULE_GROUPS: DashboardModuleGroup[] = [
   },
 ];
 
+const OVERVIEW_QUICK_ACTION_IDS: DashboardModule[] = [
+  'ops',
+  'calllog',
+  'messaging',
+  'provider',
+  'sms',
+  'mailer',
+  'scriptsparity',
+  'persona',
+];
+
 function moduleRoutePath(moduleId: DashboardModule): string {
   return `/${moduleId}`;
 }
@@ -1212,6 +1224,86 @@ function resolveNoticeTone(message: string): DashboardNoticeTone {
   return 'info';
 }
 
+function pickFirstTextValue(
+  sources: Array<Record<string, unknown>>,
+  keys: string[],
+): string {
+  for (const source of sources) {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) return trimmed;
+      }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        const normalized = String(value).trim();
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return '';
+}
+
+function toInitials(primary: string, secondary = ''): string {
+  const first = String(primary || '').trim();
+  const second = String(secondary || '').trim();
+  if (first && second) {
+    return `${first.slice(0, 1)}${second.slice(0, 1)}`.toUpperCase();
+  }
+  const tokens = first.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 2) {
+    return `${tokens[0].slice(0, 1)}${tokens[1].slice(0, 1)}`.toUpperCase();
+  }
+  if (tokens.length === 1) {
+    return tokens[0].slice(0, 1).toUpperCase();
+  }
+  return '';
+}
+
+type TelegramIdentity = {
+  userLabel: string;
+  userAvatarUrl: string;
+  userAvatarFallback: string;
+};
+
+function resolveTelegramIdentity(sources: Array<Record<string, unknown>>): TelegramIdentity {
+  const firstNameSnake = pickFirstTextValue(sources, ['first_name']);
+  const lastNameSnake = pickFirstTextValue(sources, ['last_name']);
+  const firstNameCamel = pickFirstTextValue(sources, ['firstName']);
+  const lastNameCamel = pickFirstTextValue(sources, ['lastName']);
+  const usernameRaw = pickFirstTextValue(sources, ['username']);
+  const displayName = pickFirstTextValue(sources, ['display_name', 'displayName', 'name', 'full_name', 'fullName']);
+  const photoUrl = pickFirstTextValue(sources, ['photo_url', 'photoUrl']);
+  const idRaw = pickFirstTextValue(sources, ['id', 'telegram_id', 'telegramId']);
+
+  const username = usernameRaw.replace(/^@+/, '');
+  const snakeName = `${firstNameSnake} ${lastNameSnake}`.trim();
+  const camelName = `${firstNameCamel} ${lastNameCamel}`.trim();
+  const userLabel = username
+    ? `@${username}`
+    : snakeName
+      ? snakeName
+      : camelName
+        ? camelName
+        : displayName
+          ? displayName
+          : idRaw
+            ? `id:${idRaw}`
+            : 'Unknown admin';
+
+  const snakeInitials = toInitials(firstNameSnake, lastNameSnake);
+  const camelInitials = toInitials(firstNameCamel, lastNameCamel);
+  const usernameInitial = toInitials(username);
+  const displayInitial = toInitials(displayName);
+  const userAvatarFallback = snakeInitials || camelInitials || usernameInitial || displayInitial || 'U';
+
+  return {
+    userLabel,
+    userAvatarUrl: photoUrl,
+    userAvatarFallback,
+  };
+}
+
 export function AdminDashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1248,6 +1340,7 @@ export function AdminDashboardPage() {
   const [actionLatencyMsSamples, setActionLatencyMsSamples] = useState<number[]>([]);
   const [activeModule, setActiveModule] = useState<DashboardModule>('ops');
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [navigationDrawerOpen, setNavigationDrawerOpen] = useState<boolean>(false);
   const [shortcutsOpen, setShortcutsOpen] = useState<boolean>(false);
   const [pollingPaused, setPollingPaused] = useState<boolean>(false);
   const [smsRecipientsInput, setSmsRecipientsInput] = useState<string>('');
@@ -1315,6 +1408,8 @@ export function AdminDashboardPage() {
   });
   const shortcutsReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const navigationDrawerReturnFocusRef = useRef<HTMLElement | null>(null);
+  const navigationDrawerCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusSelectorRef = useRef<string>('#va-main-shortcuts-btn');
   const shouldRestoreFocusRef = useRef<boolean>(false);
   const shouldFocusStageRef = useRef<boolean>(false);
@@ -1363,7 +1458,28 @@ export function AdminDashboardPage() {
     }
   }, []);
 
+  const toggleNavigationDrawer = useCallback((next?: boolean): void => {
+    setNavigationDrawerOpen((prev) => {
+      const target = typeof next === 'boolean' ? next : !prev;
+      if (!prev && target && typeof document !== 'undefined') {
+        const activeElement = document.activeElement;
+        navigationDrawerReturnFocusRef.current =
+          activeElement instanceof HTMLElement ? activeElement : null;
+      }
+      if (prev && !target) {
+        shouldRestoreFocusRef.current = true;
+      }
+      if (target !== prev) {
+        triggerHaptic('selection');
+      }
+      return target;
+    });
+  }, [triggerHaptic]);
+
   const toggleSettings = useCallback((next?: boolean, options?: { fallbackModule?: DashboardModule }): void => {
+    if (navigationDrawerOpen) {
+      setNavigationDrawerOpen(false);
+    }
     const target = typeof next === 'boolean' ? next : !settingsOpen;
     setSettingsOpen((prev) => {
       if (!prev && target) {
@@ -1394,7 +1510,15 @@ export function AdminDashboardPage() {
     if (location.pathname !== fallbackPath) {
       navigate(fallbackPath);
     }
-  }, [activeModule, focusedWorkspaceMode, location.pathname, navigate, settingsOpen, triggerHaptic]);
+  }, [
+    activeModule,
+    focusedWorkspaceMode,
+    location.pathname,
+    navigate,
+    navigationDrawerOpen,
+    settingsOpen,
+    triggerHaptic,
+  ]);
 
   const toggleShortcuts = useCallback((next?: boolean): void => {
     setShortcutsOpen((prev) => {
@@ -1480,32 +1604,21 @@ export function AdminDashboardPage() {
     buildEventStreamUrl(path, API_BASE_URL)
   ), []);
 
-  const userLabel = useMemo(() => {
-    const user = asRecord(initDataState?.user);
-    const username = user.username;
-    const firstName = user.firstName || user.first_name;
-    const id = user.id;
-    if (typeof username === 'string' && username.length > 0) return `@${username}`;
-    if (typeof firstName === 'string' && firstName.length > 0) return String(firstName);
-    if (typeof id === 'string' || typeof id === 'number') return `id:${id}`;
-    return 'Unknown admin';
-  }, [initDataState]);
-  const userAvatarUrl = useMemo(() => {
-    const user = asRecord(initDataState?.user);
-    const photoUrl = user.photoUrl || user.photo_url;
-    return typeof photoUrl === 'string' ? photoUrl.trim() : '';
-  }, [initDataState]);
-  const userAvatarFallback = useMemo(() => {
-    const user = asRecord(initDataState?.user);
-    const firstName = toText(user.firstName || user.first_name, '');
-    const lastName = toText(user.lastName || user.last_name, '');
-    const initials = `${firstName.slice(0, 1)}${lastName.slice(0, 1)}`
-      .replace(/\s+/g, '')
-      .toUpperCase();
-    if (initials) return initials;
-    const sanitizedLabel = userLabel.replace(/^@/, '').trim();
-    return sanitizedLabel ? sanitizedLabel.slice(0, 1).toUpperCase() : 'U';
-  }, [initDataState, userLabel]);
+  const { userLabel, userAvatarUrl, userAvatarFallback } = useMemo(() => {
+    const pollSession = asRecord(pollPayload?.session);
+    const bootstrapSession = asRecord(bootstrap?.session);
+    const dashboardRoot = asRecord(bootstrap?.dashboard);
+    const dashboardSession = asRecord(dashboardRoot.session);
+    return resolveTelegramIdentity([
+      asRecord(initDataState?.user),
+      asRecord(pollSession.user),
+      asRecord(bootstrapSession.user),
+      asRecord(dashboardSession.user),
+      asRecord(asRecord(pollPayload).user),
+      asRecord(asRecord(bootstrap).user),
+      asRecord(dashboardRoot.user),
+    ]);
+  }, [bootstrap, initDataState, pollPayload]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1560,6 +1673,10 @@ export function AdminDashboardPage() {
     initialServerModuleAppliedRef.current = true;
     setActiveModule(workspaceRoute);
   }, [activeModule, workspaceRoute]);
+  useEffect(() => {
+    if (!settingsOpen || !navigationDrawerOpen) return;
+    setNavigationDrawerOpen(false);
+  }, [navigationDrawerOpen, settingsOpen]);
 
   const tokenRef = useRef<string | null>(token);
   const initDataRawRef = useRef<string>(initDataRaw || '');
@@ -1779,6 +1896,10 @@ export function AdminDashboardPage() {
       return undefined;
     }
     return backButton.onClick(() => {
+      if (navigationDrawerOpen) {
+        toggleNavigationDrawer(false);
+        return;
+      }
       if (settingsOpen) {
         toggleSettings(false);
         return;
@@ -1795,7 +1916,39 @@ export function AdminDashboardPage() {
         window.history.back();
       }
     });
-  }, [activeModule, focusedWorkspaceMode, navigate, selectModule, settingsOpen, toggleSettings]);
+  }, [
+    activeModule,
+    focusedWorkspaceMode,
+    navigate,
+    navigationDrawerOpen,
+    selectModule,
+    settingsOpen,
+    toggleNavigationDrawer,
+    toggleSettings,
+  ]);
+
+  useEffect(() => {
+    if (!navigationDrawerOpen) return;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      navigationDrawerCloseButtonRef.current?.focus({ preventScroll: true });
+    });
+  }, [navigationDrawerOpen]);
+
+  useEffect(() => {
+    if (navigationDrawerOpen) return;
+    const previousFocus = navigationDrawerReturnFocusRef.current;
+    if (!previousFocus) return;
+    navigationDrawerReturnFocusRef.current = null;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      if (previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+        return;
+      }
+      document.querySelector<HTMLElement>('#va-main-shortcuts-btn')?.focus({ preventScroll: true });
+    });
+  }, [navigationDrawerOpen]);
 
   useEffect(() => {
     if (settingsOpen) return;
@@ -1854,6 +2007,7 @@ export function AdminDashboardPage() {
     () => resolveRealtimeTransportContract(pollPayload, bootstrap),
     [bootstrap, pollPayload],
   );
+  const streamStaleAfterMs = Math.max(STREAM_STALE_FALLBACK_MS, serverPollIntervalMs * 3);
 
   const {
     streamMode,
@@ -1874,6 +2028,7 @@ export function AdminDashboardPage() {
     reconnectBaseMs: STREAM_RECONNECT_BASE_MS,
     reconnectMaxMs: STREAM_RECONNECT_MAX_MS,
     refreshDebounceMs: STREAM_REFRESH_DEBOUNCE_MS,
+    staleAfterMs: streamStaleAfterMs,
   });
 
   useDashboardPollingLoop({
@@ -2002,14 +2157,56 @@ export function AdminDashboardPage() {
       }))
       .filter((group) => group.modules.length > 0)
   ), [visibleModules]);
+  const overviewQuickModules = useMemo(() => {
+    const picks: Array<(typeof visibleModules)[number]> = [];
+
+    for (const moduleId of OVERVIEW_QUICK_ACTION_IDS) {
+      const next = visibleModules.find((module) => module.id === moduleId);
+      if (!next) continue;
+      if (picks.some((module) => module.id === next.id)) continue;
+      picks.push(next);
+      if (picks.length >= 6) return picks;
+    }
+
+    for (const module of visibleModules) {
+      if (picks.length >= 6) break;
+      if (picks.some((entry) => entry.id === module.id)) continue;
+      picks.push(module);
+    }
+
+    return picks;
+  }, [visibleModules]);
+  const openIncidentCount = toInt(asRecord(incidentsPayload.summary).open, incidentRows.length);
   const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;
   const showFocusedModuleMode = focusedWorkspaceMode && !settingsOpen;
+  const openHomeFromDrawer = useCallback(() => {
+    setNavigationDrawerOpen(false);
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+  }, [location.pathname, navigate]);
+  const openSettingsFromDrawer = useCallback(() => {
+    setNavigationDrawerOpen(false);
+    toggleSettings(true);
+  }, [toggleSettings]);
+  const openModuleFromDrawer = useCallback((moduleId: DashboardModule) => {
+    if (!visibleModules.some((module) => module.id === moduleId)) return;
+    restoreFocusSelectorRef.current = `#va-launcher-module-${moduleId}, #va-main-shortcuts-btn, #va-view-stage-root`;
+    setNavigationDrawerOpen(false);
+    selectModule(moduleId);
+  }, [selectModule, visibleModules]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (isTypingTarget(event.target)) return;
       const key = event.key.toLowerCase();
+      if (navigationDrawerOpen && key === 'escape') {
+        event.preventDefault();
+        toggleNavigationDrawer(false);
+        return;
+      }
+      if (navigationDrawerOpen) return;
       if (shortcutsOpen && key === 'escape') {
         event.preventDefault();
         toggleShortcuts(false);
@@ -2062,10 +2259,12 @@ export function AdminDashboardPage() {
   }, [
     dialogState,
     loadBootstrap,
+    navigationDrawerOpen,
     pushActivity,
     selectModule,
     settingsOpen,
     shortcutsOpen,
+    toggleNavigationDrawer,
     toggleSettings,
     toggleShortcuts,
     triggerHaptic,
@@ -2757,7 +2956,11 @@ export function AdminDashboardPage() {
       <main className="va-dashboard" aria-busy={loading}>
         <a className="va-skip-link" href="#va-view-stage-root">Skip to active content</a>
         <p className="va-sr-only" role="status" aria-live="polite" aria-atomic="true">
-          {settingsOpen ? 'Settings panel active.' : `${activeModuleLabel} module active.`}
+          {navigationDrawerOpen
+            ? 'Navigation drawer active.'
+            : settingsOpen
+              ? 'Settings panel active.'
+              : `${activeModuleLabel} module active.`}
         </p>
         {!settingsOpen ? (
           <section className="va-top-shell">
@@ -2774,6 +2977,7 @@ export function AdminDashboardPage() {
                 activeModuleGlyph="⌂"
                 loading={loading}
                 compact
+                onOpenNavigation={() => toggleNavigationDrawer(true)}
                 onOpenSettings={() => toggleSettings(true)}
                 onOpenShortcuts={() => toggleShortcuts(true)}
               />
@@ -2785,6 +2989,7 @@ export function AdminDashboardPage() {
                 userAvatarFallback={userAvatarFallback}
                 loading={loading}
                 onBackToDashboard={() => navigate('/')}
+                onOpenNavigation={() => toggleNavigationDrawer(true)}
                 onOpenSettings={() => toggleSettings(true)}
                 onOpenShortcuts={() => toggleShortcuts(true)}
               />
@@ -2847,6 +3052,55 @@ export function AdminDashboardPage() {
       ) : null}
       {showOverviewMode ? (
         <>
+          <section className={`va-overview-metrics ${isDashboardDegraded ? 'is-degraded' : 'is-healthy'}`} aria-label="Overview status">
+            <article className="va-overview-metric-card">
+              <span>Sync mode</span>
+              <strong>{syncModeLabel}</strong>
+            </article>
+            <article className="va-overview-metric-card">
+              <span>Incidents</span>
+              <strong>{openIncidentCount}</strong>
+            </article>
+            <article className="va-overview-metric-card">
+              <span>Queue backlog</span>
+              <strong>{queueBacklogTotal}</strong>
+            </article>
+            <article className="va-overview-metric-card">
+              <span>Last healthy sync</span>
+              <strong>{lastSuccessfulPollLabel}</strong>
+            </article>
+          </section>
+          {overviewQuickModules.length > 0 ? (
+            <section className="va-overview-quick" aria-labelledby="va-overview-quick-title">
+              <div className="va-overview-head">
+                <h2 id="va-overview-quick-title" className="va-section-title">Quick Actions</h2>
+                <p className="va-muted">Open common workspaces quickly from the dashboard home.</p>
+              </div>
+              <div className="va-overview-quick-grid">
+                {overviewQuickModules.map((module) => {
+                  const shortcutIndex = moduleShortcutIndexById[module.id] || 0;
+                  return (
+                    <UiButton
+                      key={`quick-${module.id}`}
+                      id={`va-quick-module-${module.id}`}
+                      variant="plain"
+                      className={`va-quick-action-card ${activeModule === module.id ? 'is-active' : ''}`}
+                      aria-label={`Open ${module.label} workspace`}
+                      aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
+                      onClick={() => selectModule(module.id)}
+                    >
+                      <span className="va-quick-action-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
+                      <span className="va-quick-action-copy">
+                        <strong>{module.label}</strong>
+                        <span>{MODULE_CONTEXT[module.id].detail}</span>
+                      </span>
+                      <span className="va-quick-action-trail" aria-hidden>›</span>
+                    </UiButton>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
           {visibleModules.length === 0 ? (
             <EmptyModulesCard
               onRefreshAccess={handleRefresh}
@@ -3018,6 +3272,81 @@ export function AdminDashboardPage() {
         </section>
       ) : null}
       </main>
+      {navigationDrawerOpen ? (
+        <div className="va-nav-drawer-overlay" role="presentation" onClick={() => toggleNavigationDrawer(false)}>
+          <aside
+            className="va-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="va-nav-drawer-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="va-nav-drawer-header">
+              <div className="va-nav-drawer-profile">
+                <span className="va-nav-drawer-avatar" aria-hidden>
+                  {userAvatarUrl ? (
+                    <img
+                      className="va-profile-avatar-img"
+                      src={userAvatarUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="va-profile-avatar-fallback">{userAvatarFallback}</span>
+                  )}
+                </span>
+                <div className="va-nav-drawer-copy">
+                  <h3 id="va-nav-drawer-title">{userLabel}</h3>
+                  <p className="va-muted">Role {sessionRole}</p>
+                </div>
+              </div>
+              <UiButton
+                ref={navigationDrawerCloseButtonRef}
+                variant="secondary"
+                className="va-nav-drawer-close"
+                onClick={() => toggleNavigationDrawer(false)}
+              >
+                Close
+              </UiButton>
+            </div>
+            <nav className="va-nav-drawer-nav" aria-label="Dashboard navigation">
+              <UiButton
+                variant="plain"
+                className={`va-nav-drawer-item ${showOverviewMode ? 'is-active' : ''}`}
+                aria-current={showOverviewMode ? 'page' : undefined}
+                onClick={openHomeFromDrawer}
+              >
+                <span className="va-nav-drawer-glyph" aria-hidden>⌂</span>
+                <span>Home</span>
+              </UiButton>
+              {visibleModules.map((module) => (
+                <UiButton
+                  key={`drawer-module-${module.id}`}
+                  variant="plain"
+                  className={`va-nav-drawer-item ${activeModule === module.id && showFocusedModuleMode ? 'is-active' : ''}`}
+                  aria-current={activeModule === module.id && showFocusedModuleMode ? 'page' : undefined}
+                  onClick={() => openModuleFromDrawer(module.id)}
+                >
+                  <span className="va-nav-drawer-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
+                  <span>{module.label}</span>
+                </UiButton>
+              ))}
+            </nav>
+            <div className="va-nav-drawer-footer">
+              <UiButton
+                variant="secondary"
+                className="va-nav-drawer-item"
+                onClick={openSettingsFromDrawer}
+              >
+                <span className="va-nav-drawer-glyph" aria-hidden>⚙</span>
+                <span>Settings</span>
+              </UiButton>
+            </div>
+          </aside>
+        </div>
+      ) : null}
       {shortcutsOpen ? (
         <div className="va-dialog-overlay" role="presentation" onClick={() => toggleShortcuts(false)}>
           <section

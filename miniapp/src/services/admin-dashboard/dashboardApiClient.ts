@@ -6,6 +6,7 @@ import {
 } from '@/services/admin-dashboard/dashboardPrimitives';
 import {
   buildApiUrl,
+  isSessionCacheEntryExpired,
   isSessionBootstrapBlockingCode,
   readSessionCache,
   type SessionCacheEntry,
@@ -80,16 +81,19 @@ export function createDashboardApiClient(
   callbacks: DashboardApiClientCallbacks,
 ): DashboardApiClient {
   let sessionRequest: Promise<string> | null = null;
+  let sessionExpiryEpochSeconds: number | null = null;
 
   const clearSession = (): void => {
     writeSessionCache(config.sessionStorageKey, null);
     sessionRequest = null;
+    sessionExpiryEpochSeconds = null;
     callbacks.setToken(null);
   };
 
   const createSession = async (): Promise<string> => {
     const cached = readSessionCache(config.sessionStorageKey);
     if (cached?.token) {
+      sessionExpiryEpochSeconds = cached.exp;
       callbacks.setToken(cached.token);
       callbacks.setSessionBlocked(false);
       return cached.token;
@@ -141,6 +145,7 @@ export function createDashboardApiClient(
         token: nextToken,
         exp: Number.isFinite(expiresAtSeconds) && expiresAtSeconds > 0 ? expiresAtSeconds : null,
       };
+      sessionExpiryEpochSeconds = cacheEntry.exp;
       writeSessionCache(config.sessionStorageKey, cacheEntry);
       callbacks.setToken(nextToken);
       callbacks.setErrorCode('');
@@ -157,7 +162,22 @@ export function createDashboardApiClient(
   };
 
   const request = async <T,>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> => {
-    const activeToken = callbacks.getToken() || await createSession();
+    const tokenFromState = callbacks.getToken();
+    const tokenFromStateExpired = isSessionCacheEntryExpired(
+      tokenFromState
+        ? {
+          token: tokenFromState,
+          exp: sessionExpiryEpochSeconds,
+        }
+        : null,
+    );
+    if (tokenFromState && tokenFromStateExpired) {
+      clearSession();
+      callbacks.pushActivity('info', 'Session refresh', 'Session token expired, refreshing.');
+    }
+    const activeToken = (!tokenFromState || tokenFromStateExpired)
+      ? await createSession()
+      : tokenFromState;
     const response = await fetch(buildApiUrl(path, config.apiBaseUrl), {
       ...options,
       headers: buildRequestHeaders(activeToken, options, config),

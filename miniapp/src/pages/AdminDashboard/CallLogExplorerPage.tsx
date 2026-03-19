@@ -44,6 +44,17 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
   const activeSid = callSid.trim();
   const hasDetails = Boolean(details) && detailsSid === activeSid;
   const hasEvents = recentStates.length > 0 && eventsSid === activeSid;
+  const loadedRowsCount = rows.length > 0 ? rows.length : callLogs.length;
+
+  const clearExplorerSnapshots = (): void => {
+    setError('');
+    setBusy('');
+    setRows([]);
+    setDetails(null);
+    setDetailsSid('');
+    setEvents([]);
+    setEventsSid('');
+  };
 
   const loadRows = async (): Promise<void> => {
     setBusy('rows');
@@ -125,6 +136,99 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
           <UiBadge>Recent logs {callLogs.length}</UiBadge>
           <UiBadge>Selected SID {callSid.trim() ? 'set' : 'none'}</UiBadge>
           <UiBadge>Events {recentStates.length}</UiBadge>
+        </div>
+      </section>
+
+      <section className={`va-overview-metrics va-investigation-metrics ${error ? 'is-degraded' : 'is-healthy'}`} aria-label="Explorer summary">
+        <article className="va-overview-metric-card">
+          <span>Loaded rows</span>
+          <strong>{loadedRowsCount}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Total call logs</span>
+          <strong>{callLogsTotal}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Details state</span>
+          <strong>{hasDetails ? 'Loaded' : activeSid ? 'Pending' : 'Not selected'}</strong>
+        </article>
+        <article className="va-overview-metric-card">
+          <span>Events state</span>
+          <strong>{hasEvents ? 'Loaded' : activeSid ? 'Pending' : 'Not selected'}</strong>
+        </article>
+      </section>
+
+      <section className="va-overview-quick va-investigation-quick" aria-labelledby="va-calllog-quick-title">
+        <div className="va-overview-head">
+          <h3 id="va-calllog-quick-title" className="va-section-title">Quick Queries</h3>
+          <p className="va-muted">Run frequent call-log actions quickly before deeper inspection.</p>
+        </div>
+        <div className="va-overview-quick-grid">
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={() => { void loadRows(); }}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>⌕</span>
+            <span className="va-quick-action-copy">
+              <strong>Load recent calls</strong>
+              <span>Fetch the latest call activity list.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy || query.trim().length < 2}
+            onClick={() => { void loadRows(); }}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>◎</span>
+            <span className="va-quick-action-copy">
+              <strong>Search calls</strong>
+              <span>Use query input to filter logs.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy || !activeSid}
+            onClick={() => { void loadDetails(); }}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>◉</span>
+            <span className="va-quick-action-copy">
+              <strong>Load details</strong>
+              <span>Inspect the selected call snapshot.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy || !activeSid}
+            onClick={() => { void loadEvents(); }}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>⚑</span>
+            <span className="va-quick-action-copy">
+              <strong>Load events</strong>
+              <span>Inspect recent state transitions.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
+          <UiButton
+            variant="plain"
+            className="va-quick-action-card"
+            disabled={controlsBusy}
+            onClick={clearExplorerSnapshots}
+          >
+            <span className="va-quick-action-glyph" aria-hidden>↺</span>
+            <span className="va-quick-action-copy">
+              <strong>Clear results</strong>
+              <span>Reset loaded rows, details, and events.</span>
+            </span>
+            <span className="va-quick-action-trail" aria-hidden>›</span>
+          </UiButton>
         </div>
       </section>
 

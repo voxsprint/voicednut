@@ -3,6 +3,8 @@ export interface SessionCacheEntry {
   exp: number | null;
 }
 
+const SESSION_EXPIRY_SKEW_SECONDS = 20;
+
 export type DashboardRealtimeTransportContract = {
   enabled: boolean;
   endpoints: string[];
@@ -37,6 +39,16 @@ export function isSessionBootstrapBlockingCode(code: string): boolean {
   ].includes(String(code || '').trim());
 }
 
+export function isSessionCacheEntryExpired(
+  entry: SessionCacheEntry | null,
+  skewSeconds = SESSION_EXPIRY_SKEW_SECONDS,
+): boolean {
+  if (!entry || !entry.token) return true;
+  if (!Number.isFinite(entry.exp) || entry.exp === null) return false;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return entry.exp <= (nowSeconds + Math.max(0, skewSeconds));
+}
+
 export function readSessionCache(storageKey: string): SessionCacheEntry | null {
   try {
     const raw = sessionStorage.getItem(storageKey);
@@ -44,10 +56,15 @@ export function readSessionCache(storageKey: string): SessionCacheEntry | null {
     const parsed = JSON.parse(raw) as Partial<SessionCacheEntry>;
     if (!parsed || !parsed.token) return null;
     const exp = Number(parsed.exp);
-    return {
+    const entry: SessionCacheEntry = {
       token: String(parsed.token),
       exp: Number.isFinite(exp) ? exp : null,
     };
+    if (isSessionCacheEntryExpired(entry)) {
+      sessionStorage.removeItem(storageKey);
+      return null;
+    }
+    return entry;
   } catch {
     return null;
   }
