@@ -80,6 +80,7 @@ const OPS_VM_KEYS = [
   'callDlq',
   'emailDlq',
   'runAction',
+  'invokeAction',
   'hasMeaningfulData',
   'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
@@ -112,6 +113,7 @@ const SMS_VM_KEYS = [
   'smsFailed',
   'smsProcessedPercent',
   'textBar',
+  'invokeAction',
   'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
@@ -158,6 +160,7 @@ const MAILER_VM_KEYS = [
   'emailJobs',
   'toText',
   'toInt',
+  'invokeAction',
   'loading',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
@@ -221,6 +224,7 @@ const SCRIPT_STUDIO_VM_KEYS = [
   'simulateCallScript',
   'scriptSimulationResult',
   'asRecord',
+  'invokeAction',
 ] as const satisfies readonly (keyof DashboardVm)[];
 
 const USERS_ROLE_VM_KEYS = [

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import type { DashboardVm, EmailJob } from './types';
 import { selectMailerPageVm } from './vmSelectors';
 import { UiStatePanel } from '@/components/ui/AdminPrimitives';
@@ -53,6 +55,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
     emailJobs,
     toText,
     toInt,
+    invokeAction,
     loading,
   } = selectMailerPageVm(vm);
   const mailerHasRecipients = mailerRecipientsParsed.length > 0;
@@ -75,6 +78,53 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
     mailerMissingRequirements.push('provide a body (text or HTML) or template ID');
   }
   const mailerCanSubmit = mailerMissingRequirements.length === 0;
+  const [messageIdInput, setMessageIdInput] = useState<string>('');
+  const [jobIdInput, setJobIdInput] = useState<string>('');
+  const [investigationBusy, setInvestigationBusy] = useState<string>('');
+  const [investigationError, setInvestigationError] = useState<string>('');
+  const [messageSnapshot, setMessageSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
+
+  const asRecord = (value: unknown): Record<string, unknown> => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {}
+  );
+  const asDisplayText = (value: unknown, fallback = ''): string => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : fallback;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    return fallback;
+  };
+  const pickDisplayText = (values: unknown[], fallback = ''): string => {
+    for (const value of values) {
+      const next = asDisplayText(value);
+      if (next) return next;
+    }
+    return fallback;
+  };
+
+  const runInvestigationAction = async (
+    action: string,
+    payload: Record<string, unknown>,
+    onSuccess: (result: Record<string, unknown>) => void,
+  ): Promise<void> => {
+    setInvestigationBusy(action);
+    setInvestigationError('');
+    try {
+      const data = await invokeAction(action, payload);
+      onSuccess(asRecord(data));
+    } catch (error) {
+      setInvestigationError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setInvestigationBusy('');
+    }
+  };
 
   return (
     <>
@@ -313,6 +363,129 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 compact
               />
             )}
+          </div>
+        </section>
+      </section>
+
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Investigation & Tracking</h3>
+          <p className="va-muted">Lookup individual message status, bulk jobs, and recent history.</p>
+        </header>
+        <section className="va-grid">
+          <div className="va-card">
+            <h3>Email Diagnostics Console</h3>
+            <div className="va-inline-tools">
+              <input
+                className="va-input"
+                placeholder="Message ID"
+                value={messageIdInput}
+                onChange={(event) => setMessageIdInput(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0 || !messageIdInput.trim()}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'email.message.status',
+                    { message_id: messageIdInput.trim() },
+                    (payload) => setMessageSnapshot(asRecord(payload.message) || payload),
+                  );
+                }}
+              >
+                Message Status
+              </button>
+            </div>
+            <div className="va-inline-tools">
+              <input
+                className="va-input"
+                placeholder="Bulk Job ID"
+                value={jobIdInput}
+                onChange={(event) => setJobIdInput(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0 || !jobIdInput.trim()}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'email.bulk.job',
+                    { job_id: jobIdInput.trim() },
+                    (payload) => setJobSnapshot(payload),
+                  );
+                }}
+              >
+                Job Status
+              </button>
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'email.bulk.history',
+                    { limit: 12, offset: 0 },
+                    (payload) => setHistorySnapshot(
+                      Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : [],
+                    ),
+                  );
+                }}
+              >
+                Load History
+              </button>
+            </div>
+            {investigationError ? (
+              <UiStatePanel
+                title="Email investigation failed"
+                description={investigationError}
+                tone="error"
+                compact
+              />
+            ) : null}
+            <div className="va-inline-tools">
+              <div className="va-card va-subcard">
+                <h4>Message Snapshot</h4>
+                {messageSnapshot ? (
+                  <ul className="va-list">
+                    <li><strong>ID:</strong> {pickDisplayText([messageSnapshot.message_id, messageIdInput], 'n/a')}</li>
+                    <li><strong>Status:</strong> {pickDisplayText([messageSnapshot.status], 'unknown')}</li>
+                    <li><strong>Recipient:</strong> {pickDisplayText([messageSnapshot.recipient_email, messageSnapshot.to], 'n/a')}</li>
+                    <li><strong>Provider:</strong> {pickDisplayText([messageSnapshot.provider], 'n/a')}</li>
+                    <li><strong>Last Attempt:</strong> {pickDisplayText([messageSnapshot.last_attempt_at], 'n/a')}</li>
+                  </ul>
+                ) : (
+                  <p className="va-muted">Run message status lookup to inspect details.</p>
+                )}
+              </div>
+              <div className="va-card va-subcard">
+                <h4>Bulk Job Snapshot</h4>
+                {jobSnapshot ? (
+                  <ul className="va-list">
+                    <li><strong>Job ID:</strong> {pickDisplayText([jobSnapshot.job_id, jobIdInput], 'n/a')}</li>
+                    <li><strong>Status:</strong> {pickDisplayText([jobSnapshot.status], 'unknown')}</li>
+                    <li><strong>Sent:</strong> {pickDisplayText([jobSnapshot.sent], '0')} / {pickDisplayText([jobSnapshot.total], '0')}</li>
+                    <li><strong>Delivered:</strong> {pickDisplayText([jobSnapshot.delivered], '0')}</li>
+                    <li><strong>Failed:</strong> {pickDisplayText([jobSnapshot.failed], '0')}</li>
+                  </ul>
+                ) : (
+                  <p className="va-muted">Run job status lookup to inspect send progress.</p>
+                )}
+              </div>
+            </div>
+            <div className="va-card va-subcard">
+              <h4>Recent History</h4>
+              {historySnapshot.length === 0 ? (
+                <p className="va-muted">No history loaded.</p>
+              ) : (
+                <ul className="va-list">
+                  {historySnapshot.slice(0, 10).map((job, index) => (
+                    <li key={`mailer-history-${index}`}>
+                      <strong>{pickDisplayText([job.job_id], `job-${index + 1}`)}</strong>
+                      <span>{pickDisplayText([job.status], 'unknown')}</span>
+                      <span>{pickDisplayText([job.sent], '0')} / {pickDisplayText([job.total], '0')} sent</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </section>
       </section>

@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+
 import type {
   ActivityEntry,
   CallLogRow,
@@ -7,7 +9,7 @@ import type {
   EmailJob,
 } from './types';
 import { selectOpsPageVm } from './vmSelectors';
-import { UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type OpsDashboardPageProps = {
   visible: boolean;
@@ -98,11 +100,99 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
     callDlq,
     emailDlq,
     runAction,
+    invokeAction,
     hasMeaningfulData,
     loading,
   } = selectOpsPageVm(vm);
   const runtimeControlsEnabled = isFeatureEnabled('runtime_controls', true);
   const providerCardsEnabled = isFeatureEnabled('provider_cards', true);
+  const [callExplorerQuery, setCallExplorerQuery] = useState<string>('');
+  const [callExplorerCallSid, setCallExplorerCallSid] = useState<string>('');
+  const [callExplorerRows, setCallExplorerRows] = useState<CallLogRow[]>([]);
+  const [callExplorerDetails, setCallExplorerDetails] = useState<Record<string, unknown> | null>(null);
+  const [callExplorerEvents, setCallExplorerEvents] = useState<Array<Record<string, unknown>>>([]);
+  const [callExplorerError, setCallExplorerError] = useState<string>('');
+  const [callExplorerBusy, setCallExplorerBusy] = useState<string>('');
+  const callExplorerRecentStates = useMemo(() => {
+    if (!Array.isArray(callExplorerEvents)) return [];
+    return callExplorerEvents.slice(0, 12);
+  }, [callExplorerEvents]);
+
+  const loadCallExplorerRows = async (): Promise<void> => {
+    setCallExplorerBusy('rows');
+    setCallExplorerError('');
+    try {
+      const query = callExplorerQuery.trim();
+      const data = query.length >= 2
+        ? await invokeAction('calls.search', { query, limit: 12 })
+        : await invokeAction('calls.list', { limit: 20, offset: 0 });
+      const payload = (data && typeof data === 'object' && !Array.isArray(data))
+        ? (data as Record<string, unknown>)
+        : {};
+      const rows = Array.isArray(payload.results)
+        ? payload.results as CallLogRow[]
+        : Array.isArray(payload.rows)
+          ? payload.rows as CallLogRow[]
+          : [];
+      setCallExplorerRows(rows);
+      if (rows.length > 0) {
+        const firstSid = toText(rows[0]?.call_sid, '');
+        if (firstSid) setCallExplorerCallSid(firstSid);
+      }
+    } catch (error) {
+      setCallExplorerError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCallExplorerBusy('');
+    }
+  };
+
+  const loadCallExplorerDetails = async (): Promise<void> => {
+    const callSid = callExplorerCallSid.trim();
+    if (!callSid) {
+      setCallExplorerError('Provide a call SID before loading details.');
+      return;
+    }
+    setCallExplorerBusy('details');
+    setCallExplorerError('');
+    try {
+      const data = await invokeAction('calls.get', { call_sid: callSid });
+      const payload = (data && typeof data === 'object' && !Array.isArray(data))
+        ? (data as Record<string, unknown>)
+        : {};
+      const callDetails = (payload.call && typeof payload.call === 'object' && !Array.isArray(payload.call))
+        ? payload.call as Record<string, unknown>
+        : payload;
+      setCallExplorerDetails(callDetails);
+    } catch (error) {
+      setCallExplorerError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCallExplorerBusy('');
+    }
+  };
+
+  const loadCallExplorerEvents = async (): Promise<void> => {
+    const callSid = callExplorerCallSid.trim();
+    if (!callSid) {
+      setCallExplorerError('Provide a call SID before loading events.');
+      return;
+    }
+    setCallExplorerBusy('events');
+    setCallExplorerError('');
+    try {
+      const data = await invokeAction('calls.events', { call_sid: callSid });
+      const payload = (data && typeof data === 'object' && !Array.isArray(data))
+        ? (data as Record<string, unknown>)
+        : {};
+      const states = Array.isArray(payload.recent_states)
+        ? payload.recent_states as Array<Record<string, unknown>>
+        : [];
+      setCallExplorerEvents(states);
+    } catch (error) {
+      setCallExplorerError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCallExplorerBusy('');
+    }
+  };
 
   return (
     <>
@@ -303,7 +393,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
             </details>
           </div>
         ) : (
-          <div className="va-card">
+          <UiCard>
             <h3>Post-Call QA</h3>
             <UiStatePanel
               title="QA summary unavailable"
@@ -311,11 +401,11 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               tone="info"
               compact
             />
-          </div>
+          </UiCard>
         )}
 
         {runtimeControlsEnabled ? (
-          <div className="va-card">
+          <UiCard>
             <h3>Voice Runtime Control</h3>
             <p>
               Effective mode: <strong>{runtimeEffectiveMode}</strong>
@@ -335,31 +425,30 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               {' '}| Voice Agent: <strong>{runtimeActiveVoiceAgent}</strong>
             </p>
             <div className="va-inline-tools">
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={busyAction.length > 0}
                 onClick={() => { void enableRuntimeMaintenance(); }}
               >
                 Enable Maintenance
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={busyAction.length > 0}
                 onClick={() => { void disableRuntimeMaintenance(); }}
               >
                 Disable Maintenance
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={busyAction.length > 0}
                 onClick={() => { void refreshRuntimeStatus(); }}
               >
                 Refresh Runtime
-              </button>
+              </UiButton>
             </div>
             <div className="va-inline-tools">
-              <input
-                className="va-input"
+              <UiInput
                 inputMode="numeric"
                 min={0}
                 max={100}
@@ -367,24 +456,24 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
                 value={runtimeCanaryInput}
                 onChange={(event) => setRuntimeCanaryInput(event.target.value)}
               />
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={busyAction.length > 0}
                 onClick={() => { void applyRuntimeCanary(); }}
               >
                 Apply Canary
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={busyAction.length > 0}
                 onClick={() => { void clearRuntimeCanary(); }}
               >
                 Clear Canary
-              </button>
+              </UiButton>
             </div>
-          </div>
+          </UiCard>
         ) : (
-          <div className="va-card">
+          <UiCard>
             <h3>Voice Runtime Control</h3>
             <UiStatePanel
               title="Runtime controls disabled"
@@ -392,10 +481,10 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               tone="warning"
               compact
             />
-          </div>
+          </UiCard>
         )}
 
-        <div className="va-card">
+        <UiCard>
           <h3>Activity Timeline</h3>
           {activityLog.length === 0 ? (
             <UiStatePanel
@@ -416,7 +505,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               ))}
             </ul>
           )}
-        </div>
+        </UiCard>
       </section>
       </section>
 
@@ -468,6 +557,116 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           <p className="va-muted">Recent operational history and dead-letter replay workflows.</p>
         </header>
         <section className="va-grid">
+        <div className="va-card">
+          <h3>Call Log Explorer</h3>
+          <p className="va-muted">
+            Search calls, inspect call detail payloads, and review recent state transitions.
+          </p>
+          <div className="va-inline-tools">
+            <UiInput
+              value={callExplorerQuery}
+              placeholder="Search by SID, phone, or status"
+              onChange={(event) => setCallExplorerQuery(event.target.value)}
+            />
+            <UiButton
+              type="button"
+              variant="secondary"
+              disabled={busyAction.length > 0 || callExplorerBusy.length > 0}
+              onClick={() => { void loadCallExplorerRows(); }}
+            >
+              {callExplorerQuery.trim().length >= 2 ? 'Search' : 'Load Recent'}
+            </UiButton>
+          </div>
+          <div className="va-inline-tools">
+            <UiInput
+              value={callExplorerCallSid}
+              placeholder="Call SID"
+              onChange={(event) => setCallExplorerCallSid(event.target.value)}
+            />
+            <UiButton
+              type="button"
+              variant="secondary"
+              disabled={busyAction.length > 0 || callExplorerBusy.length > 0 || !callExplorerCallSid.trim()}
+              onClick={() => { void loadCallExplorerDetails(); }}
+            >
+              Details
+            </UiButton>
+            <UiButton
+              type="button"
+              variant="secondary"
+              disabled={busyAction.length > 0 || callExplorerBusy.length > 0 || !callExplorerCallSid.trim()}
+              onClick={() => { void loadCallExplorerEvents(); }}
+            >
+              Events
+            </UiButton>
+          </div>
+          {callExplorerError ? (
+            <UiStatePanel
+              title="Call explorer request failed"
+              description={callExplorerError}
+              tone="error"
+              compact
+            />
+          ) : null}
+          <div className="va-inline-tools">
+            <UiCard tone="subcard">
+              <h4>Search Results</h4>
+              {callExplorerRows.length === 0 ? (
+                <p className="va-muted">No rows loaded yet.</p>
+              ) : (
+                <ul className="va-list">
+                  {callExplorerRows.slice(0, 10).map((row, index) => {
+                    const callSid = toText(row.call_sid, `call-${index + 1}`);
+                    return (
+                      <li key={`call-explorer-row-${callSid}-${index}`}>
+                        <button
+                          type="button"
+                          className="va-chip"
+                          onClick={() => setCallExplorerCallSid(callSid)}
+                        >
+                          {callSid}
+                        </button>
+                        <span>{toText(row.phone_number, 'n/a')}</span>
+                        <span>{toText(row.status_normalized, toText(row.status, 'unknown'))}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </UiCard>
+            <UiCard tone="subcard">
+              <h4>Call Details</h4>
+              {callExplorerDetails ? (
+                <ul className="va-list">
+                  <li><strong>SID:</strong> {toText(callExplorerDetails.call_sid, callExplorerCallSid || 'n/a')}</li>
+                  <li><strong>Status:</strong> {toText(callExplorerDetails.status, 'unknown')}</li>
+                  <li><strong>Phone:</strong> {toText(callExplorerDetails.phone_number, 'n/a')}</li>
+                  <li><strong>Duration:</strong> {toInt(callExplorerDetails.duration)}s</li>
+                  <li><strong>Started:</strong> {formatTime(callExplorerDetails.created_at)}</li>
+                  <li><strong>Summary:</strong> {toText(callExplorerDetails.call_summary, 'n/a')}</li>
+                </ul>
+              ) : (
+                <p className="va-muted">Load a call SID to view details.</p>
+              )}
+            </UiCard>
+            <UiCard tone="subcard">
+              <h4>Recent Events</h4>
+              {callExplorerRecentStates.length === 0 ? (
+                <p className="va-muted">No events loaded.</p>
+              ) : (
+                <ul className="va-list">
+                  {callExplorerRecentStates.map((state, index) => (
+                    <li key={`call-explorer-state-${index}`}>
+                      <span>{toText(state.state, 'event')}</span>
+                      <span>{formatTime(state.timestamp)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </UiCard>
+          </div>
+        </div>
+
         <div className="va-card">
           <h3>Recent Call Logs</h3>
           <p>
@@ -522,7 +721,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </ul>
         </div>
 
-        <div className="va-card">
+        <UiCard>
           <h3>DLQ: Call Jobs ({toInt(dlqPayload.call_open, callDlq.length)})</h3>
           {callDlq.length === 0 ? <p className="va-muted">No open call DLQ entries.</p> : null}
           <ul className="va-list">
@@ -542,20 +741,20 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
                 <li key={`call-dlq-${rowId}`}>
                   <span>#{rowId} {toText(row.job_type, 'job')}</span>
                   <span>Replays: {toInt(row.replay_count)}</span>
-                  <button
-                    type="button"
+                  <UiButton
+                    variant="secondary"
                     disabled={busyAction.length > 0 || rowId <= 0}
                     onClick={handleReplay}
                   >
                     Replay
-                  </button>
+                  </UiButton>
                 </li>
               );
             })}
           </ul>
-        </div>
+        </UiCard>
 
-        <div className="va-card">
+        <UiCard>
           <h3>DLQ: Email ({toInt(dlqPayload.email_open, emailDlq.length)})</h3>
           {emailDlq.length === 0 ? <p className="va-muted">No open email DLQ entries.</p> : null}
           <ul className="va-list">
@@ -575,18 +774,18 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
                 <li key={`email-dlq-${rowId}`}>
                   <span>#{rowId} msg:{toText(row.message_id)}</span>
                   <span>Reason: {toText(row.reason)}</span>
-                  <button
-                    type="button"
+                  <UiButton
+                    variant="secondary"
                     disabled={busyAction.length > 0 || rowId <= 0}
                     onClick={handleReplay}
                   >
                     Replay
-                  </button>
+                  </UiButton>
                 </li>
               );
             })}
           </ul>
-        </div>
+        </UiCard>
       </section>
       </section>
 

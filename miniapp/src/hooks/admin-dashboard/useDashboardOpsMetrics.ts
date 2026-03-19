@@ -6,6 +6,11 @@ import {
   normalizeBridgeStatuses,
   toInt,
 } from '@/services/admin-dashboard/dashboardPrimitives';
+import {
+  getDashboardReliabilityCopy,
+  type DashboardReliabilityState,
+  resolveDashboardReliabilityState,
+} from '@/services/admin-dashboard/dashboardReliabilityState';
 
 type CallStatsPayload = {
   total_calls?: unknown;
@@ -42,6 +47,8 @@ type UseDashboardOpsMetricsOptions = {
 };
 
 type UseDashboardOpsMetricsResult = {
+  syncHealthState: DashboardReliabilityState;
+  syncHealthMessage: string;
   bridgeHardFailures: number;
   bridgeSoftFailures: number;
   isDashboardDegraded: boolean;
@@ -87,10 +94,18 @@ export function useDashboardOpsMetrics({
     const bridgeHardFailures = bridgeStatuses.filter((status) => status >= 500).length;
     const bridgeSoftFailures = bridgeStatuses.filter((status) => status >= 400).length;
 
-    const isDashboardDegraded = sessionBlocked
-      || pollFailureCount >= pollDegradedFailures
-      || bridgeHardFailures > 0
-      || (Boolean(error) && !hasBootstrapData);
+    const reliability = resolveDashboardReliabilityState({
+      sessionBlocked,
+      pollFailureCount,
+      pollDegradedFailures,
+      bridgeHardFailures,
+      bridgeSoftFailures,
+      error,
+      hasBootstrapData,
+      lastSuccessfulPollAt,
+      pollingPaused,
+    });
+    const isDashboardDegraded = reliability.isDegraded;
 
     const streamModeLabel = streamMode === 'connected'
       ? 'Realtime'
@@ -104,15 +119,17 @@ export function useDashboardOpsMetrics({
       ? formatTime(new Date(streamLastEventAt).toISOString())
       : '—';
 
+    const syncCopy = getDashboardReliabilityCopy(reliability.state);
+    const syncStateLabel = syncCopy.label;
+    const primaryCause = reliability.causes[0] || '';
+    const syncHealthMessage = primaryCause
+      ? `${syncCopy.message} Cause: ${primaryCause}.`
+      : syncCopy.message;
     const syncModeLabel = pollingPaused
       ? 'Paused'
       : streamConnected
-        ? isDashboardDegraded
-          ? 'Realtime (degraded)'
-          : 'Realtime'
-        : isDashboardDegraded
-          ? 'Degraded'
-          : 'Healthy';
+        ? `Realtime (${syncStateLabel.toLowerCase()})`
+        : syncStateLabel;
 
     const nextPollLabel = pollingPaused || streamConnected
       ? 'Paused'
@@ -124,9 +141,7 @@ export function useDashboardOpsMetrics({
       ? formatTime(new Date(lastSuccessfulPollAt).toISOString())
       : '—';
 
-    const pollFreshnessSeconds = lastSuccessfulPollAt
-      ? Math.max(0, Math.floor((Date.now() - lastSuccessfulPollAt) / 1000))
-      : -1;
+    const pollFreshnessSeconds = reliability.pollFreshnessSeconds;
     const pollFreshnessLabel = pollFreshnessSeconds < 0 ? 'No successful poll yet' : `${pollFreshnessSeconds}s`;
 
     const uptimeScore = Math.max(
@@ -161,15 +176,11 @@ export function useDashboardOpsMetrics({
 
     const sloP95ActionLatencyMs = computePercentile(actionLatencyMsSamples, 95);
 
-    const degradedCauses = [
-      sessionBlocked ? 'Session auth blocked' : '',
-      pollFailureCount >= pollDegradedFailures ? `Poll failures ${pollFailureCount}` : '',
-      bridgeHardFailures > 0 ? `Bridge hard failures ${bridgeHardFailures}` : '',
-      bridgeSoftFailures > 0 ? `Bridge soft failures ${bridgeSoftFailures}` : '',
-      (Boolean(error) && !hasBootstrapData) ? 'Bootstrap data unavailable' : '',
-    ].filter(Boolean);
+    const degradedCauses = reliability.causes;
 
     return {
+      syncHealthState: reliability.state,
+      syncHealthMessage,
       bridgeHardFailures,
       bridgeSoftFailures,
       isDashboardDegraded,

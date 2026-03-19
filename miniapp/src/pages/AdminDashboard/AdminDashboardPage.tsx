@@ -23,21 +23,16 @@ import { ProviderControlPage } from '@/pages/AdminDashboard/ProviderControlPage'
 import {
   asRecord,
   formatTime,
-  parseApiError,
-  parseApiErrorCode,
-  parseJsonResponse,
   textBar,
   toInt,
   toText,
 } from '@/services/admin-dashboard/dashboardPrimitives';
 import {
-  buildApiUrl,
   buildEventStreamUrl,
   isNgrokApiBase,
-  isSessionBootstrapBlockingCode,
-  readSessionCache,
-  writeSessionCache,
+  resolveRealtimeTransportContract,
 } from '@/services/admin-dashboard/dashboardTransport';
+import { createDashboardApiClient } from '@/services/admin-dashboard/dashboardApiClient';
 import {
   validateBootstrapPayload,
   validatePollPayload,
@@ -49,11 +44,10 @@ import { buildMailerVmSection } from '@/services/admin-dashboard/dashboardVm/bui
 import { buildOpsVmSection } from '@/services/admin-dashboard/dashboardVm/buildOpsVmSection';
 import { buildProviderVmSection } from '@/services/admin-dashboard/dashboardVm/buildProviderVmSection';
 import { buildSmsVmSection } from '@/services/admin-dashboard/dashboardVm/buildSmsVmSection';
-import type { SessionCacheEntry } from '@/services/admin-dashboard/dashboardTransport';
 import {
   useDashboardActions,
 } from '@/hooks/admin-dashboard/useDashboardActions';
-import type { ActionRequestMeta, DashboardActionConfirmDialog } from '@/hooks/admin-dashboard/useDashboardActions';
+import type { ActionRequestMeta } from '@/hooks/admin-dashboard/useDashboardActions';
 import { useDashboardEventStream } from '@/hooks/admin-dashboard/useDashboardEventStream';
 import {
   useDashboardFeatureFlags,
@@ -90,6 +84,7 @@ import {
   useDashboardProviderActions,
 } from '@/hooks/admin-dashboard/useDashboardProviderActions';
 import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPollingLoop';
+import { useDashboardDialog } from '@/hooks/admin-dashboard/useDashboardDialog';
 import { SettingsPage } from '@/pages/AdminDashboard/SettingsPage';
 import { ScriptStudioPage } from '@/pages/AdminDashboard/ScriptStudioPage';
 import { SmsSenderPage } from '@/pages/AdminDashboard/SmsSenderPage';
@@ -470,14 +465,6 @@ interface SessionState {
   user?: SessionStateUser;
 }
 
-interface SessionResponse {
-  success: boolean;
-  token?: string;
-  expires_at?: number;
-  error?: string;
-  code?: string;
-}
-
 interface ProviderChannelData {
   provider?: unknown;
   supported_providers?: unknown;
@@ -712,22 +699,6 @@ type ProviderSwitchPlanState = {
   postCheck: ProviderSwitchPostCheck;
   rollbackSuggestion: string;
 };
-type DashboardDialogTone = 'default' | 'warning' | 'danger';
-type DashboardDialogState =
-  | (DashboardActionConfirmDialog & { kind: 'confirm' })
-  | {
-    kind: 'prompt';
-    title: string;
-    message: string;
-    defaultValue?: string;
-    placeholder?: string;
-    requireNonEmpty?: boolean;
-    validationMessage?: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
-    tone?: DashboardDialogTone;
-  };
-type DashboardDialogResolveValue = boolean | string | null;
 
 const MODULE_DEFINITIONS: Array<{ id: DashboardModule; label: string; capability: string }> = [
   { id: 'ops', label: 'Ops Dashboard', capability: 'dashboard_view' },
@@ -796,8 +767,8 @@ function parseWorkspaceRoute(pathname: string): WorkspaceRoute {
 const FEATURE_FLAG_REGISTRY: FeatureFlagRegistryEntry[] = [
   {
     key: 'realtime_stream',
-    defaultEnabled: true,
-    description: 'Use live stream updates before falling back to polling.',
+    defaultEnabled: false,
+    description: 'Use live stream updates (disabled by default until backend stream contract is enabled).',
   },
   {
     key: 'module_skeletons',
@@ -1222,10 +1193,17 @@ export function AdminDashboardPage() {
   const [usersSnapshot, setUsersSnapshot] = useState<MiniAppUsersPayload | null>(null);
   const [auditSnapshot, setAuditSnapshot] = useState<MiniAppAuditPayload | null>(null);
   const [incidentsSnapshot, setIncidentsSnapshot] = useState<MiniAppIncidentsPayload | null>(null);
-  const [dialogState, setDialogState] = useState<DashboardDialogState | null>(null);
-  const [dialogInputValue, setDialogInputValue] = useState<string>('');
-  const [dialogInputError, setDialogInputError] = useState<string>('');
-  const sessionRequestRef = useRef<Promise<string> | null>(null);
+  const {
+    dialogState,
+    dialogInputValue,
+    dialogInputError,
+    setDialogInputValue,
+    setDialogInputError,
+    closeDialog,
+    openConfirmDialog,
+    openPromptDialog,
+    handleDialogConfirm,
+  } = useDashboardDialog();
   const pollFailureNotedRef = useRef<boolean>(false);
   const initialServerModuleAppliedRef = useRef<boolean>(false);
   const fixtureModeNotedRef = useRef<boolean>(false);
@@ -1239,80 +1217,6 @@ export function AdminDashboardPage() {
   const restoreFocusSelectorRef = useRef<string>('#va-main-shortcuts-btn');
   const shouldRestoreFocusRef = useRef<boolean>(false);
   const shouldFocusStageRef = useRef<boolean>(false);
-  const dialogResolverRef = useRef<((value: DashboardDialogResolveValue) => void) | null>(null);
-  const closeDialog = useCallback((value: DashboardDialogResolveValue): void => {
-    const resolve = dialogResolverRef.current;
-    dialogResolverRef.current = null;
-    setDialogState(null);
-    setDialogInputValue('');
-    setDialogInputError('');
-    resolve?.(value);
-  }, []);
-  const openConfirmDialog = useCallback((dialog: DashboardActionConfirmDialog): Promise<boolean> => (
-    new Promise<boolean>((resolve) => {
-      if (dialogResolverRef.current) {
-        dialogResolverRef.current(false);
-      }
-      dialogResolverRef.current = (value) => {
-        resolve(Boolean(value));
-      };
-      setDialogInputValue('');
-      setDialogInputError('');
-      setDialogState({
-        kind: 'confirm',
-        title: dialog.title,
-        message: dialog.message,
-        confirmLabel: dialog.confirmLabel,
-        cancelLabel: dialog.cancelLabel,
-        tone: dialog.tone,
-      });
-    })
-  ), []);
-  const openPromptDialog = useCallback((options: {
-    title: string;
-    message: string;
-    defaultValue?: string;
-    placeholder?: string;
-    requireNonEmpty?: boolean;
-    validationMessage?: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
-    tone?: DashboardDialogTone;
-  }): Promise<string | null> => (
-    new Promise<string | null>((resolve) => {
-      if (dialogResolverRef.current) {
-        dialogResolverRef.current(null);
-      }
-      dialogResolverRef.current = (value) => {
-        resolve(typeof value === 'string' ? value : null);
-      };
-      setDialogInputValue(options.defaultValue || '');
-      setDialogInputError('');
-      setDialogState({
-        kind: 'prompt',
-        ...options,
-      });
-    })
-  ), []);
-  const handleDialogConfirm = useCallback((): void => {
-    if (!dialogState) return;
-    if (dialogState.kind === 'confirm') {
-      closeDialog(true);
-      return;
-    }
-    const nextValue = dialogInputValue.trim();
-    if (dialogState.requireNonEmpty && !nextValue) {
-      setDialogInputError(dialogState.validationMessage || 'This field is required.');
-      return;
-    }
-    closeDialog(nextValue);
-  }, [closeDialog, dialogInputValue, dialogState]);
-  useEffect(() => () => {
-    if (dialogResolverRef.current) {
-      dialogResolverRef.current(null);
-      dialogResolverRef.current = null;
-    }
-  }, []);
   const triggerHaptic = useCallback((
     mode: 'selection' | 'impact' | 'success' | 'warning' | 'error',
     impactStyle: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light',
@@ -1540,137 +1444,38 @@ export function AdminDashboardPage() {
     setActiveModule(workspaceRoute);
   }, [activeModule, workspaceRoute]);
 
-  const createSession = useCallback(async (): Promise<string> => {
-    if (DASHBOARD_DEV_FIXTURES_ENABLED) {
-      const fixtureToken = 'dev-fixture-token';
-      setToken(fixtureToken);
-      setErrorCode('');
-      setSessionBlocked(false);
-      return fixtureToken;
-    }
-    const cached = readSessionCache(SESSION_STORAGE_KEY);
-    if (cached?.token) {
-      setToken(cached.token);
-      setSessionBlocked(false);
-      return cached.token;
-    }
+  const tokenRef = useRef<string | null>(token);
+  const initDataRawRef = useRef<string>(initDataRaw || '');
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+  useEffect(() => {
+    initDataRawRef.current = initDataRaw || '';
+  }, [initDataRaw]);
+  const dashboardApiClient = useMemo(() => createDashboardApiClient(
+    {
+      apiBaseUrl: API_BASE_URL,
+      apiBaseIsNgrok: API_BASE_IS_NGROK,
+      ngrokBypassHeader: NGROK_BYPASS_HEADER,
+      sessionStorageKey: SESSION_STORAGE_KEY,
+      sessionRefreshRetryCount: SESSION_REFRESH_RETRY_COUNT,
+    },
+    {
+      getToken: () => tokenRef.current,
+      setToken,
+      getInitDataRaw: () => initDataRawRef.current,
+      setErrorCode,
+      setSessionBlocked,
+      pushActivity,
+    },
+  ), [pushActivity]);
 
-    if (sessionRequestRef.current) {
-      return sessionRequestRef.current;
-    }
-
-    if (!initDataRaw) {
-      setSessionBlocked(true);
-      setErrorCode('miniapp_missing_init_data');
-      pushActivity(
-        'error',
-        'Session blocked',
-        'Mini App init data is unavailable. Open this page from Telegram.',
-      );
-      throw new Error('Mini App init data is unavailable. Open this page from Telegram.');
-    }
-
-    const sessionRequest = (async (): Promise<string> => {
-      const sessionHeaders = new Headers({
-        Authorization: `tma ${initDataRaw}`,
-        'x-telegram-init-data': initDataRaw,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      });
-      if (API_BASE_IS_NGROK) {
-        sessionHeaders.set(NGROK_BYPASS_HEADER, '1');
-      }
-      const response = await fetch(buildApiUrl('/miniapp/session', API_BASE_URL), {
-        method: 'POST',
-        headers: sessionHeaders,
-        body: JSON.stringify({ init_data_raw: initDataRaw }),
-      });
-
-      const payload = (await parseJsonResponse(response)) as SessionResponse | null;
-      if (response.ok && !payload) {
-        throw new Error(
-          'Session endpoint returned an empty/non-JSON response. Verify VITE_API_BASE_URL points to the API origin.',
-        );
-      }
-      const code = toText(payload?.code, '');
-      if (!response.ok || !payload?.success || !payload?.token) {
-        if (isSessionBootstrapBlockingCode(code)) {
-          setSessionBlocked(true);
-        }
-        if (code) {
-          setErrorCode(code);
-        }
-        throw new Error(payload?.error || `Session request failed (${response.status})`);
-      }
-
-      const nextToken = payload.token;
-      const cacheEntry: SessionCacheEntry = {
-        token: nextToken,
-        exp: Number.isFinite(Number(payload.expires_at)) ? Number(payload.expires_at) : null,
-      };
-      writeSessionCache(SESSION_STORAGE_KEY, cacheEntry);
-      setToken(nextToken);
-      setErrorCode('');
-      setSessionBlocked(false);
-      pushActivity('success', 'Session established', 'Mini App session token created successfully.');
-      return nextToken;
-    })();
-
-    sessionRequestRef.current = sessionRequest;
-    try {
-      return await sessionRequest;
-    } finally {
-      if (sessionRequestRef.current === sessionRequest) {
-        sessionRequestRef.current = null;
-      }
-    }
-  }, [initDataRaw, pushActivity]);
-
-  const request = useCallback(async <T,>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> => {
+  const request = useCallback(async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
     if (DASHBOARD_DEV_FIXTURES_ENABLED) {
       return resolveDashboardFixtureRequest(path, options) as T;
     }
-    const activeToken = token || await createSession();
-    const headers = new Headers(options.headers || {});
-    headers.set('Authorization', `Bearer ${activeToken}`);
-    headers.set('Accept', 'application/json');
-    if (API_BASE_IS_NGROK) {
-      headers.set(NGROK_BYPASS_HEADER, '1');
-    }
-    if (!headers.has('Content-Type') && options.body !== undefined) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(buildApiUrl(path, API_BASE_URL), {
-      ...options,
-      headers,
-    });
-
-    const payload = await parseJsonResponse(response);
-    if (response.ok && !payload) {
-      throw new Error(
-        `API returned an empty/non-JSON response for ${path}. Verify VITE_API_BASE_URL is configured to your backend.`,
-      );
-    }
-    if (response.status === 401 && retryCount < SESSION_REFRESH_RETRY_COUNT) {
-      writeSessionCache(SESSION_STORAGE_KEY, null);
-      setToken(null);
-      pushActivity('info', 'Session refresh', 'Received 401, refreshing session token.');
-      return request<T>(path, options, retryCount + 1);
-    }
-    if (!response.ok) {
-      const code = parseApiErrorCode(payload);
-      if (code) {
-        setErrorCode(code);
-      }
-      if (isSessionBootstrapBlockingCode(code)) {
-        setSessionBlocked(true);
-      }
-      throw new Error(parseApiError(payload, response.status));
-    }
-    setErrorCode('');
-    return (payload ?? {}) as T;
-  }, [createSession, pushActivity, token]);
+    return dashboardApiClient.request<T>(path, options);
+  }, [dashboardApiClient]);
 
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
@@ -1782,6 +1587,18 @@ export function AdminDashboardPage() {
   const createActionMeta = useCallback((action: string): ActionRequestMeta => (
     createActionRequestMeta(action, activeModule)
   ), [activeModule]);
+  const sessionCapsForActionGuards = useMemo(() => {
+    const pollSession = asRecord(pollPayload?.session);
+    const bootstrapSession = asRecord(bootstrap?.session);
+    const dashboardSession = asRecord(asRecord(bootstrap?.dashboard).session);
+    return asStringList(pollSession.caps || bootstrapSession.caps || dashboardSession.caps);
+  }, [bootstrap?.dashboard, bootstrap?.session, pollPayload?.session]);
+  const hasActionCapability = useCallback((capability: string): boolean => {
+    const normalized = String(capability || '').trim().toLowerCase();
+    if (!normalized) return true;
+    if (sessionCapsForActionGuards.length === 0) return true;
+    return sessionCapsForActionGuards.includes(normalized);
+  }, [sessionCapsForActionGuards]);
 
   const { invokeAction, runAction, actionTelemetry } = useDashboardActions({
     createActionMeta,
@@ -1795,6 +1612,7 @@ export function AdminDashboardPage() {
     setActionLatencyMsSamples,
     actionLatencySampleLimit: ACTION_LATENCY_SAMPLE_LIMIT,
     confirmAction: openConfirmDialog,
+    hasCapability: hasActionCapability,
   });
   const {
     featureFlags,
@@ -1915,6 +1733,10 @@ export function AdminDashboardPage() {
     }
     return Math.max(3000, Math.min(POLL_MAX_INTERVAL_MS, Math.floor(intervalSeconds * 1000)));
   }, [bootstrap?.poll_interval_seconds]);
+  const realtimeTransport = useMemo(
+    () => resolveRealtimeTransportContract(pollPayload, bootstrap),
+    [bootstrap, pollPayload],
+  );
 
   const {
     streamMode,
@@ -1922,8 +1744,13 @@ export function AdminDashboardPage() {
     streamFailureCount,
     streamLastEventAt,
   } = useDashboardEventStream({
-    enabled: realtimeStreamEnabled && !sessionBlocked && !pollingPaused && !API_BASE_IS_NGROK,
+    enabled: realtimeStreamEnabled
+      && realtimeTransport.enabled
+      && !sessionBlocked
+      && !pollingPaused
+      && !API_BASE_IS_NGROK,
     token,
+    endpoints: realtimeTransport.endpoints,
     buildEventStreamUrl: resolveEventStreamUrl,
     applyStreamPayload,
     refreshPoll: loadPoll,
@@ -2197,6 +2024,8 @@ export function AdminDashboardPage() {
   const hasQueueData = emailJobs.length > 0 || callDlq.length > 0 || emailDlq.length > 0;
   const hasMeaningfulData = hasProviderData || hasBulkVolume || hasQueueData || callLogs.length > 0;
   const {
+    syncHealthState,
+    syncHealthMessage,
     bridgeHardFailures,
     bridgeSoftFailures,
     isDashboardDegraded,
@@ -2307,9 +2136,7 @@ export function AdminDashboardPage() {
 
   const resetSession = useCallback((): void => {
     triggerHaptic('warning');
-    writeSessionCache(SESSION_STORAGE_KEY, null);
-    sessionRequestRef.current = null;
-    setToken(null);
+    dashboardApiClient.clearSession();
     setError('');
     setErrorCode('');
     setNoticeMessage('');
@@ -2337,7 +2164,7 @@ export function AdminDashboardPage() {
     setActivityLog([]);
     pollFailureNotedRef.current = false;
     void loadBootstrap();
-  }, [loadBootstrap, setNoticeMessage, triggerHaptic]);
+  }, [dashboardApiClient, loadBootstrap, setNoticeMessage, triggerHaptic]);
 
   const handleRecipientsFile = useCallback(async (
     file: File | null,
@@ -2592,6 +2419,7 @@ export function AdminDashboardPage() {
     callDlq,
     emailDlq,
     runAction,
+    invokeAction,
     hasMeaningfulData,
   });
 
@@ -2623,6 +2451,7 @@ export function AdminDashboardPage() {
     smsFailed,
     smsProcessedPercent,
     textBar,
+    invokeAction,
   });
 
   const mailerVmSection = buildMailerVmSection({
@@ -2668,6 +2497,7 @@ export function AdminDashboardPage() {
     emailJobs,
     toText,
     toInt,
+    invokeAction,
   });
 
   const providerVmSection = buildProviderVmSection({
@@ -2732,6 +2562,7 @@ export function AdminDashboardPage() {
     setScriptSimulationVariablesInput,
     simulateCallScript,
     scriptSimulationResult,
+    invokeAction,
     userSearch,
     setUserSearch,
     userSortBy,
@@ -2828,7 +2659,9 @@ export function AdminDashboardPage() {
             notice={notice}
             noticeTone={noticeTone}
             busyAction={busyAction}
+            syncHealthState={syncHealthState}
             syncModeLabel={syncModeLabel}
+            syncHealthMessage={syncHealthMessage}
             pollFailureCount={pollFailureCount}
             streamFailureCount={streamFailureCount}
             bridgeHardFailures={bridgeHardFailures}

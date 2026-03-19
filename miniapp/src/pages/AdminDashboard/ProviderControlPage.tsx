@@ -1,6 +1,6 @@
 import type { DashboardVm, ProviderMatrixRow } from './types';
 import { selectProviderPageVm } from './vmSelectors';
-import { UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type ProviderControlPageProps = {
   visible: boolean;
@@ -41,18 +41,18 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
     <>
       {loading && !matrixReady ? (
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <UiStatePanel
               title="Loading provider diagnostics"
               description="Syncing compatibility matrix, readiness signals, and switch safety checks."
               tone="info"
             />
-          </div>
+          </UiCard>
         </section>
       ) : null}
 
       <section className="va-grid">
-        <div className="va-card">
+        <UiCard>
           <h3>Provider Preflight Matrix</h3>
           <p>
             Ready providers: <strong>{providerReadinessTotals.ready}/{providerReadinessTotals.total}</strong>
@@ -60,20 +60,20 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
           </p>
           <pre>{textBar(providerReadinessPercent)}</pre>
           <div className="va-inline-tools">
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               disabled={providerBusy || !plannerConfigured}
               onClick={() => { void preflightActiveProviders(); }}
             >
               Preflight Active Providers
-            </button>
-            <button
-              type="button"
+            </UiButton>
+            <UiButton
+              variant="secondary"
               disabled={loading || providerBusy}
               onClick={handleRefresh}
             >
               Refresh Matrix
-            </button>
+            </UiButton>
           </div>
           {!plannerConfigured ? (
             <UiStatePanel
@@ -112,10 +112,10 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
               ))}
             </ul>
           )}
-        </div>
+        </UiCard>
       </section>
       <section className="va-grid">
-        <div className="va-card">
+        <UiCard>
           <h3>Staged Switch Planner</h3>
           <p className="va-muted">
             Safe flow: simulate target readiness, confirm intent, apply switch, then review health check.
@@ -149,34 +149,34 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
                         <option key={`switch-${channel}-${provider}`} value={provider}>{provider}</option>
                       ))}
                     </select>
-                    <button
-                      type="button"
+                    <UiButton
+                      variant="secondary"
                       disabled={providerBusy || !plan.target || supported.length === 0}
                       onClick={() => { void simulateProviderSwitchPlan(channel); }}
                     >
                       Simulate
-                    </button>
-                    <button
-                      type="button"
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
                       disabled={providerBusy || plan.stage !== 'simulated'}
                       onClick={() => confirmProviderSwitchPlan(channel)}
                     >
                       Confirm
-                    </button>
-                    <button
-                      type="button"
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
                       disabled={providerBusy || plan.stage !== 'confirmed'}
                       onClick={() => { void applyProviderSwitchPlan(channel); }}
                     >
                       Apply
-                    </button>
-                    <button
-                      type="button"
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
                       disabled={providerBusy}
                       onClick={() => resetProviderSwitchPlan(channel)}
                     >
                       Reset
-                    </button>
+                    </UiButton>
                   </div>
                   {supported.length === 0 ? (
                     <UiStatePanel
@@ -194,7 +194,7 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
               );
             })}
           </ul>
-        </div>
+        </UiCard>
         {renderProviderSection('call')}
         {renderProviderSection('sms')}
         {renderProviderSection('email')}

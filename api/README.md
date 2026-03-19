@@ -91,6 +91,43 @@ LIVE_SMOKE=1 npm run parity:providers
   - `GET /admin/email/dlq`
   - `POST /admin/email/dlq/:id/replay`
 
+## Telegram Mini App Replay Validation
+
+Mini App session bootstrap now supports replay validation modes:
+
+- `MINI_APP_REPLAY_VALIDATION=warn` (default): replay is detected and logged, but session issuance continues.
+- `MINI_APP_REPLAY_VALIDATION=strict`: replay is rejected with HTTP `409` and code `miniapp_replay_detected`.
+- `MINI_APP_REPLAY_VALIDATION=off`: replay detection is disabled.
+
+Related controls:
+
+- `MINI_APP_REPLAY_WINDOW_SECONDS` defines the dedupe window.
+- `MINI_APP_INITDATA_MAX_AGE_SECONDS` controls maximum accepted Telegram init-data age.
+
+Recommended rollout:
+
+1. Start with `warn` in production and monitor `miniapp_route` and `miniapp_alert` health events.
+2. Switch to `strict` after validating there are no legitimate duplicate launch flows.
+3. Keep `off` only for short-term troubleshooting.
+
+## API HMAC Replay Validation
+
+API request HMAC verification now supports replay-validation modes:
+
+- `API_HMAC_REPLAY_VALIDATION=warn` (default): replay is detected and logged, request is still accepted.
+- `API_HMAC_REPLAY_VALIDATION=strict`: replay is rejected during HMAC verification.
+- `API_HMAC_REPLAY_VALIDATION=off`: replay detection is disabled.
+
+Related controls:
+
+- `API_HMAC_REPLAY_WINDOW_MS` sets the replay dedupe window.
+- `API_HMAC_MAX_SKEW_MS` keeps timestamp tolerance bounded.
+
+Recommended rollout:
+
+1. Run `warn` first and monitor `api_auth` health events for replay noise.
+2. Move to `strict` only after verifying callers sign each retry with a fresh timestamp.
+
 ## Post-Call QA Scoring (Feature-Flagged)
 
 Post-call QA evaluation can now run at call-end with default-safe gates:

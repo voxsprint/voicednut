@@ -27,6 +27,8 @@ const DASHBOARD_PAYLOAD_KEYS = [
   'ops',
   'bridge',
   'session',
+  'transport',
+  'realtime',
   'poll_interval_seconds',
   'poll_at',
   'server_time',

@@ -409,6 +409,18 @@ if (!allowedComplianceModes.has(complianceModeRaw) && !isProduction) {
 const dtmfEncryptionKey = readEnv("DTMF_ENCRYPTION_KEY");
 const apiHmacSecret = apiSecret || readEnv("API_HMAC_SECRET");
 const apiHmacMaxSkewMs = Number(readEnv("API_HMAC_MAX_SKEW_MS") || "300000");
+const apiHmacReplayWindowMs = Number(
+  readEnv("API_HMAC_REPLAY_WINDOW_MS") || apiHmacMaxSkewMs || "300000",
+);
+const apiHmacReplayValidationRaw = (
+  readEnv("API_HMAC_REPLAY_VALIDATION") || "warn"
+).toLowerCase();
+const apiHmacReplayValidationModes = new Set(["strict", "warn", "off"]);
+const apiHmacReplayValidation = apiHmacReplayValidationModes.has(
+  apiHmacReplayValidationRaw,
+)
+  ? apiHmacReplayValidationRaw
+  : "warn";
 if (!apiHmacSecret) {
   const message =
     'Missing required environment variable "API_SECRET" (or legacy API_HMAC_SECRET).';
@@ -434,6 +446,15 @@ const miniAppInitDataMaxAgeSeconds = Number(
 const miniAppReplayWindowSeconds = Number(
   readEnv("MINI_APP_REPLAY_WINDOW_SECONDS") || "600",
 );
+const miniAppReplayValidationRaw = (
+  readEnv("MINI_APP_REPLAY_VALIDATION") || "warn"
+).toLowerCase();
+const miniAppReplayValidationModes = new Set(["strict", "warn", "off"]);
+const miniAppReplayValidation = miniAppReplayValidationModes.has(
+  miniAppReplayValidationRaw,
+)
+  ? miniAppReplayValidationRaw
+  : "warn";
 const miniAppRateWindowSeconds = Number(
   readEnv("MINI_APP_RATE_WINDOW_SECONDS") || "60",
 );
@@ -1033,6 +1054,7 @@ module.exports = {
     replayWindowSeconds: Number.isFinite(miniAppReplayWindowSeconds)
       ? Math.max(60, Math.floor(miniAppReplayWindowSeconds))
       : 600,
+    replayValidation: miniAppReplayValidation,
     maxInitDataBytes: Number.isFinite(miniAppMaxInitDataBytes)
       ? Math.max(1024, Math.floor(miniAppMaxInitDataBytes))
       : 8192,
@@ -1390,6 +1412,11 @@ module.exports = {
   apiAuth: {
     hmacSecret: apiHmacSecret,
     maxSkewMs: apiHmacMaxSkewMs,
+    replayWindowMs:
+      Number.isFinite(apiHmacReplayWindowMs) && apiHmacReplayWindowMs > 0
+        ? Math.max(1000, Math.floor(apiHmacReplayWindowMs))
+        : Math.max(1000, Math.floor(apiHmacMaxSkewMs || 300000)),
+    replayValidation: apiHmacReplayValidation,
   },
   streamAuth: {
     secret: streamAuthSecret,

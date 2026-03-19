@@ -3,7 +3,10 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import { asRecord } from '@/services/admin-dashboard/dashboardPrimitives';
 import { validateActionEnvelope } from '@/services/admin-dashboard/dashboardApiContracts';
-import { validateDashboardActionPayload } from '@/services/admin-dashboard/dashboardActionGuards';
+import {
+  getDashboardActionPolicy,
+  validateDashboardActionPayload,
+} from '@/services/admin-dashboard/dashboardActionGuards';
 
 export type ActionRequestMeta = {
   action_id: string;
@@ -54,6 +57,7 @@ type UseDashboardActionsOptions = {
   setActionLatencyMsSamples: Dispatch<SetStateAction<number[]>>;
   actionLatencySampleLimit: number;
   confirmAction?: (dialog: DashboardActionConfirmDialog) => Promise<boolean>;
+  hasCapability?: (capability: string) => boolean;
 };
 
 type UseDashboardActionsResult = {
@@ -82,6 +86,7 @@ export function useDashboardActions({
   setActionLatencyMsSamples,
   actionLatencySampleLimit,
   confirmAction,
+  hasCapability,
 }: UseDashboardActionsOptions): UseDashboardActionsResult {
   const [actionTelemetry, setActionTelemetry] = useState<ActionTelemetry>({
     traceHint: '',
@@ -97,6 +102,10 @@ export function useDashboardActions({
     payload: Record<string, unknown>,
     metaOverride?: Partial<ActionRequestMeta>,
   ): Promise<unknown> => {
+    const actionPolicy = getDashboardActionPolicy(action);
+    if (actionPolicy.capability && hasCapability && !hasCapability(actionPolicy.capability)) {
+      throw new Error(`Missing capability "${actionPolicy.capability}" for ${action}`);
+    }
     const actionMeta: ActionRequestMeta = {
       ...createActionMeta(action),
       ...metaOverride,
@@ -167,25 +176,50 @@ export function useDashboardActions({
     } finally {
       clearTimeout(timeout);
     }
-  }, [createActionMeta, request]);
+  }, [createActionMeta, hasCapability, request]);
 
   const runAction = useCallback(async (
     action: string,
     payload: Record<string, unknown>,
     options: RunActionOptions = {},
   ): Promise<void> => {
+    const actionPolicy = getDashboardActionPolicy(action);
+    if (actionPolicy.capability && hasCapability && !hasCapability(actionPolicy.capability)) {
+      const deniedDetail = `Blocked ${action}: missing capability ${actionPolicy.capability}`;
+      setError(deniedDetail);
+      triggerHaptic('warning');
+      pushActivity('error', 'Action blocked', deniedDetail);
+      return;
+    }
     const actionMeta = createActionMeta(action);
     const traceHint = actionMeta.action_id.slice(-8);
-    if (options.confirmText && typeof window !== 'undefined') {
+    const requiresPolicyConfirmation = actionPolicy.risk === 'danger';
+    const shouldConfirm = typeof window !== 'undefined' && (Boolean(options.confirmText) || requiresPolicyConfirmation);
+    if (shouldConfirm) {
+      const baseConfirmMessage = options.confirmText
+        || `Execute ${action}?`;
+      const consequenceLine = actionPolicy.confirmConsequence
+        || (actionPolicy.risk === 'danger'
+          ? 'This action impacts live operations.'
+          : '');
+      const irreversibleLine = actionPolicy.confirmIrreversible
+        ? 'This action may be irreversible.'
+        : '';
+      const confirmMessage = [
+        baseConfirmMessage,
+        consequenceLine,
+        irreversibleLine,
+      ].filter(Boolean).join('\n\n');
       const allowed = confirmAction
         ? await confirmAction({
-          title: 'Confirm action',
-          message: options.confirmText,
-          confirmLabel: 'Confirm',
+          title: actionPolicy.confirmTitle || 'Confirm action',
+          message: confirmMessage,
+          confirmLabel: actionPolicy.confirmLabel || (actionPolicy.risk === 'danger' ? 'Proceed' : 'Confirm'),
           cancelLabel: 'Cancel',
-          tone: 'warning',
+          tone: actionPolicy.confirmTone
+            || (actionPolicy.risk === 'danger' ? 'danger' : 'warning'),
         })
-        : window.confirm(options.confirmText);
+        : window.confirm(confirmMessage);
       if (!allowed) {
         triggerHaptic('warning');
         pushActivity('info', 'Action cancelled', `Cancelled: ${action} (trace:${traceHint})`);
@@ -226,6 +260,7 @@ export function useDashboardActions({
     setNotice,
     triggerHaptic,
     confirmAction,
+    hasCapability,
   ]);
 
   return {

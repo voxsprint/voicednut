@@ -71,6 +71,7 @@ type OpsVmKeys =
   | 'callDlq'
   | 'emailDlq'
   | 'runAction'
+  | 'invokeAction'
   | 'hasMeaningfulData';
 
 type SmsVmKeys =
@@ -100,7 +101,8 @@ type SmsVmKeys =
   | 'smsSuccess'
   | 'smsFailed'
   | 'smsProcessedPercent'
-  | 'textBar';
+  | 'textBar'
+  | 'invokeAction';
 
 type MailerVmKeys =
   | 'mailerRecipientsInput'
@@ -144,7 +146,8 @@ type MailerVmKeys =
   | 'textBar'
   | 'emailJobs'
   | 'toText'
-  | 'toInt';
+  | 'toInt'
+  | 'invokeAction';
 
 type ProviderVmKeys =
   | 'providerReadinessTotals'
@@ -223,7 +226,8 @@ type GovernanceVmKeys =
   | 'incidentsPayload'
   | 'incidentRows'
   | 'runbookRows'
-  | 'auditRows';
+  | 'auditRows'
+  | 'invokeAction';
 
 export type OpsVmSection = Pick<DashboardVm, OpsVmKeys>;
 export type SmsVmSection = Pick<DashboardVm, SmsVmKeys>;

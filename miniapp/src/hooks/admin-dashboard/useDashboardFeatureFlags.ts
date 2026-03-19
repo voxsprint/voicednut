@@ -161,7 +161,7 @@ export function useDashboardFeatureFlags({
     featureFlagsUpdatedAtLabel,
     featureFlagInspectorItems,
     isFeatureEnabled,
-    realtimeStreamEnabled: isFeatureEnabled('realtime_stream', true),
+    realtimeStreamEnabled: isFeatureEnabled('realtime_stream', false),
     moduleSkeletonsEnabled: isFeatureEnabled('module_skeletons', true),
     moduleErrorBoundariesEnabled: isFeatureEnabled('module_error_boundaries', true),
   };

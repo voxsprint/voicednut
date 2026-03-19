@@ -79,6 +79,10 @@ export interface RunActionOptions {
   successMessage?: string;
 }
 
+export interface InvokeActionOptions {
+  [key: string]: unknown;
+}
+
 export interface EmailJob {
   job_id?: unknown;
   status?: unknown;
@@ -291,6 +295,11 @@ export interface DashboardVm {
     payload: Record<string, unknown>,
     options?: RunActionOptions,
   ) => Promise<void>;
+  invokeAction: (
+    action: string,
+    payload: Record<string, unknown>,
+    metaOverride?: Record<string, unknown>,
+  ) => Promise<unknown>;
   hasMeaningfulData: boolean;
   smsRecipientsInput: string;
   setSmsRecipientsInput: StringStateSetter;

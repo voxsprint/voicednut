@@ -5,6 +5,7 @@ export type StreamConnectionMode = 'disabled' | 'connecting' | 'connected' | 'fa
 type UseDashboardEventStreamOptions = {
   enabled: boolean;
   token: string | null;
+  endpoints: string[];
   buildEventStreamUrl: (path: string) => string;
   applyStreamPayload: (raw: unknown) => boolean;
   refreshPoll: () => Promise<boolean>;
@@ -23,6 +24,7 @@ type UseDashboardEventStreamResult = {
 export function useDashboardEventStream({
   enabled,
   token,
+  endpoints,
   buildEventStreamUrl,
   applyStreamPayload,
   refreshPoll,
@@ -44,7 +46,12 @@ export function useDashboardEventStream({
   }, []);
 
   useEffect(() => {
-    if (!enabled || !token) {
+    const streamEndpoints = Array.isArray(endpoints)
+      ? endpoints
+        .map((entry) => String(entry || '').trim())
+        .filter(Boolean)
+      : [];
+    if (!enabled || !token || streamEndpoints.length === 0) {
       setStreamMode('disabled');
       setStreamConnected(false);
       return undefined;
@@ -60,7 +67,6 @@ export function useDashboardEventStream({
     let activeStream: EventSource | null = null;
     let attemptCount = 0;
     let endpointIndex = 0;
-    const endpoints = ['/miniapp/events', '/miniapp/stream'];
 
     const closeStream = (): void => {
       if (activeStream) {
@@ -80,7 +86,7 @@ export function useDashboardEventStream({
     const connect = (): void => {
       if (disposed) return;
       setStreamMode('connecting');
-      const nextEndpoint = endpoints[Math.max(0, Math.min(endpointIndex, endpoints.length - 1))];
+      const nextEndpoint = streamEndpoints[Math.max(0, Math.min(endpointIndex, streamEndpoints.length - 1))];
       const streamUrl = buildEventStreamUrl(nextEndpoint);
       const source = new EventSource(streamUrl);
       activeStream = source;
@@ -113,7 +119,7 @@ export function useDashboardEventStream({
         if (disposed) return;
         closeStream();
         setStreamConnected(false);
-        if (endpointIndex < endpoints.length - 1) {
+        if (endpointIndex < streamEndpoints.length - 1) {
           endpointIndex += 1;
           connect();
           return;
@@ -150,6 +156,7 @@ export function useDashboardEventStream({
     refreshDebounceMs,
     refreshPoll,
     token,
+    endpoints,
   ]);
 
   return {

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import type { DashboardVm } from './types';
 import { selectSmsPageVm } from './vmSelectors';
 import { UiStatePanel } from '@/components/ui/AdminPrimitives';
@@ -38,6 +40,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     smsFailed,
     smsProcessedPercent,
     textBar,
+    invokeAction,
     loading,
   } = selectSmsPageVm(vm);
   const smsHasRecipients = smsRecipientsParsed.length > 0;
@@ -50,6 +53,54 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     : !smsHasRecipients
       ? 'Add at least one valid recipient to enable batch execution.'
       : 'Add a message body to enable batch execution.';
+  const [statusSidInput, setStatusSidInput] = useState<string>('');
+  const [conversationPhoneInput, setConversationPhoneInput] = useState<string>('');
+  const [investigationBusy, setInvestigationBusy] = useState<string>('');
+  const [investigationError, setInvestigationError] = useState<string>('');
+  const [statusSnapshot, setStatusSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [recentMessages, setRecentMessages] = useState<Array<Record<string, unknown>>>([]);
+  const [conversationMessages, setConversationMessages] = useState<Array<Record<string, unknown>>>([]);
+  const [statsSnapshot, setStatsSnapshot] = useState<Record<string, unknown> | null>(null);
+
+  const asRecord = (value: unknown): Record<string, unknown> => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {}
+  );
+  const asDisplayText = (value: unknown, fallback = ''): string => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : fallback;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    return fallback;
+  };
+  const pickDisplayText = (values: unknown[], fallback = ''): string => {
+    for (const value of values) {
+      const next = asDisplayText(value);
+      if (next) return next;
+    }
+    return fallback;
+  };
+
+  const runInvestigationAction = async (
+    action: string,
+    payload: Record<string, unknown>,
+    onSuccess: (payload: Record<string, unknown>) => void,
+  ): Promise<void> => {
+    setInvestigationBusy(action);
+    setInvestigationError('');
+    try {
+      const data = await invokeAction(action, payload);
+      onSuccess(asRecord(data));
+    } catch (error) {
+      setInvestigationError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setInvestigationBusy('');
+    }
+  };
 
   return (
     <>
@@ -248,6 +299,163 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           />
         ) : null}
       </div>
+        </section>
+      </section>
+
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Investigation & Status</h3>
+          <p className="va-muted">Message-level diagnostics for recent, conversation, and SID lookups.</p>
+        </header>
+        <section className="va-grid">
+          <div className="va-card">
+            <h3>SMS Message Lookup</h3>
+            <div className="va-inline-tools">
+              <input
+                className="va-input"
+                placeholder="Message SID"
+                value={statusSidInput}
+                onChange={(event) => setStatusSidInput(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0 || !statusSidInput.trim()}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'sms.message.status',
+                    { message_sid: statusSidInput.trim() },
+                    (payload) => setStatusSnapshot(asRecord(payload.message) || payload),
+                  );
+                }}
+              >
+                Check Status
+              </button>
+            </div>
+            <div className="va-inline-tools">
+              <input
+                className="va-input"
+                placeholder="Phone for conversation (+1555...)"
+                value={conversationPhoneInput}
+                onChange={(event) => setConversationPhoneInput(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0 || !conversationPhoneInput.trim()}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'sms.messages.conversation',
+                    { phone: conversationPhoneInput.trim(), limit: 20 },
+                    (payload) => setConversationMessages(
+                      Array.isArray(payload.messages) ? payload.messages.map(asRecord) : [],
+                    ),
+                  );
+                }}
+              >
+                Load Conversation
+              </button>
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'sms.messages.recent',
+                    { limit: 12, offset: 0 },
+                    (payload) => setRecentMessages(
+                      Array.isArray(payload.messages) ? payload.messages.map(asRecord) : [],
+                    ),
+                  );
+                }}
+              >
+                Recent
+              </button>
+              <button
+                type="button"
+                disabled={investigationBusy.length > 0}
+                onClick={() => {
+                  void runInvestigationAction(
+                    'sms.stats',
+                    { hours: 24 },
+                    (payload) => setStatsSnapshot(payload),
+                  );
+                }}
+              >
+                Stats
+              </button>
+            </div>
+            {investigationError ? (
+              <UiStatePanel
+                title="SMS investigation failed"
+                description={investigationError}
+                tone="error"
+                compact
+              />
+            ) : null}
+            <div className="va-inline-tools">
+              <div className="va-card va-subcard">
+                <h4>Status Snapshot</h4>
+                {statusSnapshot ? (
+                  <ul className="va-list">
+                    <li><strong>SID:</strong> {pickDisplayText([statusSnapshot.message_sid, statusSidInput], 'n/a')}</li>
+                    <li><strong>Status:</strong> {pickDisplayText([statusSnapshot.status], 'unknown')}</li>
+                    <li><strong>To:</strong> {pickDisplayText([statusSnapshot.to_number], 'n/a')}</li>
+                    <li><strong>From:</strong> {pickDisplayText([statusSnapshot.from_number], 'n/a')}</li>
+                    <li><strong>Provider:</strong> {pickDisplayText([statusSnapshot.provider], 'n/a')}</li>
+                  </ul>
+                ) : (
+                  <p className="va-muted">Run a SID lookup to load status details.</p>
+                )}
+              </div>
+              <div className="va-card va-subcard">
+                <h4>Recent Messages</h4>
+                {recentMessages.length === 0 ? (
+                  <p className="va-muted">No recent messages loaded.</p>
+                ) : (
+                  <ul className="va-list">
+                    {recentMessages.slice(0, 8).map((message, index) => (
+                      <li key={`sms-recent-${index}`}>
+                        <strong>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</strong>
+                        <span>{pickDisplayText([message.status], 'unknown')}</span>
+                        <span>{pickDisplayText([message.to_number, message.from_number], 'n/a')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="va-inline-tools">
+              <div className="va-card va-subcard">
+                <h4>Conversation</h4>
+                {conversationMessages.length === 0 ? (
+                  <p className="va-muted">Load a phone number to inspect conversation history.</p>
+                ) : (
+                  <ul className="va-list">
+                    {conversationMessages.slice(0, 10).map((message, index) => (
+                      <li key={`sms-convo-${index}`}>
+                        <strong>{pickDisplayText([message.direction], 'unknown')}</strong>
+                        <span>{pickDisplayText([message.status], 'unknown')}</span>
+                        <span>{pickDisplayText([message.body], '').slice(0, 120) || 'No body'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="va-card va-subcard">
+                <h4>Stats Snapshot</h4>
+                {statsSnapshot ? (
+                  <ul className="va-list">
+                    <li><strong>Total:</strong> {pickDisplayText([statsSnapshot.total_messages, statsSnapshot.total], '0')}</li>
+                    <li><strong>Sent:</strong> {pickDisplayText([statsSnapshot.sent_messages], '0')}</li>
+                    <li><strong>Received:</strong> {pickDisplayText([statsSnapshot.received_messages], '0')}</li>
+                    <li><strong>Delivered:</strong> {pickDisplayText([statsSnapshot.delivered_count], '0')}</li>
+                    <li><strong>Failed:</strong> {pickDisplayText([statsSnapshot.failed_count], '0')}</li>
+                    <li><strong>Success Rate:</strong> {pickDisplayText([statsSnapshot.success_rate], '0')}%</li>
+                  </ul>
+                ) : (
+                  <p className="va-muted">Run stats lookup to inspect current SMS posture.</p>
+                )}
+              </div>
+            </div>
+          </div>
         </section>
       </section>
     </>
