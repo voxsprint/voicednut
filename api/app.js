@@ -295,6 +295,7 @@ const VONAGE_WEBHOOK_JTI_CACHE_MAX = 5000;
 const MINI_APP_REPLAY_CACHE_MAX = 5000;
 const MINI_APP_SESSION_REVOCATION_MAX = 5000;
 const MINI_APP_INTERNAL_REQUEST_TIMEOUT_MS = 10000;
+const MINI_APP_SESSION_REVOCATION_TTL_SECONDS = 365 * 24 * 60 * 60;
 const VONAGE_MAPPING_RECONCILE_BATCH_LIMIT = 250;
 const CALL_RUNTIME_PERSIST_DEBOUNCE_MS = 150;
 const CALL_RUNTIME_STATE_STALE_MS = 6 * 60 * 60 * 1000;
@@ -18568,7 +18569,6 @@ app.post("/miniapp/session", async (req, res) => {
   try {
     const validation = validateMiniAppInitDataWithCandidates(initDataRaw, {
       botTokens: botTokenCandidates,
-      maxAgeSeconds: config.miniApp?.initDataMaxAgeSeconds,
     });
     const userId =
       validation.user?.id || validation.chat?.id || validation.receiver?.id || null;
@@ -18641,7 +18641,6 @@ app.post("/miniapp/session", async (req, res) => {
     });
 
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const ttlSeconds = Number(config.miniApp?.sessionTtlSeconds) || 900;
     const jti = uuidv4();
     const token = createMiniAppSessionToken(
       {
@@ -18655,15 +18654,15 @@ app.post("/miniapp/session", async (req, res) => {
         query_id: validation.queryId || null,
       },
       config.miniApp.sessionSecret,
-      { nowSeconds, ttlSeconds },
+      { nowSeconds },
     );
 
     return res.json({
       success: true,
       token_type: "Bearer",
       token,
-      expires_in: ttlSeconds,
-      expires_at: nowSeconds + ttlSeconds,
+      expires_in: null,
+      expires_at: null,
       replay_detected: replayDetected,
       session: {
         telegram_id: normalizedUserId,
@@ -18739,11 +18738,12 @@ app.post("/miniapp/logout", requireMiniAppSession, async (req, res) => {
   const jti = String(session.jti || "").trim();
   const exp = Number(session.exp);
   const nowMs = Date.now();
+  const nowSec = Math.floor(nowMs / 1000);
   let store = null;
   if (jti) {
     const ttlSeconds = Number.isFinite(exp)
-      ? Math.max(30, exp - Math.floor(nowMs / 1000))
-      : 5 * 60;
+      ? Math.max(30, exp - nowSec)
+      : MINI_APP_SESSION_REVOCATION_TTL_SECONDS;
     const revokeResult = await revokeMiniAppSession(jti, ttlSeconds, {
       requestId: req.requestId || null,
     });

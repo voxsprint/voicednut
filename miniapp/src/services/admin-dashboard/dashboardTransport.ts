@@ -31,7 +31,6 @@ export function isSessionBootstrapBlockingCode(code: string): boolean {
   return [
     'miniapp_invalid_signature',
     'miniapp_missing_init_data',
-    'miniapp_init_data_expired',
     'miniapp_auth_date_future',
     'miniapp_replay_detected',
     'miniapp_admin_required',
@@ -45,10 +44,6 @@ export function readSessionCache(storageKey: string): SessionCacheEntry | null {
     const parsed = JSON.parse(raw) as Partial<SessionCacheEntry>;
     if (!parsed || !parsed.token) return null;
     const exp = Number(parsed.exp);
-    if (Number.isFinite(exp) && exp <= Math.floor(Date.now() / 1000) + 15) {
-      sessionStorage.removeItem(storageKey);
-      return null;
-    }
     return {
       token: String(parsed.token),
       exp: Number.isFinite(exp) ? exp : null,

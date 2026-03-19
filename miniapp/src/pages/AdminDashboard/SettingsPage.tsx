@@ -1,3 +1,5 @@
+import { UiButton, UiStatePanel } from '@/components/ui/AdminPrimitives';
+
 type SettingsModule = {
   id: string;
   label: string;
@@ -22,6 +24,16 @@ type SettingsPageProps = {
   onJumpToModule: (moduleId: string) => void;
 };
 
+type SettingsRowProps = {
+  icon: string;
+  iconTone: string;
+  title: string;
+  description?: string;
+  value?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+};
+
 function moduleBadge(moduleId: string): { token: string; tone: string } {
   switch (moduleId) {
     case 'ops':
@@ -34,6 +46,16 @@ function moduleBadge(moduleId: string): { token: string; tone: string } {
       return { token: '⛭', tone: 'is-orange' };
     case 'content':
       return { token: '✎', tone: 'is-cyan' };
+    case 'calllog':
+      return { token: '⌕', tone: 'is-blue' };
+    case 'callerflags':
+      return { token: '⚐', tone: 'is-orange' };
+    case 'scriptsparity':
+      return { token: '⌘', tone: 'is-violet' };
+    case 'messaging':
+      return { token: '✉', tone: 'is-green' };
+    case 'persona':
+      return { token: '☰', tone: 'is-cyan' };
     case 'users':
       return { token: '◎', tone: 'is-yellow' };
     case 'audit':
@@ -41,6 +63,49 @@ function moduleBadge(moduleId: string): { token: string; tone: string } {
     default:
       return { token: '•', tone: 'is-blue' };
   }
+}
+
+function SettingsRow({
+  icon,
+  iconTone,
+  title,
+  description,
+  value,
+  onClick,
+  disabled = false,
+}: SettingsRowProps) {
+  const rowBody = (
+    <>
+      <span className={`va-settings-icon ${iconTone}`}>{icon}</span>
+      <span className="va-settings-copy">
+        <strong>{title}</strong>
+        {description ? <span className="va-settings-desc">{description}</span> : null}
+      </span>
+      <span className="va-settings-trail">
+        {value ? <span className="va-settings-value">{value}</span> : null}
+        {onClick ? <span className="va-settings-arrow" aria-hidden>›</span> : null}
+      </span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <UiButton
+        variant="plain"
+        className="va-settings-row va-settings-row-btn"
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {rowBody}
+      </UiButton>
+    );
+  }
+
+  return (
+    <div className="va-settings-row">
+      {rowBody}
+    </div>
+  );
 }
 
 export function SettingsPage({
@@ -62,160 +127,129 @@ export function SettingsPage({
   onJumpToModule,
 }: SettingsPageProps) {
   const actionsDisabled = loading || busy;
-  const liveUpdatesLabel = pollingPaused ? 'Paused' : 'Running';
+  const liveUpdatesLabel = pollingPaused ? 'Off' : 'On';
+  const roleLabel = sessionRole.slice(0, 1).toUpperCase() + sessionRole.slice(1);
 
   return (
     <section className="va-settings-page">
       <div className="va-settings-hero">
         <div className="va-settings-title-wrap">
-          <h2 className="va-settings-title">Settings</h2>
-          <p className="va-muted">Essential controls for account access, sync behavior, and workspace navigation.</p>
+          <h2 className="va-settings-title">General settings</h2>
+          <p className="va-muted">Manage account access, sync controls, and workspace shortcuts.</p>
         </div>
         <div className="va-settings-summary">
           <span className={`va-settings-flag-state ${pollingPaused ? 'is-disabled' : 'is-enabled'}`}>
-            Live Updates {liveUpdatesLabel}
+            Live updates {liveUpdatesLabel}
           </span>
-          <span className="va-settings-meta">Role {sessionRole}</span>
+          <span className="va-settings-meta">Role {roleLabel}</span>
         </div>
       </div>
 
-      <div className="va-settings-group">
-        <h3>Account & Access</h3>
-        <div className="va-settings-row">
-          <span className="va-settings-icon is-cyan">◎</span>
-          <div>
-            <strong>{userLabel}</strong>
-            <p className="va-muted">Signed in as {sessionRole}.</p>
-          </div>
-          <span className="va-settings-meta">Account</span>
+      <section className="va-settings-cluster">
+        <p className="va-settings-section-label">General settings</p>
+        <div className="va-settings-group">
+          <SettingsRow
+            icon="◎"
+            iconTone="is-cyan"
+            title={userLabel}
+            description={`Signed in as ${sessionRole}.`}
+            value={roleLabel}
+          />
+          <SettingsRow
+            icon="⌨"
+            iconTone="is-blue"
+            title="Keyboard shortcuts"
+            description="Navigation and command shortcuts."
+            value="View"
+            onClick={onOpenShortcuts}
+            disabled={loading}
+          />
+          <SettingsRow
+            icon="⟳"
+            iconTone={pollingPaused ? 'is-orange' : 'is-green'}
+            title="Live updates"
+            description="Pause or resume background refresh loops."
+            value={liveUpdatesLabel}
+            onClick={onTogglePolling}
+          />
+          <SettingsRow
+            icon="↻"
+            iconTone="is-green"
+            title="Sync now"
+            description="Fetch latest dashboard and module snapshots."
+            value={actionsDisabled ? 'Busy' : 'Now'}
+            onClick={onSyncNow}
+            disabled={actionsDisabled}
+          />
+          <SettingsRow
+            icon="⌁"
+            iconTone="is-orange"
+            title="Retry session"
+            description="Re-establish access token when state is stale."
+            value={actionsDisabled ? 'Busy' : 'Recover'}
+            onClick={onRetrySession}
+            disabled={actionsDisabled}
+          />
         </div>
-        <button
-          type="button"
-          className="va-settings-row va-settings-row-btn"
-          onClick={onOpenShortcuts}
-          disabled={loading}
-        >
-          <span className="va-settings-icon is-blue">⌨</span>
-          <div>
-            <strong>Keyboard Shortcuts</strong>
-            <p className="va-muted">View navigation and command shortcuts.</p>
-          </div>
-          <span className="va-settings-trail">
-            <span className="va-settings-meta">Open</span>
-            <span className="va-settings-arrow" aria-hidden>›</span>
-          </span>
-        </button>
-      </div>
+      </section>
 
-      <div className="va-settings-group">
-        <h3>Sync & Reliability</h3>
-        <button type="button" className="va-settings-row va-settings-row-btn" onClick={onTogglePolling}>
-          <span className={`va-settings-icon ${pollingPaused ? 'is-orange' : 'is-green'}`}>⟳</span>
-          <div>
-            <strong>Live Updates</strong>
-            <p className="va-muted">Pause or resume background sync and refresh loops.</p>
-          </div>
-          <span className="va-settings-trail">
-            <span className={`va-settings-flag-state ${pollingPaused ? 'is-disabled' : 'is-enabled'}`}>
-              {liveUpdatesLabel}
-            </span>
-            <span className="va-settings-arrow" aria-hidden>›</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          className="va-settings-row va-settings-row-btn"
-          onClick={onSyncNow}
-          disabled={actionsDisabled}
-        >
-          <span className="va-settings-icon is-green">↻</span>
-          <div>
-            <strong>Sync Now</strong>
-            <p className="va-muted">Fetch latest dashboard data and module snapshots.</p>
-          </div>
-          <span className="va-settings-trail">
-            <span className="va-settings-meta">Run</span>
-            <span className="va-settings-arrow" aria-hidden>›</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          className="va-settings-row va-settings-row-btn"
-          onClick={onRetrySession}
-          disabled={actionsDisabled}
-        >
-          <span className="va-settings-icon is-orange">⌁</span>
-          <div>
-            <strong>Retry Session</strong>
-            <p className="va-muted">Re-establish session token if access appears stale.</p>
-          </div>
-          <span className="va-settings-trail">
-            <span className="va-settings-meta">Reset</span>
-            <span className="va-settings-arrow" aria-hidden>›</span>
-          </span>
-        </button>
-      </div>
-
-      <div className="va-settings-group">
-        <h3>Workspace</h3>
+      <section className="va-settings-cluster">
+        <p className="va-settings-section-label">Workspace</p>
+        <div className="va-settings-group">
         {visibleModules.length === 0 ? (
-          <p className="va-muted va-settings-empty">No modules available for this role.</p>
+          <div className="va-settings-empty">
+            <UiStatePanel
+              compact
+              title="No modules available"
+              description="This role currently has no enabled workspaces."
+            />
+          </div>
         ) : (
           visibleModules.map((module) => {
             const badge = moduleBadge(module.id);
             return (
-              <button
+              <SettingsRow
                 key={module.id}
-                type="button"
-                className="va-settings-row va-settings-row-btn"
+                icon={badge.token}
+                iconTone={badge.tone}
+                title={module.label}
+                description="Jump directly to this workspace."
+                value="Open"
                 onClick={() => onJumpToModule(module.id)}
-              >
-                <span className={`va-settings-icon ${badge.tone}`}>{badge.token}</span>
-                <div>
-                  <strong>{module.label}</strong>
-                  <p className="va-muted">Jump directly to this workspace.</p>
-                </div>
-                <span className="va-settings-trail">
-                  <span className="va-settings-meta">Open</span>
-                  <span className="va-settings-arrow" aria-hidden>›</span>
-                </span>
-              </button>
+              />
             );
           })
         )}
-      </div>
+        </div>
+      </section>
 
-      <div className="va-settings-group">
-        <details className="va-settings-advanced">
-          <summary>Advanced Diagnostics</summary>
-          <p className="va-muted">Troubleshooting metadata for support and environment verification.</p>
-          <div className="va-settings-row">
-            <span className="va-settings-icon is-violet">⚙</span>
-            <div>
-              <strong>Settings Integration</strong>
-              <p className="va-muted">Telegram native settings button binding state.</p>
-            </div>
-            <span className="va-settings-meta">{settingsStatusLabel}</span>
-          </div>
-          <div className="va-settings-row">
-            <span className="va-settings-icon is-yellow">⌘</span>
-            <div>
-              <strong>API Origin</strong>
-              <p className="va-muted">{apiBaseLabel}</p>
-            </div>
-            <span className="va-settings-meta">Bound</span>
-          </div>
-          <div className="va-settings-row">
-            <span className="va-settings-icon is-blue">⚑</span>
-            <div>
-              <strong>Feature Flag Snapshot</strong>
-              <p className="va-muted">Source: {featureFlagsSourceLabel}</p>
-            </div>
-            <span className="va-settings-meta">{featureFlagsCount}</span>
-          </div>
-          <p className="va-muted va-settings-advanced-footnote">Updated {featureFlagsUpdatedAtLabel}</p>
-        </details>
-      </div>
+      <section className="va-settings-cluster">
+        <p className="va-settings-section-label">Diagnostics</p>
+        <div className="va-settings-group">
+          <SettingsRow
+            icon="⚙"
+            iconTone="is-violet"
+            title="Settings integration"
+            description="Telegram native settings button binding."
+            value={settingsStatusLabel}
+          />
+          <SettingsRow
+            icon="⌘"
+            iconTone="is-yellow"
+            title="Version & network"
+            description={apiBaseLabel}
+            value="Bound"
+          />
+          <SettingsRow
+            icon="⚑"
+            iconTone="is-blue"
+            title="Feature flags"
+            description={`Source: ${featureFlagsSourceLabel}`}
+            value={String(featureFlagsCount)}
+          />
+          <div className="va-settings-footnote">Updated {featureFlagsUpdatedAtLabel}</div>
+        </div>
+      </section>
     </section>
   );
 }

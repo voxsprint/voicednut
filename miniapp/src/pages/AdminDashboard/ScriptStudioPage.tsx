@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { CallScriptRow, DashboardVm } from './types';
 import { selectScriptStudioPageVm } from './vmSelectors';
-import { UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type ScriptStudioPageProps = {
   visible: boolean;
@@ -616,8 +616,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
         <h3>Caller Flags Moderation</h3>
         <p className="va-muted">Allow, block, and spam classifications for inbound caller controls.</p>
         <div className="va-inline-tools">
-          <select
-            className="va-input"
+          <UiSelect
             value={callerFlagsStatusFilter}
             onChange={(event) => setCallerFlagsStatusFilter(event.target.value)}
           >
@@ -625,7 +624,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             <option value="allowed">Allowed</option>
             <option value="blocked">Blocked</option>
             <option value="spam">Spam</option>
-          </select>
+          </UiSelect>
           <button
             type="button"
             disabled={studioBusy.length > 0}
@@ -641,15 +640,14 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             value={callerFlagPhoneInput}
             onChange={(event) => setCallerFlagPhoneInput(event.target.value)}
           />
-          <select
-            className="va-input"
+          <UiSelect
             value={callerFlagStatusInput}
             onChange={(event) => setCallerFlagStatusInput(event.target.value)}
           >
             <option value="blocked">Blocked</option>
             <option value="allowed">Allowed</option>
             <option value="spam">Spam</option>
-          </select>
+          </UiSelect>
           <input
             className="va-input"
             placeholder="Note (optional)"

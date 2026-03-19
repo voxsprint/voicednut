@@ -107,8 +107,8 @@ const SECTIONS = [
     fields: [
       { key: 'MINI_APP_URL', prompt: 'Mini App URL (optional)' },
       { key: 'MINI_APP_SESSION_SECRET', prompt: 'Mini App Session Secret' },
-      { key: 'MINI_APP_SESSION_TTL_SECONDS', prompt: 'Mini App Session TTL (seconds)', defaultValue: '900' },
-      { key: 'MINI_APP_INITDATA_MAX_AGE_SECONDS', prompt: 'Mini App Init Data max age (seconds)', defaultValue: '300' },
+      { key: 'MINI_APP_SESSION_TTL_SECONDS', prompt: 'Mini App Session TTL (seconds, deprecated/no-op)', defaultValue: '900' },
+      { key: 'MINI_APP_INITDATA_MAX_AGE_SECONDS', prompt: 'Mini App Init Data max age (seconds, deprecated/no-op)', defaultValue: '300' },
       { key: 'MINI_APP_REPLAY_WINDOW_SECONDS', prompt: 'Mini App replay window (seconds)', defaultValue: '600' },
       { key: 'MINI_APP_REPLAY_VALIDATION', prompt: 'Mini App replay validation mode (warn|strict|off)', defaultValue: 'warn' },
     ],

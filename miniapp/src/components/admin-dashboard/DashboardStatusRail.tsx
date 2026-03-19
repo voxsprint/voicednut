@@ -1,5 +1,5 @@
 import type { ActionTelemetry } from '@/hooks/admin-dashboard/useDashboardActions';
-import { UiBadge, UiCard } from '@/components/ui/AdminPrimitives';
+import { UiBadge, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
 import type { DashboardReliabilityState } from '@/services/admin-dashboard/dashboardReliabilityState';
 
 type DashboardStatusRailProps = {
@@ -28,6 +28,34 @@ function statusLabel(status: ActionTelemetry['status']): string {
       return 'Errored';
     default:
       return 'Idle';
+  }
+}
+
+function noticeToneToStateTone(
+  tone: DashboardStatusRailProps['noticeTone'],
+): 'info' | 'success' | 'warning' | 'error' {
+  switch (tone) {
+    case 'success':
+      return 'success';
+    case 'warning':
+      return 'warning';
+    case 'error':
+      return 'error';
+    default:
+      return 'info';
+  }
+}
+
+function noticeTitle(tone: DashboardStatusRailProps['noticeTone']): string {
+  switch (tone) {
+    case 'success':
+      return 'Action completed';
+    case 'warning':
+      return 'Attention needed';
+    case 'error':
+      return 'Action failed';
+    default:
+      return 'Dashboard notice';
   }
 }
 
@@ -79,16 +107,31 @@ export function DashboardStatusRail({
           <p className="va-error" role="alert" aria-live="assertive">{actionTelemetry.error}</p>
         ) : null}
       </UiCard>
-      {loading ? <p className="va-muted" role="status" aria-live="polite">Preparing dashboard…</p> : null}
-      {error ? <p className="va-error" role="alert" aria-live="assertive">{error}</p> : null}
-      {notice ? (
-        <p
-          className={`va-notice is-${noticeTone}`}
-          role={noticeTone === 'error' ? 'alert' : 'status'}
-          aria-live={noticeTone === 'error' ? 'assertive' : 'polite'}
-        >
-          {notice}
-        </p>
+      {loading || error || notice ? (
+        <div className="va-status-state-stack">
+          {loading ? (
+            <UiStatePanel
+              compact
+              title="Preparing dashboard"
+              description="Loading latest telemetry, permissions, and module status."
+            />
+          ) : null}
+          {error ? (
+            <UiStatePanel
+              tone="error"
+              title="Dashboard refresh failed"
+              description={error}
+            />
+          ) : null}
+          {notice ? (
+            <UiStatePanel
+              compact
+              tone={noticeToneToStateTone(noticeTone)}
+              title={noticeTitle(noticeTone)}
+              description={notice}
+            />
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

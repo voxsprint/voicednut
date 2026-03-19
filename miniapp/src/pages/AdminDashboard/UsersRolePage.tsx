@@ -4,6 +4,7 @@ import type { DashboardVm, UserRow } from './types';
 import { selectUsersRolePageVm } from './vmSelectors';
 import { selectUsersRows, type UserRoleFilter } from './tableSelectors';
 import { downloadCsv } from './csvExport';
+import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type UsersRolePageProps = {
   visible: boolean;
@@ -19,14 +20,14 @@ type UsersViewPrefs = {
   reason_template?: unknown;
 };
 
-function roleBadgeVariant(role: string): 'success' | 'info' | 'neutral' {
+function roleBadgeVariant(role: string): 'success' | 'info' | 'meta' {
   switch (role.toLowerCase()) {
     case 'admin':
       return 'success';
     case 'operator':
       return 'info';
     default:
-      return 'neutral';
+      return 'meta';
   }
 }
 
@@ -211,12 +212,16 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
 
   return (
     <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
-      <div className="va-card">
+      <UiCard>
         <h3>User & Role Admin</h3>
+        <div className="va-inline-metrics">
+          <UiBadge>Total {toInt(usersPayload.total, usersRows.length)}</UiBadge>
+          <UiBadge>Filtered {filteredAndSortedUsers.length}</UiBadge>
+          <UiBadge>Showing {showingStart}-{showingEnd}</UiBadge>
+        </div>
         <div className="va-filter-grid" role="toolbar" aria-label="User filters and actions">
-          <input
+          <UiInput
             ref={userSearchInputRef}
-            className="va-input"
             placeholder="Search Telegram ID"
             value={userSearch}
             onChange={(event) => setUserSearch(event.target.value)}
@@ -232,38 +237,35 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
               }
             }}
           />
-          <select
-            className="va-input"
+          <UiSelect
             value={userSortBy}
             onChange={(event) => setUserSortBy(event.target.value)}
           >
             <option value="last_activity">Last Activity</option>
             <option value="total_calls">Total Calls</option>
             <option value="role">Role</option>
-          </select>
-          <select
-            className="va-input"
+          </UiSelect>
+          <UiSelect
             value={userSortDir}
             onChange={(event) => setUserSortDir(event.target.value)}
           >
             <option value="desc">DESC</option>
             <option value="asc">ASC</option>
-          </select>
-          <button
+          </UiSelect>
+          <UiButton
             ref={refreshUsersButtonRef}
-            type="button"
+            variant="secondary"
             aria-keyshortcuts="Alt+R"
             onClick={(event) => {
               handleUsersRefresh(event.currentTarget);
             }}
           >
             Refresh Users
-          </button>
+          </UiButton>
         </div>
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
-            <select
-              className="va-input"
+            <UiSelect
               value={roleFilter}
               onChange={(event) => setRoleFilter(event.target.value as UserRoleFilter)}
             >
@@ -271,35 +273,32 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="viewer">Viewer</option>
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={String(pageSize)}
               onChange={(event) => setPageSize(toInt(event.target.value, 20))}
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={`users-size-${size}`} value={size}>{size} / page</option>
               ))}
-            </select>
+            </UiSelect>
             {usersCsvEnabled ? (
-              <button type="button" onClick={exportUsersCsv} disabled={filteredAndSortedUsers.length === 0}>
+              <UiButton variant="secondary" onClick={exportUsersCsv} disabled={filteredAndSortedUsers.length === 0}>
                 Export CSV
-              </button>
+              </UiButton>
             ) : null}
           </div>
         ) : null}
         <div className="va-filter-grid">
-          <select
-            className="va-input"
+          <UiSelect
             value={reasonTemplate}
             onChange={(event) => setReasonTemplate(event.target.value)}
           >
             {roleReasonTemplates.map((template) => (
               <option key={`role-reason-${template}`} value={template}>{template}</option>
             ))}
-          </select>
-          <input
-            className="va-input"
+          </UiSelect>
+          <UiInput
             placeholder="Reason details (required for audit)"
             value={reasonDetail}
             onChange={(event) => setReasonDetail(event.target.value)}
@@ -329,7 +328,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
               <li key={`user-role-${telegramId || `row-${pageStart + index}`}`} className="va-entity-row va-user-row">
                 <div className="va-entity-head">
                   <strong title={telegramId}>{telegramId || 'unknown'}</strong>
-                  <span className={`va-pill va-pill-${roleVariant}`}>{role}</span>
+                  <UiBadge variant={roleVariant}>{role}</UiBadge>
                 </div>
                 <div className="va-entity-meta">
                   <span>Source: {roleSource}</span>
@@ -338,55 +337,61 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
                   <span>Last: {formatTime(user.last_activity)}</span>
                 </div>
                 <div className="va-entity-actions">
-                  <button
-                    type="button"
+                  <UiButton
+                    variant="secondary"
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'admin');
                     }}
                     disabled={!telegramId}
                   >
                     Promote Admin
-                  </button>
-                  <button
-                    type="button"
+                  </UiButton>
+                  <UiButton
+                    variant="secondary"
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'operator');
                     }}
                     disabled={!telegramId}
                   >
                     Set Operator
-                  </button>
-                  <button
-                    type="button"
+                  </UiButton>
+                  <UiButton
+                    variant="secondary"
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'viewer');
                     }}
                     disabled={!telegramId}
                   >
                     Demote Viewer
-                  </button>
+                  </UiButton>
                 </div>
               </li>
             );
           })}
         </ul>
-        {pageUsers.length === 0 ? <p className="va-muted">No users matched your filters.</p> : null}
+        {pageUsers.length === 0 ? (
+          <UiStatePanel
+            compact
+            title="No users matched your filters"
+            description="Adjust search, role filter, or sort settings to broaden results."
+          />
+        ) : null}
         {advancedTablesEnabled ? (
           <div className="va-table-pager">
-            <button type="button" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1}>
+            <UiButton variant="secondary" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1}>
               Previous
-            </button>
+            </UiButton>
             <span className="va-muted">Page {page} of {totalPages}</span>
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
             >
               Next
-            </button>
+            </UiButton>
           </div>
         ) : null}
-      </div>
+      </UiCard>
     </section>
   );
 }

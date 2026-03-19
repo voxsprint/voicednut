@@ -1,4 +1,4 @@
-import { UiButton, UiCard, UiSkeletonLine } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiCard, UiSkeletonLine, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type ModuleErrorFallbackCardProps = {
   moduleLabel: string;
@@ -30,17 +30,20 @@ export function ModuleErrorFallbackCard({
 }: ModuleErrorFallbackCardProps) {
   return (
     <UiCard tone="fallback">
-      <h3>{moduleLabel} is temporarily unavailable</h3>
-      <p className="va-muted">
-        This module hit a render-time error. Refresh data and reopen the module.
-      </p>
-      <UiButton
-        variant="secondary"
-        onClick={onReload}
-        disabled={reloadDisabled}
-      >
-        Reload Module Data
-      </UiButton>
+      <UiStatePanel
+        tone="warning"
+        title={`${moduleLabel} is temporarily unavailable`}
+        description="This module hit a render-time error. Refresh data and reopen the module."
+        actions={(
+          <UiButton
+            variant="secondary"
+            onClick={onReload}
+            disabled={reloadDisabled}
+          >
+            Reload Module Data
+          </UiButton>
+        )}
+      />
     </UiCard>
   );
 }
@@ -53,20 +56,25 @@ export function SessionBlockedCard({
   return (
     <section className="va-grid">
       <UiCard tone="blocked">
-        <h3>Mini App Session Blocked</h3>
-        <p>
-          Code: <strong>{errorCode || 'miniapp_auth_invalid'}</strong>
-        </p>
-        <p>
-          Open this Mini App from the Telegram bot menu, then tap <strong>Retry Session</strong>.
-        </p>
-        <UiButton
-          variant="secondary"
-          onClick={onRetrySession}
-          disabled={retryDisabled}
-        >
-          Retry Session
-        </UiButton>
+        <UiStatePanel
+          tone="error"
+          title="Mini App session blocked"
+          description={(
+            <>
+              Code <strong>{errorCode || 'miniapp_auth_invalid'}</strong>. Open this Mini App
+              from the Telegram bot menu, then retry the session.
+            </>
+          )}
+          actions={(
+            <UiButton
+              variant="secondary"
+              onClick={onRetrySession}
+              disabled={retryDisabled}
+            >
+              Retry Session
+            </UiButton>
+          )}
+        />
       </UiCard>
     </section>
   );
@@ -79,17 +87,19 @@ export function EmptyModulesCard({
   return (
     <section className="va-grid">
       <UiCard tone="empty">
-        <h3>No Modules Available</h3>
-        <p className="va-muted">
-          This role has no enabled modules yet. Ask an administrator to grant access, then refresh.
-        </p>
-        <UiButton
-          variant="primary"
-          onClick={onRefreshAccess}
-          disabled={refreshDisabled}
-        >
-          Refresh Access
-        </UiButton>
+        <UiStatePanel
+          title="No modules available"
+          description="This role has no enabled modules yet. Ask an administrator to grant access, then refresh."
+          actions={(
+            <UiButton
+              variant="primary"
+              onClick={onRefreshAccess}
+              disabled={refreshDisabled}
+            >
+              Refresh Access
+            </UiButton>
+          )}
+        />
       </UiCard>
     </section>
   );

@@ -3,8 +3,10 @@ import type {
   HTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
+  SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { forwardRef } from 'react';
 
 import { classNames } from '@/css/classnames';
 
@@ -13,7 +15,7 @@ type UiCardTone = 'default' | 'subcard' | 'fallback' | 'blocked' | 'status' | 'e
 type UiButtonVariant = 'primary' | 'secondary' | 'chip' | 'plain';
 
 type UiBadgeVariant = 'meta' | 'info' | 'success' | 'error';
-type UiStateTone = 'info' | 'warning' | 'error';
+type UiStateTone = 'info' | 'success' | 'warning' | 'error';
 
 const CARD_TONE_CLASS: Record<UiCardTone, string> = {
   default: '',
@@ -59,15 +61,19 @@ type UiButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: UiButtonVariant;
 };
 
-export function UiButton({
-  variant = 'secondary',
-  className,
-  type = 'button',
-  children,
-  ...rest
-}: UiButtonProps) {
+export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function UiButton(
+  {
+    variant = 'secondary',
+    className,
+    type = 'button',
+    children,
+    ...rest
+  },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={classNames(BUTTON_VARIANT_CLASS[variant], className)}
       {...rest}
@@ -75,25 +81,50 @@ export function UiButton({
       {children}
     </button>
   );
-}
+});
 
 type UiInputProps = InputHTMLAttributes<HTMLInputElement>;
 
-export function UiInput({
-  className,
-  ...rest
-}: UiInputProps) {
-  return <input className={classNames('va-input', className)} {...rest} />;
-}
+export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInput(
+  {
+    className,
+    ...rest
+  },
+  ref,
+) {
+  return <input ref={ref} className={classNames('va-input', className)} {...rest} />;
+});
 
 type UiTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 
-export function UiTextarea({
-  className,
-  ...rest
-}: UiTextareaProps) {
-  return <textarea className={classNames('va-input', 'va-textarea', className)} {...rest} />;
-}
+export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
+  {
+    className,
+    ...rest
+  },
+  ref,
+) {
+  return (
+    <textarea ref={ref} className={classNames('va-input', 'va-textarea', className)} {...rest} />
+  );
+});
+
+type UiSelectProps = SelectHTMLAttributes<HTMLSelectElement>;
+
+export const UiSelect = forwardRef<HTMLSelectElement, UiSelectProps>(function UiSelect(
+  {
+    className,
+    children,
+    ...rest
+  },
+  ref,
+) {
+  return (
+    <select ref={ref} className={classNames('va-input', className)} {...rest}>
+      {children}
+    </select>
+  );
+});
 
 type UiBadgeProps = HTMLAttributes<HTMLSpanElement> & {
   variant?: UiBadgeVariant;

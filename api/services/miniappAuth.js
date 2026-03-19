@@ -145,21 +145,11 @@ function validateInitData(initDataRaw, botToken, options = {}) {
   const nowSeconds = Number.isFinite(Number(options.nowSeconds))
     ? Number(options.nowSeconds)
     : Math.floor(Date.now() / 1000);
-  const maxAgeSeconds = Number.isFinite(Number(options.maxAgeSeconds))
-    ? Number(options.maxAgeSeconds)
-    : 300;
   const ageSeconds = nowSeconds - parsed.authDate;
   if (ageSeconds < -30) {
     throw new MiniAppAuthError(
       "Telegram auth date is in the future",
       "miniapp_auth_date_future",
-      401,
-    );
-  }
-  if (maxAgeSeconds > 0 && ageSeconds > maxAgeSeconds) {
-    throw new MiniAppAuthError(
-      "Telegram init data is expired",
-      "miniapp_init_data_expired",
       401,
     );
   }
@@ -197,15 +187,18 @@ function createMiniAppSessionToken(claims, secret, options = {}) {
   const nowSeconds = Number.isFinite(Number(options.nowSeconds))
     ? Number(options.nowSeconds)
     : Math.floor(Date.now() / 1000);
-  const ttlSeconds = Number.isFinite(Number(options.ttlSeconds))
-    ? Number(options.ttlSeconds)
-    : 900;
   const payload = {
     ...claims,
     iat: nowSeconds,
     nbf: nowSeconds,
-    exp: nowSeconds + Math.max(60, ttlSeconds),
   };
+  const includeExpiration = options.includeExpiration === true;
+  const ttlSeconds = Number.isFinite(Number(options.ttlSeconds))
+    ? Number(options.ttlSeconds)
+    : 900;
+  if (includeExpiration && ttlSeconds > 0) {
+    payload.exp = nowSeconds + Math.max(60, ttlSeconds);
+  }
   return signToken(payload, tokenSecret);
 }
 
@@ -272,14 +265,6 @@ function verifyMiniAppSessionToken(token, secret, options = {}) {
       401,
     );
   }
-  if (Number.isFinite(Number(payload.exp)) && nowSeconds - skewSeconds > Number(payload.exp)) {
-    throw new MiniAppAuthError(
-      "Mini App session token expired",
-      "miniapp_token_expired",
-      401,
-    );
-  }
-
   return payload;
 }
 

@@ -5,15 +5,10 @@ type ModuleItem = {
   label: string;
 };
 
-type DashboardSettingsHeaderProps = {
-  loading: boolean;
-  busy: boolean;
-  onBack: () => void;
-  onSync: () => void;
-};
-
 type DashboardMainHeaderProps = {
   userLabel: string;
+  userAvatarUrl: string;
+  userAvatarFallback: string;
   sessionRole: string;
   sessionRoleSource: string;
   settingsStatusLabel: string;
@@ -22,6 +17,7 @@ type DashboardMainHeaderProps = {
   activeModuleGlyph: string;
   loading: boolean;
   compact?: boolean;
+  onOpenSettings: () => void;
   onOpenShortcuts: () => void;
 };
 
@@ -34,6 +30,8 @@ type DashboardModuleNavProps = {
 type DashboardFocusedHeaderProps = {
   title: string;
   subtitle: string;
+  userAvatarUrl: string;
+  userAvatarFallback: string;
   loading: boolean;
   onBackToDashboard: () => void;
   onOpenSettings: () => void;
@@ -47,42 +45,10 @@ type DashboardBottomNavProps = {
   onSelectModule: (moduleId: string) => void;
 };
 
-export function DashboardSettingsHeader({
-  loading,
-  busy,
-  onBack,
-  onSync,
-}: DashboardSettingsHeaderProps) {
-  return (
-    <header className="va-header is-settings">
-      <div className="va-settings-header-grid">
-        <UiButton
-          variant="plain"
-          className="va-settings-back"
-          onClick={onBack}
-          disabled={loading}
-        >
-          Back
-        </UiButton>
-        <div className="va-settings-header-center">
-          <strong>VOICEDNUT</strong>
-          <span>mini app</span>
-        </div>
-        <UiButton
-          variant="secondary"
-          className="va-settings-header-action"
-          onClick={onSync}
-          disabled={loading || busy}
-        >
-          Sync
-        </UiButton>
-      </div>
-    </header>
-  );
-}
-
 export function DashboardMainHeader({
   userLabel,
+  userAvatarUrl,
+  userAvatarFallback,
   sessionRole,
   sessionRoleSource,
   settingsStatusLabel,
@@ -91,17 +57,41 @@ export function DashboardMainHeader({
   activeModuleGlyph,
   loading,
   compact = false,
+  onOpenSettings,
   onOpenShortcuts,
 }: DashboardMainHeaderProps) {
   return (
     <header className="va-header">
-      <div className="va-header-copy">
-        <h1>Voicednut Admin</h1>
-        <p className="va-muted">Operational control center for providers, messaging, and incidents.</p>
-        <p className="va-module-context-line va-muted">
-          <span className="va-module-context-icon" aria-hidden>{activeModuleGlyph}</span>
-          <span>{moduleDetail}</span>
-        </p>
+      <div className="va-header-primary">
+        <UiButton
+          variant="plain"
+          className="va-profile-trigger"
+          aria-label="Open settings"
+          title="Open settings"
+          onClick={onOpenSettings}
+          disabled={loading}
+        >
+          {userAvatarUrl ? (
+            <img
+              className="va-profile-avatar-img"
+              src={userAvatarUrl}
+              alt={`${userLabel} profile`}
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="va-profile-avatar-fallback" aria-hidden>{userAvatarFallback}</span>
+          )}
+        </UiButton>
+        <div className="va-header-copy">
+          <h1>Voicednut Console</h1>
+          <p className="va-muted">Monitor reliability, triage incidents, and run provider and messaging operations.</p>
+          <p className="va-module-context-line va-muted">
+            <span className="va-module-context-icon" aria-hidden>{activeModuleGlyph}</span>
+            <span>{moduleDetail}</span>
+          </p>
+        </div>
       </div>
       <div className="va-header-meta">
         <div className="va-meta-chips">
@@ -161,6 +151,8 @@ export function DashboardModuleNav({
 export function DashboardFocusedHeader({
   title,
   subtitle,
+  userAvatarUrl,
+  userAvatarFallback,
   loading,
   onBackToDashboard,
   onOpenSettings,
@@ -183,6 +175,27 @@ export function DashboardFocusedHeader({
         </div>
       </div>
       <div className="va-focused-actions">
+        <UiButton
+          variant="plain"
+          className="va-profile-trigger va-profile-trigger-sm"
+          aria-label="Open settings"
+          title="Open settings"
+          onClick={onOpenSettings}
+          disabled={loading}
+        >
+          {userAvatarUrl ? (
+            <img
+              className="va-profile-avatar-img"
+              src={userAvatarUrl}
+              alt="Profile"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="va-profile-avatar-fallback" aria-hidden>{userAvatarFallback}</span>
+          )}
+        </UiButton>
         <UiButton
           variant="secondary"
           className="va-focused-icon-btn"

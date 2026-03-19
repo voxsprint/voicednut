@@ -6,10 +6,14 @@ import '@/pages/AdminDashboard/AdminDashboardPage.css';
 import { AuditIncidentsPage } from '@/pages/AdminDashboard/AuditIncidentsPage';
 import { MailerPage } from '@/pages/AdminDashboard/MailerPage';
 import { OpsDashboardPage } from '@/pages/AdminDashboard/OpsDashboardPage';
+import { CallLogExplorerPage } from '@/pages/AdminDashboard/CallLogExplorerPage';
+import { CallerFlagsModerationPage } from '@/pages/AdminDashboard/CallerFlagsModerationPage';
+import { MessagingInvestigationPage } from '@/pages/AdminDashboard/MessagingInvestigationPage';
+import { PersonaManagerPage } from '@/pages/AdminDashboard/PersonaManagerPage';
+import { ScriptsParityExpansionPage } from '@/pages/AdminDashboard/ScriptsParityExpansionPage';
 import {
   DashboardFocusedHeader,
   DashboardMainHeader,
-  DashboardSettingsHeader,
 } from '@/components/admin-dashboard/DashboardChrome';
 import { ProviderChannelCard } from '@/components/admin-dashboard/ProviderChannelCard';
 import {
@@ -124,7 +128,20 @@ const DASHBOARD_ALL_CAPS = [
   'caller_flags_manage',
   'users_manage',
 ] as const;
-const DASHBOARD_ALL_MODULES = ['ops', 'sms', 'mailer', 'provider', 'content', 'users', 'audit'] as const;
+const DASHBOARD_ALL_MODULES = [
+  'ops',
+  'sms',
+  'mailer',
+  'provider',
+  'content',
+  'calllog',
+  'callerflags',
+  'scriptsparity',
+  'messaging',
+  'persona',
+  'users',
+  'audit',
+] as const;
 
 type ProviderChannel = 'call' | 'sms' | 'email';
 
@@ -445,6 +462,16 @@ function moduleGlyph(moduleId: string): string {
       return '⛭';
     case 'content':
       return '✎';
+    case 'calllog':
+      return '⌕';
+    case 'callerflags':
+      return '⚐';
+    case 'scriptsparity':
+      return '⌘';
+    case 'messaging':
+      return '✉';
+    case 'persona':
+      return '☰';
     case 'users':
       return '◎';
     case 'audit':
@@ -458,6 +485,10 @@ interface SessionStateUser {
   username?: unknown;
   firstName?: unknown;
   first_name?: unknown;
+  lastName?: unknown;
+  last_name?: unknown;
+  photoUrl?: unknown;
+  photo_url?: unknown;
   id?: unknown;
 }
 
@@ -688,7 +719,19 @@ interface DashboardApiPayload extends DashboardPayload {
 }
 
 type ActivityStatus = 'info' | 'success' | 'error';
-type DashboardModule = 'ops' | 'sms' | 'mailer' | 'provider' | 'content' | 'users' | 'audit';
+type DashboardModule =
+  | 'ops'
+  | 'sms'
+  | 'mailer'
+  | 'provider'
+  | 'content'
+  | 'calllog'
+  | 'callerflags'
+  | 'scriptsparity'
+  | 'messaging'
+  | 'persona'
+  | 'users'
+  | 'audit';
 type DashboardNoticeTone = 'info' | 'success' | 'warning' | 'error';
 type WorkspaceRoute = DashboardModule | 'settings' | null;
 type ProviderSwitchStage = 'idle' | 'simulated' | 'confirmed' | 'applied' | 'failed';
@@ -706,6 +749,11 @@ const MODULE_DEFINITIONS: Array<{ id: DashboardModule; label: string; capability
   { id: 'mailer', label: 'Mailer Console', capability: 'email_bulk_manage' },
   { id: 'provider', label: 'Provider Control', capability: 'provider_manage' },
   { id: 'content', label: 'Script Studio', capability: 'caller_flags_manage' },
+  { id: 'calllog', label: 'Call Log Explorer', capability: 'dashboard_view' },
+  { id: 'callerflags', label: 'Caller Flags Moderation', capability: 'caller_flags_manage' },
+  { id: 'scriptsparity', label: 'Scripts Parity Expansion', capability: 'caller_flags_manage' },
+  { id: 'messaging', label: 'Messaging Investigation', capability: 'dashboard_view' },
+  { id: 'persona', label: 'Persona Manager', capability: 'caller_flags_manage' },
   { id: 'users', label: 'User & Role Admin', capability: 'users_manage' },
   { id: 'audit', label: 'Audit & Incidents', capability: 'dashboard_view' },
 ];
@@ -731,6 +779,26 @@ const MODULE_CONTEXT: Record<DashboardModule, { subtitle: string; detail: string
     subtitle: 'Call script drafting, review lifecycle, and simulation controls.',
     detail: 'Conversation quality studio.',
   },
+  calllog: {
+    subtitle: 'Search calls, inspect call records, and review state transitions.',
+    detail: 'Call trace and timeline explorer.',
+  },
+  callerflags: {
+    subtitle: 'Inbound caller allow/block/spam moderation controls.',
+    detail: 'Caller policy operations.',
+  },
+  scriptsparity: {
+    subtitle: 'SMS scripts and email template parity tooling.',
+    detail: 'Outbound script content workspace.',
+  },
+  messaging: {
+    subtitle: 'Unified SMS and email diagnostics workspace.',
+    detail: 'Message-level investigation center.',
+  },
+  persona: {
+    subtitle: 'Built-in and custom persona catalog management.',
+    detail: 'Persona visibility and governance.',
+  },
   users: {
     subtitle: 'Role assignments, user oversight, and access governance.',
     detail: 'Access and permissions console.',
@@ -747,9 +815,42 @@ const MODULE_DEFAULT_ORDER: Record<DashboardModule, number> = {
   mailer: 2,
   provider: 3,
   content: 4,
-  users: 5,
-  audit: 6,
+  calllog: 5,
+  callerflags: 6,
+  scriptsparity: 7,
+  messaging: 8,
+  persona: 9,
+  users: 10,
+  audit: 11,
 };
+
+type DashboardModuleGroup = {
+  id: 'operations' | 'messaging' | 'governance';
+  label: string;
+  subtitle: string;
+  moduleIds: DashboardModule[];
+};
+
+const MODULE_GROUPS: DashboardModuleGroup[] = [
+  {
+    id: 'operations',
+    label: 'Operations',
+    subtitle: 'Live reliability, incidents, and runtime telemetry.',
+    moduleIds: ['ops', 'calllog', 'messaging', 'audit'],
+  },
+  {
+    id: 'messaging',
+    label: 'Messaging',
+    subtitle: 'Outbound delivery workflows and provider controls.',
+    moduleIds: ['sms', 'mailer', 'provider'],
+  },
+  {
+    id: 'governance',
+    label: 'Governance',
+    subtitle: 'Content controls, persona policy, and access management.',
+    moduleIds: ['content', 'scriptsparity', 'callerflags', 'persona', 'users'],
+  },
+];
 
 function moduleRoutePath(moduleId: DashboardModule): string {
   return `/${moduleId}`;
@@ -1389,6 +1490,22 @@ export function AdminDashboardPage() {
     if (typeof id === 'string' || typeof id === 'number') return `id:${id}`;
     return 'Unknown admin';
   }, [initDataState]);
+  const userAvatarUrl = useMemo(() => {
+    const user = asRecord(initDataState?.user);
+    const photoUrl = user.photoUrl || user.photo_url;
+    return typeof photoUrl === 'string' ? photoUrl.trim() : '';
+  }, [initDataState]);
+  const userAvatarFallback = useMemo(() => {
+    const user = asRecord(initDataState?.user);
+    const firstName = toText(user.firstName || user.first_name, '');
+    const lastName = toText(user.lastName || user.last_name, '');
+    const initials = `${firstName.slice(0, 1)}${lastName.slice(0, 1)}`
+      .replace(/\s+/g, '')
+      .toUpperCase();
+    if (initials) return initials;
+    const sanitizedLabel = userLabel.replace(/^@/, '').trim();
+    return sanitizedLabel ? sanitizedLabel.slice(0, 1).toUpperCase() : 'U';
+  }, [initDataState, userLabel]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1871,6 +1988,20 @@ export function AdminDashboardPage() {
   const activeModuleLabel = useMemo(() => (
     MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label || activeModule
   ), [activeModule]);
+  const moduleShortcutIndexById = useMemo(() => (
+    visibleModules.reduce<Record<string, number>>((acc, module, index) => {
+      acc[module.id] = index + 1;
+      return acc;
+    }, {})
+  ), [visibleModules]);
+  const groupedVisibleModules = useMemo(() => (
+    MODULE_GROUPS
+      .map((group) => ({
+        ...group,
+        modules: visibleModules.filter((module) => group.moduleIds.includes(module.id)),
+      }))
+      .filter((group) => group.modules.length > 0)
+  ), [visibleModules]);
   const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;
   const showFocusedModuleMode = focusedWorkspaceMode && !settingsOpen;
 
@@ -2133,6 +2264,15 @@ export function AdminDashboardPage() {
     pushActivity('info', 'Manual refresh', 'Operator triggered dashboard refresh.');
     void loadBootstrap();
   };
+
+  const handleTogglePolling = useCallback((): void => {
+    triggerHaptic('selection');
+    setPollingPaused((prev) => {
+      const next = !prev;
+      setNoticeMessage(next ? 'Live updates paused.' : 'Live updates resumed.');
+      return next;
+    });
+  }, [setNoticeMessage, triggerHaptic]);
 
   const resetSession = useCallback((): void => {
     triggerHaptic('warning');
@@ -2619,40 +2759,40 @@ export function AdminDashboardPage() {
         <p className="va-sr-only" role="status" aria-live="polite" aria-atomic="true">
           {settingsOpen ? 'Settings panel active.' : `${activeModuleLabel} module active.`}
         </p>
-        <section className="va-top-shell">
-          {settingsOpen ? (
-            <DashboardSettingsHeader
-              loading={loading}
-              busy={busyAction.length > 0}
-              onBack={() => toggleSettings(false)}
-              onSync={handleRefresh}
-            />
-          ) : showOverviewMode ? (
-            <DashboardMainHeader
-              userLabel={userLabel}
-              sessionRole={sessionRole}
-              sessionRoleSource={sessionRoleSource}
-              settingsStatusLabel={settingsStatusLabel}
-              featureFlagsCount={Object.keys(featureFlags).length || 'default'}
-              moduleDetail="Choose a workspace to continue."
-              activeModuleGlyph="⌂"
-              loading={loading}
-              compact
-              onOpenShortcuts={() => toggleShortcuts(true)}
-            />
-          ) : (
-            <DashboardFocusedHeader
-              title={activeModuleLabel}
-              subtitle={activeModuleMeta.subtitle}
-              loading={loading}
-              onBackToDashboard={() => navigate('/')}
-              onOpenSettings={() => toggleSettings(true)}
-              onOpenShortcuts={() => toggleShortcuts(true)}
-            />
-          )}
-        </section>
+        {!settingsOpen ? (
+          <section className="va-top-shell">
+            {showOverviewMode ? (
+              <DashboardMainHeader
+                userLabel={userLabel}
+                userAvatarUrl={userAvatarUrl}
+                userAvatarFallback={userAvatarFallback}
+                sessionRole={sessionRole}
+                sessionRoleSource={sessionRoleSource}
+                settingsStatusLabel={settingsStatusLabel}
+                featureFlagsCount={Object.keys(featureFlags).length || 'default'}
+                moduleDetail="Choose a workspace to continue."
+                activeModuleGlyph="⌂"
+                loading={loading}
+                compact
+                onOpenSettings={() => toggleSettings(true)}
+                onOpenShortcuts={() => toggleShortcuts(true)}
+              />
+            ) : (
+              <DashboardFocusedHeader
+                title={activeModuleLabel}
+                subtitle={activeModuleMeta.subtitle}
+                userAvatarUrl={userAvatarUrl}
+                userAvatarFallback={userAvatarFallback}
+                loading={loading}
+                onBackToDashboard={() => navigate('/')}
+                onOpenSettings={() => toggleSettings(true)}
+                onOpenShortcuts={() => toggleShortcuts(true)}
+              />
+            )}
+          </section>
+        ) : null}
 
-        {showOverviewMode && (error || notice || busyAction.length > 0 || isDashboardDegraded) ? (
+        {showOverviewMode && (loading || error || notice || busyAction.length > 0 || isDashboardDegraded) ? (
           <DashboardStatusRail
             loading={loading}
             error={error}
@@ -2683,7 +2823,7 @@ export function AdminDashboardPage() {
           featureFlagsSourceLabel={featureFlagsSourceLabel}
           featureFlagsUpdatedAtLabel={featureFlagsUpdatedAtLabel}
           visibleModules={visibleModules}
-          onTogglePolling={() => setPollingPaused((prev) => !prev)}
+          onTogglePolling={handleTogglePolling}
           onSyncNow={handleRefresh}
           onRetrySession={resetSession}
             onOpenShortcuts={() => toggleShortcuts(true)}
@@ -2723,23 +2863,40 @@ export function AdminDashboardPage() {
                   Open a dedicated workspace. Each module runs in focused mode for less visual noise.
                 </p>
               </div>
-              <div className="va-launcher-grid">
-                {visibleModules.map((module, index) => (
-                  <UiButton
-                    key={`launcher-${module.id}`}
-                    id={`va-launcher-module-${module.id}`}
-                    variant="plain"
-                    className={`va-launcher-card ${activeModule === module.id ? 'is-active' : ''}`}
-                    aria-label={`Open ${module.label} workspace`}
-                    aria-keyshortcuts={`Alt+${index + 1}`}
-                    onClick={() => selectModule(module.id)}
-                  >
-                    <span className="va-launcher-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
-                    <span className="va-launcher-copy">
-                      <strong>{module.label}</strong>
-                      <span>{MODULE_CONTEXT[module.id].subtitle}</span>
-                    </span>
-                  </UiButton>
+              <div className="va-launcher-groups">
+                {groupedVisibleModules.map((group) => (
+                  <section key={`launcher-group-${group.id}`} className="va-launcher-group">
+                    <div className="va-launcher-group-head">
+                      <h3 className="va-launcher-group-title">{group.label}</h3>
+                      <span className="va-meta-chip">{group.modules.length} modules</span>
+                    </div>
+                    <p className="va-muted va-launcher-group-subtitle">{group.subtitle}</p>
+                    <div className="va-launcher-grid">
+                      {group.modules.map((module) => {
+                        const shortcutIndex = moduleShortcutIndexById[module.id] || 0;
+                        return (
+                          <UiButton
+                            key={`launcher-${module.id}`}
+                            id={`va-launcher-module-${module.id}`}
+                            variant="plain"
+                            className={`va-launcher-card ${activeModule === module.id ? 'is-active' : ''}`}
+                            aria-label={`Open ${module.label} workspace`}
+                            aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
+                            onClick={() => selectModule(module.id)}
+                          >
+                            <span className="va-launcher-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
+                            <span className="va-launcher-copy">
+                              <strong>{module.label}</strong>
+                              <span>{MODULE_CONTEXT[module.id].subtitle}</span>
+                              {shortcutIndex > 0 ? (
+                                <span className="va-launcher-shortcut">Alt + {shortcutIndex}</span>
+                              ) : null}
+                            </span>
+                          </UiButton>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ))}
               </div>
             </section>
@@ -2795,6 +2952,46 @@ export function AdminDashboardPage() {
                 'Script Studio',
                 <ScriptStudioPage
                   visible={activeModule === 'content' && hasCapability('caller_flags_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'calllog',
+                'Call Log Explorer',
+                <CallLogExplorerPage
+                  visible={activeModule === 'calllog' && hasCapability('dashboard_view')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'callerflags',
+                'Caller Flags Moderation',
+                <CallerFlagsModerationPage
+                  visible={activeModule === 'callerflags' && hasCapability('caller_flags_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'scriptsparity',
+                'Scripts Parity Expansion',
+                <ScriptsParityExpansionPage
+                  visible={activeModule === 'scriptsparity' && hasCapability('caller_flags_manage')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'messaging',
+                'Messaging Investigation',
+                <MessagingInvestigationPage
+                  visible={activeModule === 'messaging' && hasCapability('dashboard_view')}
+                  vm={moduleVm}
+                />,
+              )}
+              {wrapModulePane(
+                'persona',
+                'Persona Manager',
+                <PersonaManagerPage
+                  visible={activeModule === 'persona' && hasCapability('caller_flags_manage')}
                   vm={moduleVm}
                 />,
               )}

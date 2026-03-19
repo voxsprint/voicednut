@@ -1,6 +1,6 @@
 import type { DashboardVm, ProviderMatrixRow } from './types';
 import { selectProviderPageVm } from './vmSelectors';
-import { UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiCard, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type ProviderControlPageProps = {
   visible: boolean;
@@ -138,8 +138,7 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
                   <strong>{channel.toUpperCase()} plan</strong>
                   <span>Current: {current}</span>
                   <div className="va-inline-tools">
-                    <select
-                      className="va-input"
+                    <UiSelect
                       value={plan.target}
                       disabled={supported.length === 0 || providerBusy}
                       onChange={(event) => setProviderSwitchTarget(channel, event.target.value)}
@@ -148,7 +147,7 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
                       {supported.map((provider) => (
                         <option key={`switch-${channel}-${provider}`} value={provider}>{provider}</option>
                       ))}
-                    </select>
+                    </UiSelect>
                     <UiButton
                       variant="secondary"
                       disabled={providerBusy || !plan.target || supported.length === 0}

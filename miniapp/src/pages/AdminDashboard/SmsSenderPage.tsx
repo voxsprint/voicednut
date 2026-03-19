@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import type { DashboardVm } from './types';
 import { selectSmsPageVm } from './vmSelectors';
-import { UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
 
 type SmsSenderPageProps = {
   visible: boolean;
@@ -111,23 +111,23 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           Compose bulk SMS campaigns, validate recipients, estimate cost, and monitor completion.
         </p>
         <div className="va-inline-metrics">
-          <span className="va-meta-chip">Recipients {smsRecipientsParsed.length}</span>
-          <span className="va-meta-chip">Invalid {smsInvalidRecipients.length}</span>
-          <span className="va-meta-chip">Duplicates {smsDuplicateCount}</span>
-          <span className="va-meta-chip">Segments {smsSegmentEstimate.segments}</span>
-          <span className="va-meta-chip">Est. cost ${smsEstimatedCost.toFixed(4)}</span>
+          <UiBadge>Recipients {smsRecipientsParsed.length}</UiBadge>
+          <UiBadge>Invalid {smsInvalidRecipients.length}</UiBadge>
+          <UiBadge>Duplicates {smsDuplicateCount}</UiBadge>
+          <UiBadge>Segments {smsSegmentEstimate.segments}</UiBadge>
+          <UiBadge>Est. cost ${smsEstimatedCost.toFixed(4)}</UiBadge>
         </div>
       </section>
 
       {loading && smsRecipientsParsed.length === 0 ? (
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <UiStatePanel
               title="Loading SMS telemetry"
               description="Syncing recipient analytics, route simulation, and job outcomes."
               tone="info"
             />
-          </div>
+          </UiCard>
         </section>
       ) : null}
 
@@ -137,168 +137,163 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           <p className="va-muted">Prepare recipients, author message, and configure delivery settings.</p>
         </header>
         <section className="va-grid">
-      <div className="va-card">
-        <h3>SMS Sender Console</h3>
-        {!smsRecipientsInput.trim() && !smsMessageInput.trim() ? (
-          <UiStatePanel
-            title="Start a new SMS batch"
-            description="Paste recipients and a message body, or upload a CSV/TXT recipient list."
-            tone="info"
-            compact
-          />
-        ) : null}
-        <p className="va-card-eyebrow">Audience</p>
-        <textarea
-          id="va-sms-recipients"
-          className="va-input va-textarea"
-          placeholder="Recipients (+15551230001), separated by comma/newline"
-          value={smsRecipientsInput}
-          onChange={(event) => setSmsRecipientsInput(event.target.value)}
-          aria-required
-          aria-invalid={smsRecipientsInvalid}
-          aria-describedby="va-sms-recipients-hint"
-          rows={5}
-        />
-        <p id="va-sms-recipients-hint" className="va-field-hint">
-          Enter one or more valid phone numbers. This field is required for batch send.
-        </p>
-        <div className="va-inline-tools">
-          <input
-            type="file"
-            accept=".csv,.txt"
-            aria-label="Upload SMS recipients file"
-            onChange={(event) => {
-              const file = event.target.files?.[0] || null;
-              void handleRecipientsFile(file, 'sms');
-              event.currentTarget.value = '';
-            }}
-          />
-          <input
-            className="va-input"
-            placeholder="Provider (optional)"
-            value={smsProviderInput}
-            onChange={(event) => setSmsProviderInput(event.target.value)}
-          />
-        </div>
-        <p className="va-card-eyebrow">Message</p>
-        <textarea
-          id="va-sms-message"
-          className="va-input va-textarea"
-          placeholder="Message body"
-          value={smsMessageInput}
-          onChange={(event) => setSmsMessageInput(event.target.value)}
-          aria-required
-          aria-invalid={smsMessageInvalid}
-          aria-describedby="va-sms-message-hint"
-          rows={4}
-        />
-        <p id="va-sms-message-hint" className="va-field-hint">
-          Message content is required to execute a send or schedule operation.
-        </p>
-        <p className="va-card-eyebrow">Delivery Settings</p>
-        <div className="va-inline-tools">
-          <label className="va-muted">
-            Schedule at:
-            <input
-              className="va-input"
-              type="datetime-local"
-              value={smsScheduleAt}
-              onChange={(event) => setSmsScheduleAt(event.target.value)}
+          <UiCard>
+            <h3>SMS Sender Console</h3>
+            {!smsRecipientsInput.trim() && !smsMessageInput.trim() ? (
+              <UiStatePanel
+                title="Start a new SMS batch"
+                description="Paste recipients and a message body, or upload a CSV/TXT recipient list."
+                tone="info"
+                compact
+              />
+            ) : null}
+            <p className="va-card-eyebrow">Audience</p>
+            <UiTextarea
+              id="va-sms-recipients"
+              placeholder="Recipients (+15551230001), separated by comma/newline"
+              value={smsRecipientsInput}
+              onChange={(event) => setSmsRecipientsInput(event.target.value)}
+              aria-required
+              aria-invalid={smsRecipientsInvalid}
+              aria-describedby="va-sms-recipients-hint"
+              rows={5}
             />
-          </label>
-          <label className="va-muted">
-            Cost/segment ($):
-            <input
-              className="va-input"
-              inputMode="decimal"
-              placeholder="0.0075"
-              value={smsCostPerSegment}
-              onChange={(event) => setSmsCostPerSegment(event.target.value)}
-            />
-          </label>
-          <label className="va-muted">
-            <input
-              type="checkbox"
-              checked={smsDryRunMode}
-              onChange={(event) => setSmsDryRunMode(event.target.checked)}
-            />
-            {' '}Dry-run only
-          </label>
-          <button
-            type="button"
-            disabled={busyAction.length > 0 || !smsCanSubmit}
-            onClick={() => { void sendSmsFromConsole(); }}
-          >
-            {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
-          </button>
-        </div>
-        {!smsCanSubmit ? (
-          <UiStatePanel
-            title="Batch requirements not met"
-            description={smsReadinessHint}
-            tone="warning"
-            compact
-          />
-        ) : null}
-        <div className="va-inline-tools">
-          <div className="va-card va-subcard">
-            <h4>Validation Preview</h4>
-            <p className="va-muted">Valid: <strong>{smsValidationCategories.valid}</strong></p>
-            <p className="va-muted">Invalid: <strong>{smsValidationCategories.invalid}</strong></p>
-            <p className="va-muted">Duplicates: <strong>{smsValidationCategories.duplicate}</strong></p>
-            <p className="va-muted">Likely landline: <strong>{smsValidationCategories.likelyLandline}</strong></p>
-          </div>
-          <div className="va-card va-subcard">
-            <h4>Cost Estimate</h4>
-            <p className="va-muted">Estimated send cost: <strong>${smsEstimatedCost.toFixed(4)}</strong></p>
-            <p className="va-muted">
-              Based on {smsSegmentEstimate.segments} segment(s) per recipient and your cost/segment.
+            <p id="va-sms-recipients-hint" className="va-field-hint">
+              Enter one or more valid phone numbers. This field is required for batch send.
             </p>
-          </div>
-        </div>
-        <p className="va-muted">
-          Recipients: <strong>{smsRecipientsParsed.length}</strong>
-          {' '}| Invalid: <strong>{smsInvalidRecipients.length}</strong>
-          {' '}| Duplicates removed: <strong>{smsDuplicateCount}</strong>
-        </p>
-        <p className="va-muted">
-          Segment estimate: <strong>{smsSegmentEstimate.segments}</strong>
-          {' '}segment(s), {smsSegmentEstimate.perSegment} chars/segment.
-        </p>
-        <h4>Route Simulation</h4>
-        {smsRouteSimulationRows.length === 0 ? (
-          <UiStatePanel
-            title="Route simulation warming up"
-            description="Provider routing diagnostics will appear after the first parse/run cycle."
-            tone="info"
-            compact
-          />
-        ) : (
-          <ul className="va-list">
-            {smsRouteSimulationRows.map((row) => (
-              <li key={`sms-route-${row.provider}`}>
-                <strong>{row.provider}</strong>
-                <span>Ready: {row.ready ? 'yes' : 'no'} | Degraded: {row.degraded ? 'yes' : 'no'}</span>
-                <span>Parity gaps: {row.parityGapCount}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="va-card">
-        <h3>SMS Job Tracker</h3>
-        <p>Total recipients (24h): <strong>{smsTotalRecipients}</strong></p>
-        <p>Successful: <strong>{smsSuccess}</strong> | Failed: <strong>{smsFailed}</strong></p>
-        <pre>{textBar(smsProcessedPercent)}</pre>
-        {smsInvalidRecipients.length > 0 ? (
-          <UiStatePanel
-            title="Recipient format warnings"
-            description={`Suppression preview: ${smsInvalidRecipients.slice(0, 10).join(', ')}`}
-            tone="warning"
-            compact
-          />
-        ) : null}
-      </div>
+            <div className="va-inline-tools">
+              <input
+                type="file"
+                accept=".csv,.txt"
+                aria-label="Upload SMS recipients file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  void handleRecipientsFile(file, 'sms');
+                  event.currentTarget.value = '';
+                }}
+              />
+              <UiInput
+                placeholder="Provider (optional)"
+                value={smsProviderInput}
+                onChange={(event) => setSmsProviderInput(event.target.value)}
+              />
+            </div>
+            <p className="va-card-eyebrow">Message</p>
+            <UiTextarea
+              id="va-sms-message"
+              placeholder="Message body"
+              value={smsMessageInput}
+              onChange={(event) => setSmsMessageInput(event.target.value)}
+              aria-required
+              aria-invalid={smsMessageInvalid}
+              aria-describedby="va-sms-message-hint"
+              rows={4}
+            />
+            <p id="va-sms-message-hint" className="va-field-hint">
+              Message content is required to execute a send or schedule operation.
+            </p>
+            <p className="va-card-eyebrow">Delivery Settings</p>
+            <div className="va-inline-tools">
+              <label className="va-muted">
+                Schedule at:
+                <UiInput
+                  type="datetime-local"
+                  value={smsScheduleAt}
+                  onChange={(event) => setSmsScheduleAt(event.target.value)}
+                />
+              </label>
+              <label className="va-muted">
+                Cost/segment ($):
+                <UiInput
+                  inputMode="decimal"
+                  placeholder="0.0075"
+                  value={smsCostPerSegment}
+                  onChange={(event) => setSmsCostPerSegment(event.target.value)}
+                />
+              </label>
+              <label className="va-muted">
+                <input
+                  type="checkbox"
+                  checked={smsDryRunMode}
+                  onChange={(event) => setSmsDryRunMode(event.target.checked)}
+                />
+                {' '}Dry-run only
+              </label>
+              <UiButton
+                variant="primary"
+                disabled={busyAction.length > 0 || !smsCanSubmit}
+                onClick={() => { void sendSmsFromConsole(); }}
+              >
+                {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
+              </UiButton>
+            </div>
+            {!smsCanSubmit ? (
+              <UiStatePanel
+                title="Batch requirements not met"
+                description={smsReadinessHint}
+                tone="warning"
+                compact
+              />
+            ) : null}
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
+                <h4>Validation Preview</h4>
+                <p className="va-muted">Valid: <strong>{smsValidationCategories.valid}</strong></p>
+                <p className="va-muted">Invalid: <strong>{smsValidationCategories.invalid}</strong></p>
+                <p className="va-muted">Duplicates: <strong>{smsValidationCategories.duplicate}</strong></p>
+                <p className="va-muted">Likely landline: <strong>{smsValidationCategories.likelyLandline}</strong></p>
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>Cost Estimate</h4>
+                <p className="va-muted">Estimated send cost: <strong>${smsEstimatedCost.toFixed(4)}</strong></p>
+                <p className="va-muted">
+                  Based on {smsSegmentEstimate.segments} segment(s) per recipient and your cost/segment.
+                </p>
+              </UiCard>
+            </div>
+            <p className="va-muted">
+              Recipients: <strong>{smsRecipientsParsed.length}</strong>
+              {' '}| Invalid: <strong>{smsInvalidRecipients.length}</strong>
+              {' '}| Duplicates removed: <strong>{smsDuplicateCount}</strong>
+            </p>
+            <p className="va-muted">
+              Segment estimate: <strong>{smsSegmentEstimate.segments}</strong>
+              {' '}segment(s), {smsSegmentEstimate.perSegment} chars/segment.
+            </p>
+            <h4>Route Simulation</h4>
+            {smsRouteSimulationRows.length === 0 ? (
+              <UiStatePanel
+                title="Route simulation warming up"
+                description="Provider routing diagnostics will appear after the first parse/run cycle."
+                tone="info"
+                compact
+              />
+            ) : (
+              <ul className="va-list va-list-dense">
+                {smsRouteSimulationRows.map((row) => (
+                  <li key={`sms-route-${row.provider}`}>
+                    <strong>{row.provider}</strong>
+                    <span>Ready: {row.ready ? 'yes' : 'no'} | Degraded: {row.degraded ? 'yes' : 'no'}</span>
+                    <span>Parity gaps: {row.parityGapCount}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </UiCard>
+          <UiCard>
+            <h3>SMS Job Tracker</h3>
+            <p>Total recipients (24h): <strong>{smsTotalRecipients}</strong></p>
+            <p>Successful: <strong>{smsSuccess}</strong> | Failed: <strong>{smsFailed}</strong></p>
+            <pre>{textBar(smsProcessedPercent)}</pre>
+            {smsInvalidRecipients.length > 0 ? (
+              <UiStatePanel
+                title="Recipient format warnings"
+                description={`Suppression preview: ${smsInvalidRecipients.slice(0, 10).join(', ')}`}
+                tone="warning"
+                compact
+              />
+            ) : null}
+          </UiCard>
         </section>
       </section>
 
@@ -308,17 +303,16 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           <p className="va-muted">Message-level diagnostics for recent, conversation, and SID lookups.</p>
         </header>
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <h3>SMS Message Lookup</h3>
             <div className="va-inline-tools">
-              <input
-                className="va-input"
+              <UiInput
                 placeholder="Message SID"
                 value={statusSidInput}
                 onChange={(event) => setStatusSidInput(event.target.value)}
               />
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0 || !statusSidInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
@@ -329,17 +323,16 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 }}
               >
                 Check Status
-              </button>
+              </UiButton>
             </div>
             <div className="va-inline-tools">
-              <input
-                className="va-input"
+              <UiInput
                 placeholder="Phone for conversation (+1555...)"
                 value={conversationPhoneInput}
                 onChange={(event) => setConversationPhoneInput(event.target.value)}
               />
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0 || !conversationPhoneInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
@@ -352,9 +345,9 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 }}
               >
                 Load Conversation
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0}
                 onClick={() => {
                   void runInvestigationAction(
@@ -367,9 +360,9 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 }}
               >
                 Recent
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0}
                 onClick={() => {
                   void runInvestigationAction(
@@ -380,7 +373,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 }}
               >
                 Stats
-              </button>
+              </UiButton>
             </div>
             {investigationError ? (
               <UiStatePanel
@@ -390,11 +383,11 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 compact
               />
             ) : null}
-            <div className="va-inline-tools">
-              <div className="va-card va-subcard">
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
                 <h4>Status Snapshot</h4>
                 {statusSnapshot ? (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     <li><strong>SID:</strong> {pickDisplayText([statusSnapshot.message_sid, statusSidInput], 'n/a')}</li>
                     <li><strong>Status:</strong> {pickDisplayText([statusSnapshot.status], 'unknown')}</li>
                     <li><strong>To:</strong> {pickDisplayText([statusSnapshot.to_number], 'n/a')}</li>
@@ -402,15 +395,23 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                     <li><strong>Provider:</strong> {pickDisplayText([statusSnapshot.provider], 'n/a')}</li>
                   </ul>
                 ) : (
-                  <p className="va-muted">Run a SID lookup to load status details.</p>
+                  <UiStatePanel
+                    compact
+                    title="No status snapshot"
+                    description="Run a SID lookup to load status details."
+                  />
                 )}
-              </div>
-              <div className="va-card va-subcard">
+              </UiCard>
+              <UiCard tone="subcard">
                 <h4>Recent Messages</h4>
                 {recentMessages.length === 0 ? (
-                  <p className="va-muted">No recent messages loaded.</p>
+                  <UiStatePanel
+                    compact
+                    title="No recent messages loaded"
+                    description="Run the recent query to populate this list."
+                  />
                 ) : (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     {recentMessages.slice(0, 8).map((message, index) => (
                       <li key={`sms-recent-${index}`}>
                         <strong>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</strong>
@@ -420,15 +421,19 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                     ))}
                   </ul>
                 )}
-              </div>
+              </UiCard>
             </div>
-            <div className="va-inline-tools">
-              <div className="va-card va-subcard">
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
                 <h4>Conversation</h4>
                 {conversationMessages.length === 0 ? (
-                  <p className="va-muted">Load a phone number to inspect conversation history.</p>
+                  <UiStatePanel
+                    compact
+                    title="No conversation loaded"
+                    description="Load a phone number to inspect conversation history."
+                  />
                 ) : (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     {conversationMessages.slice(0, 10).map((message, index) => (
                       <li key={`sms-convo-${index}`}>
                         <strong>{pickDisplayText([message.direction], 'unknown')}</strong>
@@ -438,11 +443,11 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                     ))}
                   </ul>
                 )}
-              </div>
-              <div className="va-card va-subcard">
+              </UiCard>
+              <UiCard tone="subcard">
                 <h4>Stats Snapshot</h4>
                 {statsSnapshot ? (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     <li><strong>Total:</strong> {pickDisplayText([statsSnapshot.total_messages, statsSnapshot.total], '0')}</li>
                     <li><strong>Sent:</strong> {pickDisplayText([statsSnapshot.sent_messages], '0')}</li>
                     <li><strong>Received:</strong> {pickDisplayText([statsSnapshot.received_messages], '0')}</li>
@@ -451,11 +456,15 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                     <li><strong>Success Rate:</strong> {pickDisplayText([statsSnapshot.success_rate], '0')}%</li>
                   </ul>
                 ) : (
-                  <p className="va-muted">Run stats lookup to inspect current SMS posture.</p>
+                  <UiStatePanel
+                    compact
+                    title="No stats snapshot"
+                    description="Run stats lookup to inspect current SMS posture."
+                  />
                 )}
-              </div>
+              </UiCard>
             </div>
-          </div>
+          </UiCard>
         </section>
       </section>
     </>

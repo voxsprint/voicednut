@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import type { DashboardVm, EmailJob } from './types';
 import { selectMailerPageVm } from './vmSelectors';
-import { UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
 
 type MailerPageProps = {
   visible: boolean;
@@ -135,23 +135,23 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
           Build and schedule campaigns, validate template variables, and track deliverability performance.
         </p>
         <div className="va-inline-metrics">
-          <span className="va-meta-chip">Audience {mailerRecipientsParsed.length}</span>
-          <span className="va-meta-chip">Invalid {mailerInvalidRecipients.length}</span>
-          <span className="va-meta-chip">Duplicates {mailerDuplicateCount}</span>
-          <span className="va-meta-chip">Delivered {emailDelivered}</span>
-          <span className="va-meta-chip">Suppressed {emailSuppressed}</span>
+          <UiBadge>Audience {mailerRecipientsParsed.length}</UiBadge>
+          <UiBadge>Invalid {mailerInvalidRecipients.length}</UiBadge>
+          <UiBadge>Duplicates {mailerDuplicateCount}</UiBadge>
+          <UiBadge>Delivered {emailDelivered}</UiBadge>
+          <UiBadge>Suppressed {emailSuppressed}</UiBadge>
         </div>
       </section>
 
       {loading && mailerRecipientsParsed.length === 0 ? (
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <UiStatePanel
               title="Loading mailer telemetry"
               description="Syncing recipient analytics, domain health, and recent delivery outcomes."
               tone="info"
             />
-          </div>
+          </UiCard>
         </section>
       ) : null}
       <section className="va-section-block">
@@ -160,7 +160,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
           <p className="va-muted">Prepare recipients, draft content, and schedule the outbound batch.</p>
         </header>
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <h3>Mailer Console</h3>
             {!mailerRecipientsInput.trim() && !mailerSubjectInput.trim() && !mailerTextInput.trim() ? (
               <UiStatePanel
@@ -171,9 +171,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               />
             ) : null}
             <p className="va-card-eyebrow">Audience</p>
-            <textarea
+            <UiTextarea
               id="va-mailer-recipients"
-              className="va-input va-textarea"
               placeholder="Recipient emails separated by comma/newline"
               value={mailerRecipientsInput}
               onChange={(event) => setMailerRecipientsInput(event.target.value)}
@@ -196,17 +195,15 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                   event.currentTarget.value = '';
                 }}
               />
-              <input
-                className="va-input"
+              <UiInput
                 placeholder="Template ID (optional)"
                 value={mailerTemplateIdInput}
                 onChange={(event) => setMailerTemplateIdInput(event.target.value)}
               />
             </div>
             <p className="va-card-eyebrow">Content</p>
-            <input
+            <UiInput
               id="va-mailer-subject"
-              className="va-input"
               placeholder="Subject (supports {{variables}})"
               value={mailerSubjectInput}
               onChange={(event) => setMailerSubjectInput(event.target.value)}
@@ -217,9 +214,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             <p id="va-mailer-subject-hint" className="va-field-hint">
               Required when template ID is empty.
             </p>
-            <textarea
+            <UiTextarea
               id="va-mailer-html-body"
-              className="va-input va-textarea"
               placeholder="HTML body (optional)"
               value={mailerHtmlInput}
               onChange={(event) => setMailerHtmlInput(event.target.value)}
@@ -228,9 +224,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               aria-describedby="va-mailer-body-hint"
               rows={4}
             />
-            <textarea
+            <UiTextarea
               id="va-mailer-text-body"
-              className="va-input va-textarea"
               placeholder="Text body (optional)"
               value={mailerTextInput}
               onChange={(event) => setMailerTextInput(event.target.value)}
@@ -243,8 +238,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               When template ID is empty, provide HTML or text body content.
             </p>
             <p className="va-card-eyebrow">Template Variables</p>
-            <textarea
-              className="va-input va-textarea"
+            <UiTextarea
               placeholder={'Variables JSON, e.g. {"first_name":"Ada"}'}
               value={mailerVariablesInput}
               onChange={(event) => setMailerVariablesInput(event.target.value)}
@@ -254,20 +248,19 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             <div className="va-inline-tools">
               <label className="va-muted">
                 Send at:
-                <input
-                  className="va-input"
+                <UiInput
                   type="datetime-local"
                   value={mailerScheduleAt}
                   onChange={(event) => setMailerScheduleAt(event.target.value)}
                 />
               </label>
-              <button
-                type="button"
+              <UiButton
+                variant="primary"
                 disabled={busyAction.length > 0 || !mailerCanSubmit}
                 onClick={() => { void sendMailerFromConsole(); }}
               >
                 Queue Mailer Job
-              </button>
+              </UiButton>
             </div>
             {!mailerCanSubmit ? (
               <UiStatePanel
@@ -293,7 +286,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 compact
               />
             ) : null}
-            <div className="va-card va-subcard">
+            <UiCard tone="subcard">
               <h4>Template Render Preview</h4>
               <p className="va-muted">Subject preview: <strong>{mailerTemplatePreviewSubject}</strong></p>
               <p className="va-muted">Body preview: {mailerTemplatePreviewBody}</p>
@@ -305,9 +298,9 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                   compact
                 />
               ) : null}
-            </div>
-          </div>
-          <div className="va-card">
+            </UiCard>
+          </UiCard>
+          <UiCard>
             <h3>Deliverability Monitor</h3>
             <p>Total recipients (24h): <strong>{emailTotalRecipients}</strong></p>
             <p>Sent: <strong>{emailSent}</strong> | Failed: <strong>{emailFailed}</strong></p>
@@ -320,12 +313,12 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             <pre>{textBar(emailDeliveredPercent)}</pre>
             <pre>{textBar(emailBouncePercent)}</pre>
             <pre>{textBar(emailComplaintPercent)}</pre>
-            <div className="va-card va-subcard">
+            <UiCard tone="subcard">
               <h4>Domain Health</h4>
               <p className="va-muted">Status: <strong>{mailerDomainHealthStatus}</strong></p>
               <p className="va-muted">{mailerDomainHealthDetail}</p>
-            </div>
-            <div className="va-card va-subcard">
+            </UiCard>
+            <UiCard tone="subcard">
               <h4>Bounce/Complaint Trend</h4>
               {mailerTrendBars.length === 0 ? (
                 <UiStatePanel
@@ -335,15 +328,15 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                   compact
                 />
               ) : (
-                <ul className="va-list">
+                <ul className="va-list va-list-dense">
                   {mailerTrendBars.map((bar, index) => (
                     <li key={`mailer-trend-${index}`}><pre>{bar}</pre></li>
                   ))}
                 </ul>
               )}
-            </div>
+            </UiCard>
             {emailJobs.length > 0 ? (
-              <ul className="va-list">
+              <ul className="va-list va-list-dense">
                 {emailJobs.slice(0, 6).map((job: EmailJob, index: number) => (
                   <li key={`mailer-job-${index}`}>
                     <strong>{toText(job.job_id, `job-${index + 1}`)}</strong>
@@ -363,7 +356,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 compact
               />
             )}
-          </div>
+          </UiCard>
         </section>
       </section>
 
@@ -373,17 +366,16 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
           <p className="va-muted">Lookup individual message status, bulk jobs, and recent history.</p>
         </header>
         <section className="va-grid">
-          <div className="va-card">
+          <UiCard>
             <h3>Email Diagnostics Console</h3>
             <div className="va-inline-tools">
-              <input
-                className="va-input"
+              <UiInput
                 placeholder="Message ID"
                 value={messageIdInput}
                 onChange={(event) => setMessageIdInput(event.target.value)}
               />
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0 || !messageIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
@@ -394,17 +386,16 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 }}
               >
                 Message Status
-              </button>
+              </UiButton>
             </div>
             <div className="va-inline-tools">
-              <input
-                className="va-input"
+              <UiInput
                 placeholder="Bulk Job ID"
                 value={jobIdInput}
                 onChange={(event) => setJobIdInput(event.target.value)}
               />
-              <button
-                type="button"
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0 || !jobIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
@@ -415,9 +406,9 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 }}
               >
                 Job Status
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                variant="secondary"
                 disabled={investigationBusy.length > 0}
                 onClick={() => {
                   void runInvestigationAction(
@@ -430,7 +421,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 }}
               >
                 Load History
-              </button>
+              </UiButton>
             </div>
             {investigationError ? (
               <UiStatePanel
@@ -440,11 +431,11 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 compact
               />
             ) : null}
-            <div className="va-inline-tools">
-              <div className="va-card va-subcard">
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
                 <h4>Message Snapshot</h4>
                 {messageSnapshot ? (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     <li><strong>ID:</strong> {pickDisplayText([messageSnapshot.message_id, messageIdInput], 'n/a')}</li>
                     <li><strong>Status:</strong> {pickDisplayText([messageSnapshot.status], 'unknown')}</li>
                     <li><strong>Recipient:</strong> {pickDisplayText([messageSnapshot.recipient_email, messageSnapshot.to], 'n/a')}</li>
@@ -452,13 +443,17 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                     <li><strong>Last Attempt:</strong> {pickDisplayText([messageSnapshot.last_attempt_at], 'n/a')}</li>
                   </ul>
                 ) : (
-                  <p className="va-muted">Run message status lookup to inspect details.</p>
+                  <UiStatePanel
+                    compact
+                    title="No message snapshot"
+                    description="Run message status lookup to inspect details."
+                  />
                 )}
-              </div>
-              <div className="va-card va-subcard">
+              </UiCard>
+              <UiCard tone="subcard">
                 <h4>Bulk Job Snapshot</h4>
                 {jobSnapshot ? (
-                  <ul className="va-list">
+                  <ul className="va-list va-list-dense">
                     <li><strong>Job ID:</strong> {pickDisplayText([jobSnapshot.job_id, jobIdInput], 'n/a')}</li>
                     <li><strong>Status:</strong> {pickDisplayText([jobSnapshot.status], 'unknown')}</li>
                     <li><strong>Sent:</strong> {pickDisplayText([jobSnapshot.sent], '0')} / {pickDisplayText([jobSnapshot.total], '0')}</li>
@@ -466,16 +461,24 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                     <li><strong>Failed:</strong> {pickDisplayText([jobSnapshot.failed], '0')}</li>
                   </ul>
                 ) : (
-                  <p className="va-muted">Run job status lookup to inspect send progress.</p>
+                  <UiStatePanel
+                    compact
+                    title="No bulk job snapshot"
+                    description="Run job status lookup to inspect send progress."
+                  />
                 )}
-              </div>
+              </UiCard>
             </div>
-            <div className="va-card va-subcard">
+            <UiCard tone="subcard">
               <h4>Recent History</h4>
               {historySnapshot.length === 0 ? (
-                <p className="va-muted">No history loaded.</p>
+                <UiStatePanel
+                  compact
+                  title="No history loaded"
+                  description="Run history lookup to inspect recent email bulk jobs."
+                />
               ) : (
-                <ul className="va-list">
+                <ul className="va-list va-list-dense">
                   {historySnapshot.slice(0, 10).map((job, index) => (
                     <li key={`mailer-history-${index}`}>
                       <strong>{pickDisplayText([job.job_id], `job-${index + 1}`)}</strong>
@@ -485,8 +488,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                   ))}
                 </ul>
               )}
-            </div>
-          </div>
+            </UiCard>
+          </UiCard>
         </section>
       </section>
     </>

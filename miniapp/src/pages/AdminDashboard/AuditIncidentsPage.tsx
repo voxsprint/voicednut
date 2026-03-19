@@ -9,6 +9,7 @@ import {
   selectIncidentRows,
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
+import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type AuditIncidentsPageProps = {
   visible: boolean;
@@ -47,12 +48,12 @@ type AuditViewPrefs = {
   audit_page_size?: unknown;
 };
 
-function statusBadgeVariant(status: string): 'success' | 'info' | 'error' | 'neutral' {
+function statusBadgeVariant(status: string): 'success' | 'info' | 'error' | 'meta' {
   const normalized = status.toLowerCase();
   if (normalized === 'ok' || normalized === 'healthy' || normalized === 'success') return 'success';
   if (normalized === 'warning' || normalized === 'degraded' || normalized === 'pending') return 'info';
   if (normalized === 'error' || normalized === 'failed' || normalized === 'critical') return 'error';
-  return 'neutral';
+  return 'meta';
 }
 
 function isTypingTarget(target: EventTarget | null): target is HTMLElement {
@@ -383,70 +384,75 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
 
   return (
     <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
-      <div className="va-card">
+      <UiCard>
         <h3>Audit & Incident Center</h3>
+        <div className="va-inline-metrics">
+          <UiBadge>Total alerts {toInt(incidentsPayload.total_alerts, incidentRows.length)}</UiBadge>
+          <UiBadge>Filtered alerts {filteredIncidentRows.length}</UiBadge>
+          <UiBadge>Filtered audit {filteredAuditRows.length}</UiBadge>
+          <UiBadge variant={busyAction ? 'info' : 'success'}>{busyAction ? 'Runbook busy' : 'Runbook idle'}</UiBadge>
+        </div>
         <div className="va-filter-grid" role="toolbar" aria-label="Audit and incident actions">
-          <button
+          <UiButton
             ref={refreshAlertsButtonRef}
-            type="button"
+            variant="secondary"
             aria-keyshortcuts="Alt+R"
             onClick={(event) => {
               handleRefreshAuditModule(event.currentTarget);
             }}
           >
             Refresh Alerts
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="secondary"
             disabled={!hasCapability('sms_bulk_manage')}
             onClick={(event) => {
               handleRunbookAction('runbook.sms.reconcile', {}, event.currentTarget);
             }}
           >
             Runbook: SMS Reconcile
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
               handleRunbookAction('runbook.payment.reconcile', {}, event.currentTarget);
             }}
           >
             Runbook: Payment Reconcile
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
               handleRunbookAction('runbook.provider.preflight', {}, event.currentTarget);
             }}
           >
             Runbook: Provider Preflight
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
               handleRunbookAction('runbook.provider.preflight', { channel: 'call' }, event.currentTarget);
             }}
           >
             Playbook: Provider Outage
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="secondary"
             disabled={!hasCapability('sms_bulk_manage')}
             onClick={(event) => {
               handleRunbookAction('runbook.sms.reconcile', { scope: 'failure_spike' }, event.currentTarget);
             }}
           >
             Playbook: SMS Failure Spike
-          </button>
+          </UiButton>
         </div>
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
-            <input
+            <UiInput
               ref={incidentQueryInputRef}
-              className="va-input"
               placeholder="Filter incidents (service/status/message)"
               value={incidentQuery}
               onChange={(event) => setIncidentQuery(event.target.value)}
@@ -462,8 +468,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
                 }
               }}
             />
-            <select
-              className="va-input"
+            <UiSelect
               value={incidentStatusFilter}
               onChange={(event) => setIncidentStatusFilter(event.target.value)}
             >
@@ -471,9 +476,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {incidentStatusOptions.map((status) => (
                 <option key={`incident-status-${status}`} value={status}>{status}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={incidentActorFilter}
               onChange={(event) => setIncidentActorFilter(event.target.value)}
             >
@@ -481,9 +485,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {incidentActorOptions.map((actor) => (
                 <option key={`incident-actor-${actor}`} value={actor}>{actor}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={incidentModuleFilter}
               onChange={(event) => setIncidentModuleFilter(event.target.value)}
             >
@@ -491,9 +494,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {incidentModuleOptions.map((moduleName) => (
                 <option key={`incident-module-${moduleName}`} value={moduleName}>{moduleName}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={incidentSeverityFilter}
               onChange={(event) => setIncidentSeverityFilter(event.target.value)}
             >
@@ -501,32 +503,31 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {incidentSeverityOptions.map((severity) => (
                 <option key={`incident-severity-${severity}`} value={severity}>{severity}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={String(incidentPageSize)}
               onChange={(event) => setIncidentPageSize(toInt(event.target.value, 20))}
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={`incident-page-size-${size}`} value={size}>{size} / page</option>
               ))}
-            </select>
+            </UiSelect>
             {incidentCsvEnabled ? (
-              <button type="button" onClick={exportIncidentCsv} disabled={filteredIncidentRows.length === 0}>
+              <UiButton variant="secondary" onClick={exportIncidentCsv} disabled={filteredIncidentRows.length === 0}>
                 Export Alerts CSV
-              </button>
+              </UiButton>
             ) : null}
-            <button type="button" onClick={saveCurrentQuery}>
+            <UiButton variant="secondary" onClick={saveCurrentQuery}>
               Save Query
-            </button>
+            </UiButton>
           </div>
         ) : null}
         {savedQueries.length > 0 ? (
           <div className="va-inline-tools">
             {savedQueries.map((query) => (
               <div key={`saved-query-${query.id}`} className="va-saved-query">
-                <button type="button" onClick={() => applySavedQuery(query)}>{query.label}</button>
-                <button type="button" onClick={() => deleteSavedQuery(query.id)}>✕</button>
+                <UiButton variant="secondary" onClick={() => applySavedQuery(query)}>{query.label}</UiButton>
+                <UiButton variant="secondary" onClick={() => deleteSavedQuery(query.id)}>✕</UiButton>
               </div>
             ))}
           </div>
@@ -547,7 +548,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               <li key={`incident-${incidentStart + index}`} className="va-entity-row">
                 <div className="va-entity-head">
                   <strong>{toText(incident.service_name, 'service')}</strong>
-                  <span className={`va-pill va-pill-${statusBadgeVariant(status)}`}>{status}</span>
+                  <UiBadge variant={statusBadgeVariant(status)}>{status}</UiBadge>
                 </div>
                 <p className="va-entity-message">{toText(details.message, toText(incident.details, ''))}</p>
                 <div className="va-entity-meta">
@@ -560,24 +561,30 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             );
           })}
         </ul>
-        {incidentPageRows.length === 0 ? <p className="va-muted">No incident alerts matched filters.</p> : null}
+        {incidentPageRows.length === 0 ? (
+          <UiStatePanel
+            compact
+            title="No incident alerts matched filters"
+            description="Try widening status, actor, module, or severity filters."
+          />
+        ) : null}
         {advancedTablesEnabled ? (
           <div className="va-table-pager">
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               onClick={() => setIncidentPage((prev) => Math.max(1, prev - 1))}
               disabled={incidentPage <= 1}
             >
               Previous
-            </button>
+            </UiButton>
             <span className="va-muted">Page {incidentPage} of {incidentTotalPages}</span>
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               onClick={() => setIncidentPage((prev) => Math.min(incidentTotalPages, prev + 1))}
               disabled={incidentPage >= incidentTotalPages}
             >
               Next
-            </button>
+            </UiButton>
           </div>
         ) : null}
         {runbookActionsEnabled && runbookRows.length > 0 ? (
@@ -591,28 +598,27 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
                   <li key={`runbook-${index}`}>
                     <strong>{toText(runbook.label, 'Runbook')}</strong>
                     <span>{action || 'unknown_action'}</span>
-                    <button
-                      type="button"
+                    <UiButton
+                      variant="secondary"
                       disabled={busyAction.length > 0 || !action || !hasCapability(capability)}
                       onClick={(event) => {
                         handleRunbookAction(action, {}, event.currentTarget);
                       }}
                     >
                       Execute
-                    </button>
+                    </UiButton>
                   </li>
                 );
               })}
             </ul>
           </>
         ) : null}
-      </div>
-      <div className="va-card">
+      </UiCard>
+      <UiCard>
         <h3>Immutable Activity Timeline</h3>
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
-            <input
-              className="va-input"
+            <UiInput
               placeholder="Filter audit timeline"
               value={auditQuery}
               onChange={(event) => setAuditQuery(event.target.value)}
@@ -628,17 +634,15 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
                 }
               }}
             />
-            <select
-              className="va-input"
+            <UiSelect
               value={String(auditPageSize)}
               onChange={(event) => setAuditPageSize(toInt(event.target.value, 20))}
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={`audit-page-size-${size}`} value={size}>{size} / page</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={auditActorFilter}
               onChange={(event) => setAuditActorFilter(event.target.value)}
             >
@@ -646,9 +650,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {auditActorOptions.map((actor) => (
                 <option key={`audit-actor-${actor}`} value={actor}>{actor}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={auditModuleFilter}
               onChange={(event) => setAuditModuleFilter(event.target.value)}
             >
@@ -656,9 +659,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {auditModuleOptions.map((moduleName) => (
                 <option key={`audit-module-${moduleName}`} value={moduleName}>{moduleName}</option>
               ))}
-            </select>
-            <select
-              className="va-input"
+            </UiSelect>
+            <UiSelect
               value={auditSeverityFilter}
               onChange={(event) => setAuditSeverityFilter(event.target.value)}
             >
@@ -666,11 +668,11 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               {auditSeverityOptions.map((severity) => (
                 <option key={`audit-severity-${severity}`} value={severity}>{severity}</option>
               ))}
-            </select>
+            </UiSelect>
             {auditCsvEnabled ? (
-              <button type="button" onClick={exportAuditCsv} disabled={filteredAuditRows.length === 0}>
+              <UiButton variant="secondary" onClick={exportAuditCsv} disabled={filteredAuditRows.length === 0}>
                 Export Audit CSV
-              </button>
+              </UiButton>
             ) : null}
           </div>
         ) : null}
@@ -689,7 +691,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               <li key={`audit-${auditStart + index}`} className="va-entity-row">
                 <div className="va-entity-head">
                   <strong>{toText(row.service_name, 'service')}</strong>
-                  <span className={`va-pill va-pill-${statusBadgeVariant(status)}`}>{status}</span>
+                  <UiBadge variant={statusBadgeVariant(status)}>{status}</UiBadge>
                 </div>
                 <p className="va-entity-message">{toText(details.message, toText(row.details, ''))}</p>
                 <div className="va-entity-meta">
@@ -702,27 +704,33 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             );
           })}
         </ul>
-        {auditPageRows.length === 0 ? <p className="va-muted">No audit entries matched filters.</p> : null}
+        {auditPageRows.length === 0 ? (
+          <UiStatePanel
+            compact
+            title="No audit entries matched filters"
+            description="Try widening actor, module, severity, or query filters."
+          />
+        ) : null}
         {advancedTablesEnabled ? (
           <div className="va-table-pager">
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
               disabled={auditPage <= 1}
             >
               Previous
-            </button>
+            </UiButton>
             <span className="va-muted">Page {auditPage} of {auditTotalPages}</span>
-            <button
-              type="button"
+            <UiButton
+              variant="secondary"
               onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
               disabled={auditPage >= auditTotalPages}
             >
               Next
-            </button>
+            </UiButton>
           </div>
         ) : null}
-      </div>
+      </UiCard>
     </section>
   );
 }

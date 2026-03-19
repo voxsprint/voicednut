@@ -136,9 +136,10 @@ export function createDashboardApiClient(
       }
 
       const nextToken = payload.token;
+      const expiresAtSeconds = Number(payload.expires_at);
       const cacheEntry: SessionCacheEntry = {
         token: nextToken,
-        exp: Number.isFinite(Number(payload.expires_at)) ? Number(payload.expires_at) : null,
+        exp: Number.isFinite(expiresAtSeconds) && expiresAtSeconds > 0 ? expiresAtSeconds : null,
       };
       writeSessionCache(config.sessionStorageKey, cacheEntry);
       callbacks.setToken(nextToken);
