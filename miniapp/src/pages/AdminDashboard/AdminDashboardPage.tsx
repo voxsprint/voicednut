@@ -1215,6 +1215,26 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    .filter((element) => {
+      if (element.matches(':disabled')) return false;
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+      if (element instanceof HTMLInputElement && element.type === 'hidden') return false;
+      if (element.tabIndex < 0) return false;
+      return element.getClientRects().length > 0;
+    });
+}
+
 function resolveNoticeTone(message: string): DashboardNoticeTone {
   const normalized = String(message || '').trim().toLowerCase();
   if (!normalized) return 'info';
@@ -1408,8 +1428,13 @@ export function AdminDashboardPage() {
   });
   const shortcutsReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shortcutsDialogRef = useRef<HTMLElement | null>(null);
   const navigationDrawerReturnFocusRef = useRef<HTMLElement | null>(null);
   const navigationDrawerCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const navigationDrawerRef = useRef<HTMLElement | null>(null);
+  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
+  const dialogCancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const actionDialogRef = useRef<HTMLElement | null>(null);
   const restoreFocusSelectorRef = useRef<string>('#va-main-shortcuts-btn');
   const shouldRestoreFocusRef = useRef<boolean>(false);
   const shouldFocusStageRef = useRef<boolean>(false);
@@ -1875,6 +1900,15 @@ export function AdminDashboardPage() {
   }, [pushActivity, setNoticeMessage]);
 
   useEffect(() => {
+    if (!settingsButtonSupported) return undefined;
+    settingsButton.mount.ifAvailable();
+    settingsButton.show.ifAvailable();
+    return () => {
+      settingsButton.hide.ifAvailable();
+    };
+  }, [settingsButtonSupported]);
+
+  useEffect(() => {
     if (!settingsButton.onClick.isAvailable()) {
       return undefined;
     }
@@ -1884,18 +1918,40 @@ export function AdminDashboardPage() {
   }, [toggleSettings]);
 
   useEffect(() => {
-    if (settingsOpen || focusedWorkspaceMode || activeModule !== 'ops') {
+    if (
+      navigationDrawerOpen
+      || shortcutsOpen
+      || Boolean(dialogState)
+      || settingsOpen
+      || focusedWorkspaceMode
+      || activeModule !== 'ops'
+    ) {
       backButton.show.ifAvailable();
       return;
     }
     backButton.hide.ifAvailable();
-  }, [activeModule, focusedWorkspaceMode, settingsOpen]);
+  }, [activeModule, dialogState, focusedWorkspaceMode, navigationDrawerOpen, settingsOpen, shortcutsOpen]);
+
+  useEffect(() => (
+    () => {
+      backButton.hide.ifAvailable();
+    }
+  ), []);
 
   useEffect(() => {
     if (!backButton.onClick.isAvailable()) {
       return undefined;
     }
     return backButton.onClick(() => {
+      if (dialogState) {
+        closeDialog(dialogState.kind === 'confirm' ? false : null);
+        triggerHaptic('selection');
+        return;
+      }
+      if (shortcutsOpen) {
+        toggleShortcuts(false);
+        return;
+      }
       if (navigationDrawerOpen) {
         toggleNavigationDrawer(false);
         return;
@@ -1905,6 +1961,7 @@ export function AdminDashboardPage() {
         return;
       }
       if (focusedWorkspaceMode) {
+        triggerHaptic('selection');
         navigate('/');
         return;
       }
@@ -1913,18 +1970,24 @@ export function AdminDashboardPage() {
         return;
       }
       if (typeof window !== 'undefined' && window.history.length > 1) {
+        triggerHaptic('impact', 'light');
         window.history.back();
       }
     });
   }, [
     activeModule,
+    closeDialog,
+    dialogState,
     focusedWorkspaceMode,
     navigate,
     navigationDrawerOpen,
     selectModule,
     settingsOpen,
+    shortcutsOpen,
+    toggleShortcuts,
     toggleNavigationDrawer,
     toggleSettings,
+    triggerHaptic,
   ]);
 
   useEffect(() => {
@@ -1995,6 +2058,78 @@ export function AdminDashboardPage() {
       document.querySelector<HTMLElement>('#va-main-shortcuts-btn')?.focus({ preventScroll: true });
     });
   }, [shortcutsOpen]);
+
+  useEffect(() => {
+    if (!dialogState) return;
+    if (typeof document === 'undefined') return;
+    const activeElement = document.activeElement;
+    dialogReturnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+    if (dialogState.kind === 'prompt') return;
+    requestAnimationFrame(() => {
+      dialogCancelButtonRef.current?.focus({ preventScroll: true });
+    });
+  }, [dialogState]);
+
+  useEffect(() => {
+    if (dialogState) return;
+    const previousFocus = dialogReturnFocusRef.current;
+    if (!previousFocus) return;
+    dialogReturnFocusRef.current = null;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      if (previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+        return;
+      }
+      document.querySelector<HTMLElement>('#va-main-shortcuts-btn')?.focus({ preventScroll: true });
+    });
+  }, [dialogState]);
+
+  useEffect(() => {
+    if (!navigationDrawerOpen && !shortcutsOpen && !dialogState) return undefined;
+    if (typeof document === 'undefined') return undefined;
+
+    const resolveActiveSurface = (): HTMLElement | null => {
+      if (dialogState) return actionDialogRef.current;
+      if (shortcutsOpen) return shortcutsDialogRef.current;
+      if (navigationDrawerOpen) return navigationDrawerRef.current;
+      return null;
+    };
+
+    const handleTabTrap = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab') return;
+      const surface = resolveActiveSurface();
+      if (!surface) return;
+      const focusable = getFocusableElements(surface);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        surface.focus({ preventScroll: true });
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeElement = document.activeElement;
+      if (!(activeElement instanceof HTMLElement) || !surface.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+        return;
+      }
+      if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+        return;
+      }
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener('keydown', handleTabTrap, true);
+    return () => {
+      document.removeEventListener('keydown', handleTabTrap, true);
+    };
+  }, [dialogState, navigationDrawerOpen, shortcutsOpen]);
 
   const serverPollIntervalMs = useMemo(() => {
     const intervalSeconds = Number(bootstrap?.poll_interval_seconds);
@@ -2220,6 +2355,11 @@ export function AdminDashboardPage() {
         }
         return;
       }
+      if (dialogState && key === 'escape') {
+        event.preventDefault();
+        closeDialog(dialogState.kind === 'confirm' ? false : null);
+        return;
+      }
       if (dialogState) return;
       if ((event.ctrlKey || event.metaKey) && key === ',') {
         event.preventDefault();
@@ -2257,6 +2397,7 @@ export function AdminDashboardPage() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [
+    closeDialog,
     dialogState,
     loadBootstrap,
     navigationDrawerOpen,
@@ -3086,6 +3227,7 @@ export function AdminDashboardPage() {
                       variant="plain"
                       className={`va-quick-action-card ${activeModule === module.id ? 'is-active' : ''}`}
                       aria-label={`Open ${module.label} workspace`}
+                      aria-pressed={activeModule === module.id}
                       aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
                       onClick={() => selectModule(module.id)}
                     >
@@ -3135,6 +3277,7 @@ export function AdminDashboardPage() {
                             variant="plain"
                             className={`va-launcher-card ${activeModule === module.id ? 'is-active' : ''}`}
                             aria-label={`Open ${module.label} workspace`}
+                            aria-pressed={activeModule === module.id}
                             aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
                             onClick={() => selectModule(module.id)}
                           >
@@ -3275,10 +3418,12 @@ export function AdminDashboardPage() {
       {navigationDrawerOpen ? (
         <div className="va-nav-drawer-overlay" role="presentation" onClick={() => toggleNavigationDrawer(false)}>
           <aside
+            ref={navigationDrawerRef}
             className="va-nav-drawer"
             role="dialog"
             aria-modal="true"
             aria-labelledby="va-nav-drawer-title"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="va-nav-drawer-header">
@@ -3350,14 +3495,17 @@ export function AdminDashboardPage() {
       {shortcutsOpen ? (
         <div className="va-dialog-overlay" role="presentation" onClick={() => toggleShortcuts(false)}>
           <section
+            ref={shortcutsDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="va-shortcuts-title"
+            aria-describedby="va-shortcuts-description"
             className="va-dialog va-dialog-shortcuts"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <h3 id="va-shortcuts-title">Keyboard Shortcuts</h3>
-            <p className="va-muted">Quick controls for faster navigation and command execution.</p>
+            <p id="va-shortcuts-description" className="va-muted">Quick controls for faster navigation and command execution.</p>
             <ul className="va-shortcuts-list">
               <li>
                 <span>Open shortcuts</span>
@@ -3391,14 +3539,13 @@ export function AdminDashboardPage() {
               ))}
             </ul>
             <div className="va-dialog-actions">
-              <button
+              <UiButton
                 ref={shortcutsCloseButtonRef}
-                type="button"
-                className="va-btn va-btn-secondary"
+                variant="secondary"
                 onClick={() => toggleShortcuts(false)}
               >
                 Close
-              </button>
+              </UiButton>
             </div>
           </section>
         </div>
@@ -3406,13 +3553,17 @@ export function AdminDashboardPage() {
       {dialogState ? (
         <div className="va-dialog-overlay" role="presentation" onClick={() => closeDialog(dialogState.kind === 'confirm' ? false : null)}>
           <section
+            ref={actionDialogRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="va-dialog-title"
+            aria-describedby="va-dialog-message"
             className={`va-dialog va-dialog-${dialogState.tone || 'default'}`}
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
-            <h3>{dialogState.title}</h3>
-            <p className="va-muted">{dialogState.message}</p>
+            <h3 id="va-dialog-title">{dialogState.title}</h3>
+            <p id="va-dialog-message" className="va-muted">{dialogState.message}</p>
             {dialogState.kind === 'prompt' ? (
               <div className="va-dialog-input-wrap">
                 <UiInput
@@ -3435,6 +3586,7 @@ export function AdminDashboardPage() {
             ) : null}
             <div className="va-dialog-actions">
               <UiButton
+                ref={dialogCancelButtonRef}
                 variant="secondary"
                 onClick={() => closeDialog(dialogState.kind === 'confirm' ? false : null)}
               >

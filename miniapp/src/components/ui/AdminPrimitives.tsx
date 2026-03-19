@@ -6,7 +6,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 
 import { classNames } from '@/css/classnames';
 
@@ -175,14 +175,31 @@ export function UiStatePanel({
   tone = 'info',
   compact = false,
   actions,
+  id,
+  'aria-labelledby': ariaLabelledByProp,
+  'aria-describedby': ariaDescribedByProp,
+  'aria-live': ariaLiveProp,
+  'aria-atomic': ariaAtomicProp,
   className,
   ...rest
 }: UiStatePanelProps) {
   const role = tone === 'error' ? 'alert' : 'status';
+  const ariaLive = ariaLiveProp || (tone === 'error' ? 'assertive' : 'polite');
+  const ariaAtomic = ariaAtomicProp ?? true;
+  const generatedId = useId();
+  const panelId = id || `va-state-panel-${generatedId.replace(/:/g, '')}`;
+  const titleId = `${panelId}-title`;
+  const descriptionId = `${panelId}-description`;
+  const descriptionIsPlainText = typeof description === 'string' || typeof description === 'number';
 
   return (
     <div
+      id={panelId}
       role={role}
+      aria-live={ariaLive}
+      aria-atomic={ariaAtomic}
+      aria-labelledby={ariaLabelledByProp || titleId}
+      aria-describedby={ariaDescribedByProp || descriptionId}
       className={classNames(
         'va-state-panel',
         `is-${tone}`,
@@ -191,8 +208,14 @@ export function UiStatePanel({
       )}
       {...rest}
     >
-      <strong>{title}</strong>
-      <p>{description}</p>
+      <h3 id={titleId} className="va-state-panel-title">{title}</h3>
+      {descriptionIsPlainText ? (
+        <p id={descriptionId}>{description}</p>
+      ) : (
+        <div id={descriptionId} className="va-state-panel-description">
+          {description}
+        </div>
+      )}
       {actions ? <div className="va-state-panel-actions">{actions}</div> : null}
     </div>
   );

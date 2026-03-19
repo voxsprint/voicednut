@@ -59,7 +59,7 @@
 
 .va-top-shell {
   position: sticky;
-  top: 0;
+  top: var(--va-safe-top);
   z-index: 22;
   display: grid;
   gap: var(--app-space-3);
@@ -160,12 +160,19 @@
   background: color-mix(in srgb, var(--va-surface-strong) 82%, transparent);
 }
 
-.va-state-panel strong {
+.va-state-panel-title {
+  margin: 0;
   font-size: 0.9rem;
   letter-spacing: 0.01em;
 }
 
 .va-state-panel p {
+  margin: 0;
+  color: var(--tg-theme-hint-color, var(--va-muted));
+  font-size: 12px;
+}
+
+.va-state-panel-description {
   margin: 0;
   color: var(--tg-theme-hint-color, var(--va-muted));
   font-size: 12px;
@@ -360,7 +367,6 @@
 .va-chip:hover {
   border-color: color-mix(in srgb, var(--app-color-primary) 50%, var(--app-color-border));
   background: color-mix(in srgb, var(--va-surface) 94%, white 6%);
-  transform: translateY(-1px);
 }
 
 .va-btn:disabled,
@@ -528,6 +534,7 @@
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 90%, transparent), color-mix(in srgb, var(--va-surface-strong) 95%, transparent));
   box-shadow: var(--va-shadow);
+  cursor: pointer;
   transition:
     transform var(--app-motion-fast) var(--app-ease-standard),
     border-color var(--app-motion-fast) var(--app-ease-standard),
@@ -536,12 +543,22 @@
 
 .va-quick-action-card:hover {
   border-color: color-mix(in srgb, var(--app-color-primary) 46%, var(--app-color-border));
-  transform: translateY(-1px);
 }
 
 .va-quick-action-card.is-active {
   border-color: rgba(88, 140, 238, 0.54);
   background: color-mix(in srgb, var(--va-surface-strong) 74%, rgba(62, 95, 166, 0.3));
+}
+
+.va-quick-action-card:focus-visible {
+  border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+  box-shadow:
+    var(--va-shadow),
+    0 0 0 2px color-mix(in srgb, var(--app-color-primary) 44%, transparent);
+}
+
+.va-quick-action-card:active {
+  transform: scale(0.997);
 }
 
 .va-quick-action-glyph {
@@ -638,6 +655,11 @@
   box-shadow: var(--va-shadow);
   min-height: 78px;
   padding: var(--app-space-3);
+  cursor: pointer;
+  transition:
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    border-color var(--app-motion-fast) var(--app-ease-standard),
+    background-color var(--app-motion-fast) var(--app-ease-standard);
 }
 
 .va-launcher-card:hover {
@@ -647,6 +669,34 @@
 .va-launcher-card.is-active {
   border-color: rgba(88, 140, 238, 0.54);
   background: color-mix(in srgb, var(--va-surface-strong) 74%, rgba(62, 95, 166, 0.3));
+}
+
+.va-launcher-card:focus-visible {
+  border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+  box-shadow:
+    var(--va-shadow),
+    0 0 0 2px color-mix(in srgb, var(--app-color-primary) 44%, transparent);
+}
+
+.va-launcher-card:active {
+  transform: scale(0.997);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .va-btn:hover,
+  .va-header button:hover,
+  .va-card button:hover,
+  .va-chip:hover {
+    transform: translateY(-1px);
+  }
+
+  .va-quick-action-card:hover {
+    transform: translateY(-1px);
+  }
+
+  .va-launcher-card:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .va-launcher-glyph {
