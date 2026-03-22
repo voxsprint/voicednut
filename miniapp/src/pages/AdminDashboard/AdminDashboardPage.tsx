@@ -22,17 +22,11 @@ import {
 import {
   buildEventStreamUrl,
   isNgrokApiBase,
-  isSessionBootstrapBlockingCode,
   resolveRealtimeTransportContract,
 } from '@/services/admin-dashboard/dashboardTransport';
 import {
   createDashboardApiClient,
 } from '@/services/admin-dashboard/dashboardApiClient';
-import {
-  validateBootstrapPayload,
-  validatePollPayload,
-  validateStreamPayload,
-} from '@/services/admin-dashboard/dashboardApiContracts';
 import { buildDashboardVm } from '@/services/admin-dashboard/dashboardVm/buildDashboardVm';
 import { buildGovernanceVmSection } from '@/services/admin-dashboard/dashboardVm/buildGovernanceVmSection';
 import { buildMailerVmSection } from '@/services/admin-dashboard/dashboardVm/buildMailerVmSection';
@@ -110,8 +104,10 @@ import {
 import { useDashboardHaptic } from '@/hooks/admin-dashboard/useDashboardHaptic';
 import { useDashboardNotice } from '@/hooks/admin-dashboard/useDashboardNotice';
 import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPollingLoop';
+import { useDashboardRecipientsImport } from '@/hooks/admin-dashboard/useDashboardRecipientsImport';
 import { useDashboardSessionControls } from '@/hooks/admin-dashboard/useDashboardSessionControls';
 import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardKeyboardShortcuts';
+import { useDashboardSyncLoaders } from '@/hooks/admin-dashboard/useDashboardSyncLoaders';
 import {
   createDefaultProviderSwitchPlanByChannel,
 } from '@/hooks/admin-dashboard/providerSwitchPlanState';
@@ -134,8 +130,6 @@ import {
   asRunbooks,
   asStringList,
   createActionRequestMeta,
-  getDashboardErrorCode,
-  isAbortError,
 } from '@/pages/AdminDashboard/dashboardPayloadHelpers';
 import {
   FEATURE_FLAG_REGISTRY,
@@ -154,6 +148,16 @@ import {
 } from '@/pages/AdminDashboard/dashboardShellHelpers';
 import { resolveDashboardFixtureRequest } from '@/pages/AdminDashboard/dashboardFixtureData';
 import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
+import type {
+  CallScriptSimulationPayload,
+  CallScriptsPayload,
+  DashboardApiPayload,
+  MiniAppAuditPayload,
+  MiniAppIncidentsPayload,
+  MiniAppSessionSummary,
+  MiniAppUsersPayload,
+  SessionState,
+} from '@/pages/AdminDashboard/dashboardPayloadTypes';
 
 const POLL_BASE_INTERVAL_MS = 10000;
 const POLL_MAX_INTERVAL_MS = 60000;
@@ -177,179 +181,6 @@ const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 const SESSION_REFRESH_RETRY_COUNT = 1;
 const DASHBOARD_DEV_FIXTURES_ENABLED = import.meta.env.DEV && ['1', 'true', 'yes']
   .includes(String(import.meta.env.VITE_ADMIN_DASHBOARD_DEV_FIXTURES || '').trim().toLowerCase());
-
-interface SessionStateUser {
-  username?: unknown;
-  firstName?: unknown;
-  first_name?: unknown;
-  lastName?: unknown;
-  last_name?: unknown;
-  photoUrl?: unknown;
-  photo_url?: unknown;
-  id?: unknown;
-}
-
-interface SessionState {
-  user?: SessionStateUser;
-}
-
-interface ProviderChannelData {
-  provider?: unknown;
-  supported_providers?: unknown;
-  readiness?: unknown;
-}
-
-interface ProviderPayload {
-  providers?: Partial<Record<ProviderChannel, ProviderChannelData>>;
-}
-
-interface SmsSummary {
-  totalRecipients?: unknown;
-  totalSuccessful?: unknown;
-  totalFailed?: unknown;
-}
-
-interface SmsPayload {
-  summary?: SmsSummary;
-}
-
-interface EmailStats {
-  total_recipients?: unknown;
-  sent?: unknown;
-  failed?: unknown;
-  delivered?: unknown;
-  bounced?: unknown;
-  complained?: unknown;
-  suppressed?: unknown;
-}
-
-interface EmailStatsPayload {
-  stats?: EmailStats;
-}
-
-interface EmailHistoryPayload {
-  jobs?: unknown;
-}
-
-interface DlqPayload {
-  call_open?: unknown;
-  email_open?: unknown;
-  call_preview?: unknown;
-  email_preview?: unknown;
-}
-
-interface CallStatsPayload {
-  total_calls?: unknown;
-  completed_calls?: unknown;
-  failed_calls?: unknown;
-  success_rate?: unknown;
-  recent_calls?: unknown;
-  unique_users?: unknown;
-}
-
-interface CallLogsPayload {
-  rows?: unknown;
-  total?: unknown;
-  limit?: unknown;
-  offset?: unknown;
-}
-
-interface VoiceRuntimePayload {
-  runtime?: unknown;
-  active_calls?: unknown;
-  actions?: unknown;
-  applied?: unknown;
-}
-
-interface CallScriptSimulationPayload {
-  simulation?: unknown;
-}
-
-interface CallScriptsPayload {
-  scripts?: unknown;
-  total?: unknown;
-  limit?: unknown;
-  flow_types?: unknown;
-}
-
-interface OpsQueueBacklogPayload {
-  total?: unknown;
-  dlq_call_open?: unknown;
-  dlq_email_open?: unknown;
-  sms_failed?: unknown;
-  email_failed?: unknown;
-}
-
-interface OpsPayload {
-  queue_backlog?: OpsQueueBacklogPayload;
-  status?: unknown;
-  health?: unknown;
-  qa?: unknown;
-}
-
-interface MiniAppUsersPayload {
-  rows?: unknown;
-  total?: unknown;
-}
-
-interface MiniAppAuditPayload {
-  rows?: unknown;
-  summary?: unknown;
-  hours?: unknown;
-}
-
-interface MiniAppIncidentsPayload {
-  alerts?: unknown;
-  total_alerts?: unknown;
-  runbooks?: unknown;
-  summary?: unknown;
-}
-
-interface DashboardPayload {
-  session?: unknown;
-  provider?: ProviderPayload;
-  provider_compatibility?: unknown;
-  module_layout?: unknown;
-  modules?: unknown;
-  feature_flags?: unknown;
-  flags?: unknown;
-  sms_bulk?: SmsPayload;
-  sms_stats?: unknown;
-  email_bulk_stats?: EmailStatsPayload;
-  email_bulk_history?: EmailHistoryPayload;
-  dlq?: DlqPayload;
-  call_logs?: CallLogsPayload;
-  call_scripts?: CallScriptsPayload;
-  call_stats?: CallStatsPayload;
-  voice_runtime?: VoiceRuntimePayload;
-  users?: MiniAppUsersPayload;
-  audit?: MiniAppAuditPayload;
-  incidents?: MiniAppIncidentsPayload;
-  ops?: OpsPayload;
-  bridge?: unknown;
-}
-
-interface DashboardApiPayload extends DashboardPayload {
-  success?: boolean;
-  dashboard?: DashboardPayload;
-  session?: unknown;
-  bridge?: unknown;
-  module_layout?: unknown;
-  modules?: unknown;
-  feature_flags?: unknown;
-  flags?: unknown;
-  poll_interval_seconds?: unknown;
-  poll_at?: unknown;
-  server_time?: unknown;
-}
-
-interface MiniAppSessionSummary {
-  telegram_id?: unknown;
-  role?: unknown;
-  role_source?: unknown;
-  caps?: unknown;
-  exp?: unknown;
-}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -612,191 +443,32 @@ export function AdminDashboardPage() {
     return dashboardApiClient.request<T>(path, options);
   }, [dashboardApiClient]);
 
-  const loadBootstrap = useCallback(async () => {
-    const requestSeq = bootstrapRequestSeqRef.current + 1;
-    bootstrapRequestSeqRef.current = requestSeq;
-    const requestEpoch = stateEpochRef.current + 1;
-    stateEpochRef.current = requestEpoch;
-    if (bootstrapAbortRef.current) {
-      bootstrapAbortRef.current.abort();
-    }
-    if (pollAbortRef.current) {
-      pollAbortRef.current.abort();
-    }
-    const controller = new AbortController();
-    bootstrapAbortRef.current = controller;
-    setLoading(true);
-    setError('');
-    try {
-      const rawPayload = asRecord(
-        await request<DashboardApiPayload | null>('/miniapp/bootstrap', {
-          signal: controller.signal,
-        }),
-      );
-      const bootstrapValidation = validateBootstrapPayload(rawPayload);
-      if (!bootstrapValidation.ok) {
-        throw new Error(bootstrapValidation.error);
-      }
-      if (
-        bootstrapRequestSeqRef.current !== requestSeq
-        || stateEpochRef.current !== requestEpoch
-      ) {
-        return;
-      }
-      const payload = bootstrapValidation.payload as DashboardApiPayload;
-      const now = Date.now();
-      setBootstrap(payload);
-      setPollPayload(payload);
-      setLastPollAt(now);
-      setLastSuccessfulPollAt(now);
-      setPollFailureCount(0);
-      setUsersSnapshot(payload.dashboard?.users || payload.users || null);
-      setAuditSnapshot(payload.dashboard?.audit || payload.audit || null);
-      setIncidentsSnapshot(payload.dashboard?.incidents || payload.incidents || null);
-      setCallScriptsSnapshot(payload.dashboard?.call_scripts || payload.call_scripts || null);
-      const runtimePayload = asRecord(payload.dashboard?.voice_runtime || payload.voice_runtime || {});
-      const runtime = asRecord(runtimePayload.runtime);
-      const overrideCanary = Number(runtime.canary_percent_override);
-      if (Number.isFinite(overrideCanary)) {
-        setRuntimeCanaryInput(String(Math.max(0, Math.min(100, Math.round(overrideCanary)))));
-      }
-      pushActivity('success', 'Dashboard synced', 'Bootstrap data loaded.');
-    } catch (err) {
-      if (isAbortError(err)) {
-        return;
-      }
-      if (
-        bootstrapRequestSeqRef.current !== requestSeq
-        || stateEpochRef.current !== requestEpoch
-      ) {
-        return;
-      }
-      setPollFailureCount((prev) => prev + 1);
-      const errorCodeFromError = getDashboardErrorCode(err);
-      const blockedBySession = isSessionBootstrapBlockingCode(errorCodeFromError);
-      const detail = err instanceof Error ? err.message : String(err);
-      if (blockedBySession) {
-        setError('');
-        return;
-      }
-      setError(detail);
-      pushActivity('error', 'Bootstrap failed', detail);
-    } finally {
-      if (bootstrapAbortRef.current === controller) {
-        bootstrapAbortRef.current = null;
-      }
-      if (
-        bootstrapRequestSeqRef.current === requestSeq
-        && stateEpochRef.current === requestEpoch
-      ) {
-        setLoading(false);
-      }
-    }
-  }, [pushActivity, request]);
-
-  const loadPoll = useCallback(async (): Promise<boolean> => {
-    const requestSeq = pollRequestSeqRef.current + 1;
-    pollRequestSeqRef.current = requestSeq;
-    const requestEpoch = stateEpochRef.current;
-    if (pollAbortRef.current) {
-      pollAbortRef.current.abort();
-    }
-    const controller = new AbortController();
-    pollAbortRef.current = controller;
-    const startedAt = Date.now();
-    setLastPollAt(startedAt);
-    try {
-      const rawPayload = asRecord(
-        await request<DashboardApiPayload | null>('/miniapp/jobs/poll', {
-          signal: controller.signal,
-        }),
-      );
-      const pollValidation = validatePollPayload(rawPayload);
-      if (!pollValidation.ok) {
-        throw new Error(pollValidation.error);
-      }
-      if (
-        pollRequestSeqRef.current !== requestSeq
-        || stateEpochRef.current !== requestEpoch
-      ) {
-        return false;
-      }
-      const payload = pollValidation.payload as DashboardApiPayload;
-      setError('');
-      setPollPayload(payload);
-      setPollFailureCount(0);
-      setLastSuccessfulPollAt(Date.now());
-      if (payload.users) {
-        setUsersSnapshot(payload.users);
-      }
-      if (payload.audit) {
-        setAuditSnapshot(payload.audit);
-      }
-      if (payload.incidents) {
-        setIncidentsSnapshot(payload.incidents);
-      }
-      if (pollFailureNotedRef.current) {
-        pushActivity('success', 'Live sync recovered', 'Polling resumed successfully.');
-      }
-      pollFailureNotedRef.current = false;
-      return true;
-    } catch (err) {
-      if (isAbortError(err)) {
-        return false;
-      }
-      if (
-        pollRequestSeqRef.current !== requestSeq
-        || stateEpochRef.current !== requestEpoch
-      ) {
-        return false;
-      }
-      setPollFailureCount((prev) => prev + 1);
-      const errorCodeFromError = getDashboardErrorCode(err);
-      const blockedBySession = isSessionBootstrapBlockingCode(errorCodeFromError);
-      const detail = err instanceof Error ? err.message : String(err);
-      if (blockedBySession) {
-        setError('');
-        pollFailureNotedRef.current = false;
-        return false;
-      }
-      setError(detail);
-      if (!pollFailureNotedRef.current) {
-        pushActivity('error', 'Live sync degraded', detail);
-      }
-      pollFailureNotedRef.current = true;
-      return false;
-    } finally {
-      if (pollAbortRef.current === controller) {
-        pollAbortRef.current = null;
-      }
-    }
-  }, [pushActivity, request]);
-
-  const applyStreamPayload = useCallback((raw: unknown): boolean => {
-    const envelope = asRecord(raw);
-    const candidate = asRecord(envelope.payload ?? envelope.data ?? raw);
-    const streamValidation = validateStreamPayload(candidate);
-    if (!streamValidation.ok) {
-      return false;
-    }
-    const nextPayload = streamValidation.payload as DashboardApiPayload;
-    setPollPayload((prev) => ({
-      ...(asRecord(prev) as DashboardApiPayload),
-      ...nextPayload,
-    }));
-    setLastSuccessfulPollAt(Date.now());
-    setPollFailureCount(0);
-    setError('');
-
-    const dashboardFromPayload = nextPayload.dashboard;
-    const usersFromPayload = nextPayload.users || dashboardFromPayload?.users;
-    const auditFromPayload = nextPayload.audit || dashboardFromPayload?.audit;
-    const incidentsFromPayload = nextPayload.incidents || dashboardFromPayload?.incidents;
-    if (usersFromPayload) setUsersSnapshot(usersFromPayload);
-    if (auditFromPayload) setAuditSnapshot(auditFromPayload);
-    if (incidentsFromPayload) setIncidentsSnapshot(incidentsFromPayload);
-    return true;
-  }, []);
+  const {
+    loadBootstrap,
+    loadPoll,
+    applyStreamPayload,
+  } = useDashboardSyncLoaders({
+    request,
+    pushActivity,
+    stateEpochRef,
+    bootstrapRequestSeqRef,
+    pollRequestSeqRef,
+    bootstrapAbortRef,
+    pollAbortRef,
+    pollFailureNotedRef,
+    setLoading,
+    setError,
+    setPollFailureCount,
+    setBootstrap,
+    setPollPayload,
+    setLastPollAt,
+    setLastSuccessfulPollAt,
+    setUsersSnapshot,
+    setAuditSnapshot,
+    setIncidentsSnapshot,
+    setCallScriptsSnapshot,
+    setRuntimeCanaryInput,
+  });
 
   const createActionMeta = useCallback((action: string): ActionRequestMeta => (
     createActionRequestMeta(action, activeModule)
@@ -1230,22 +902,11 @@ export function AdminDashboardPage() {
     providerMatrixRows,
   });
 
-  const handleRecipientsFile = useCallback(async (
-    file: File | null,
-    kind: 'sms' | 'mailer',
-  ): Promise<void> => {
-    if (!file) return;
-    const text = await file.text().catch(() => '');
-    if (!text.trim()) return;
-    const combined = text.replace(/[,\t;]/g, '\n');
-    if (kind === 'sms') {
-      setSmsRecipientsInput((prev) => `${prev}${prev ? '\n' : ''}${combined}`.trim());
-      pushActivity('info', 'CSV imported', 'SMS recipient list imported from file.');
-      return;
-    }
-    setMailerRecipientsInput((prev) => `${prev}${prev ? '\n' : ''}${combined}`.trim());
-    pushActivity('info', 'CSV imported', 'Mailer recipient list imported from file.');
-  }, [pushActivity]);
+  const { handleRecipientsFile } = useDashboardRecipientsImport({
+    setSmsRecipientsInput,
+    setMailerRecipientsInput,
+    pushActivity,
+  });
 
   const {
     refreshUsersModule,

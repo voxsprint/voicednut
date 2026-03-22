@@ -61,8 +61,10 @@ function main() {
     'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
     'src/hooks/admin-dashboard/useDashboardNotice.ts',
     'src/hooks/admin-dashboard/useDashboardProviderSwitchDefaults.ts',
+    'src/hooks/admin-dashboard/useDashboardRecipientsImport.ts',
     'src/hooks/admin-dashboard/useDashboardSessionControls.ts',
     'src/hooks/admin-dashboard/useDashboardStoredPrefs.ts',
+    'src/hooks/admin-dashboard/useDashboardSyncLoaders.ts',
     'src/hooks/admin-dashboard/useDashboardTelegramButtons.ts',
     'src/hooks/admin-dashboard/useDashboardWorkspaceRouteSync.ts',
     'src/hooks/admin-dashboard/providerSwitchPlanState.ts',
@@ -74,6 +76,7 @@ function main() {
     'src/services/admin-dashboard/dashboardVm/buildMailerVmSection.ts',
     'src/services/admin-dashboard/dashboardVm/buildProviderVmSection.ts',
     'src/services/admin-dashboard/dashboardVm/buildGovernanceVmSection.ts',
+    'src/pages/AdminDashboard/dashboardPayloadTypes.ts',
     'src/pages/AdminDashboard/vmSelectors.ts',
     'src/components/admin-dashboard/DashboardOverviewMetrics.tsx',
     'src/components/admin-dashboard/DashboardShellFrame.tsx',
@@ -106,14 +109,15 @@ function main() {
 
   expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'validateDashboardActionPayload');
   expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'validateActionEnvelope');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validateBootstrapPayload');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validatePollPayload');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validateStreamPayload');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validateBootstrapPayload');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validatePollPayload');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validateStreamPayload');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardAbortCleanup');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardActivityFeed');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardAuthRefs');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardHaptic');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardNotice');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardSyncLoaders');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardProviderSwitchDefaults');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardSessionControls');
   expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'isSessionCacheEntryExpired');
