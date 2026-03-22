@@ -53,6 +53,7 @@ function main() {
     'src/hooks/admin-dashboard/useDashboardActions.ts',
     'src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts',
     'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
+    'src/hooks/admin-dashboard/useDashboardStoredPrefs.ts',
     'src/services/admin-dashboard/dashboardApiContracts.ts',
     'src/services/admin-dashboard/dashboardActionGuards.ts',
     'src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts',

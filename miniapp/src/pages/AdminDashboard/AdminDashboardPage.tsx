@@ -69,6 +69,12 @@ import {
   useDashboardCallScriptActions,
 } from '@/hooks/admin-dashboard/useDashboardCallScriptActions';
 import {
+  useDashboardCallScriptSelectionSync,
+} from '@/hooks/admin-dashboard/useDashboardCallScriptSelectionSync';
+import {
+  useDashboardStoredPrefs,
+} from '@/hooks/admin-dashboard/useDashboardStoredPrefs';
+import {
   useDashboardRuntimeControls,
 } from '@/hooks/admin-dashboard/useDashboardRuntimeControls';
 import {
@@ -142,7 +148,6 @@ const API_BASE_URL = String(
 const API_BASE_IS_NGROK = isNgrokApiBase(API_BASE_URL);
 const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 const SESSION_REFRESH_RETRY_COUNT = 1;
-const DASHBOARD_PREFS_STORAGE_KEY = 'voxly-miniapp-dashboard-prefs';
 const DASHBOARD_DEV_FIXTURES_ENABLED = import.meta.env.DEV && ['1', 'true', 'yes']
   .includes(String(import.meta.env.VITE_ADMIN_DASHBOARD_DEV_FIXTURES || '').trim().toLowerCase());
 type ProviderChannel = 'call' | 'sms' | 'email';
@@ -272,13 +277,6 @@ interface MiniAppIncidentsPayload {
   total_alerts?: unknown;
   runbooks?: unknown;
   summary?: unknown;
-}
-
-interface DashboardStoredPrefs {
-  active_module?: unknown;
-  user_search?: unknown;
-  user_sort_by?: unknown;
-  user_sort_dir?: unknown;
 }
 
 interface DashboardPayload {
@@ -664,48 +662,18 @@ export function AdminDashboardPage() {
     ]);
   }, [bootstrap, initDataState, pollPayload]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(DASHBOARD_PREFS_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as DashboardStoredPrefs | null;
-      if (!parsed || typeof parsed !== 'object') return;
-      const storedModule = typeof parsed.active_module === 'string'
-        ? parsed.active_module.trim().toLowerCase()
-        : '';
-      if (MODULE_ID_SET.has(storedModule as DashboardModule)) {
-        setActiveModule(storedModule as DashboardModule);
-        initialServerModuleAppliedRef.current = true;
-      }
-      setUserSearch(typeof parsed.user_search === 'string' ? parsed.user_search : '');
-      const sortBy = typeof parsed.user_sort_by === 'string' ? parsed.user_sort_by : 'last_activity';
-      if (sortBy === 'last_activity' || sortBy === 'total_calls' || sortBy === 'role') {
-        setUserSortBy(sortBy);
-      }
-      const sortDir = typeof parsed.user_sort_dir === 'string' ? parsed.user_sort_dir : 'desc';
-      if (sortDir === 'asc' || sortDir === 'desc') {
-        setUserSortDir(sortDir);
-      }
-    } catch {
-      // Ignore invalid persisted dashboard preferences.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const payload = {
-      active_module: activeModule,
-      user_search: userSearch,
-      user_sort_by: userSortBy,
-      user_sort_dir: userSortDir,
-    };
-    try {
-      window.localStorage.setItem(DASHBOARD_PREFS_STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // Ignore local storage failures in constrained clients.
-    }
-  }, [activeModule, userSearch, userSortBy, userSortDir]);
+  useDashboardStoredPrefs({
+    activeModule,
+    userSearch,
+    userSortBy,
+    userSortDir,
+    setActiveModule,
+    setUserSearch,
+    setUserSortBy,
+    setUserSortDir,
+    moduleIdSet: MODULE_ID_SET,
+    initialServerModuleAppliedRef,
+  });
 
   useEffect(() => {
     if (workspaceRoute === 'settings') {
@@ -1315,31 +1283,26 @@ export function AdminDashboardPage() {
     isTypingTarget,
   });
 
-  useEffect(() => {
-    if (callScripts.length === 0) {
-      setSelectedCallScriptId(0);
-      return;
-    }
-    if (!callScripts.some((script) => toInt(script.id) === selectedCallScriptId)) {
-      setSelectedCallScriptId(toInt(callScripts[0]?.id));
-    }
-  }, [callScripts, selectedCallScriptId]);
   const selectedCallScript = selectCallScriptByIdMemoized({
     callScripts,
     selectedCallScriptId,
     toInt,
   });
-
-  useEffect(() => {
-    if (!selectedCallScript) return;
-    setScriptNameInput(toText(selectedCallScript.name, ''));
-    setScriptDescriptionInput(toText(selectedCallScript.description, ''));
-    setScriptDefaultProfileInput(toText(selectedCallScript.default_profile, ''));
-    setScriptPromptInput(toText(selectedCallScript.prompt, ''));
-    setScriptFirstMessageInput(toText(selectedCallScript.first_message, ''));
-    const tags = asStringList(selectedCallScript.objective_tags);
-    setScriptObjectiveTagsInput(tags.join(', '));
-  }, [selectedCallScript]);
+  useDashboardCallScriptSelectionSync({
+    callScripts,
+    selectedCallScriptId,
+    setSelectedCallScriptId,
+    selectedCallScript,
+    setScriptNameInput,
+    setScriptDescriptionInput,
+    setScriptDefaultProfileInput,
+    setScriptPromptInput,
+    setScriptFirstMessageInput,
+    setScriptObjectiveTagsInput,
+    toInt,
+    toText,
+    asStringList,
+  });
 
   const {
     smsTotalRecipients,
