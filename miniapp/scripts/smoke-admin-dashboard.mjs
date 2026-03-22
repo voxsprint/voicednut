@@ -61,6 +61,7 @@ function main() {
     'src/services/admin-dashboard/dashboardVm/buildGovernanceVmSection.ts',
     'src/pages/AdminDashboard/vmSelectors.ts',
     'src/components/admin-dashboard/DashboardOverviewMetrics.tsx',
+    'src/components/admin-dashboard/DashboardShellFrame.tsx',
     'src/components/admin-dashboard/DashboardTopShell.tsx',
     'src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx',
     'src/components/admin-dashboard/DashboardViewStage.tsx',
@@ -124,6 +125,7 @@ function main() {
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'parseWorkspaceRoute');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "location.hash.replace(/^#/, '')");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardShellFrame');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardTopShell');
   expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'className="va-overview-launcher"');
   expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'id={`va-launcher-module-${module.id}`}');

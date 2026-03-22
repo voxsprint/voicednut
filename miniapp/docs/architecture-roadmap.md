@@ -124,6 +124,7 @@ Done:
 - Action dialog rendering extracted to `src/components/admin-dashboard/DashboardActionDialog.tsx`.
 - View-stage branching (session blocked, overview, focused module) extracted to `src/components/admin-dashboard/DashboardViewStage.tsx`.
 - Top-shell orchestration (overview/focused header + status rail) extracted to `src/components/admin-dashboard/DashboardTopShell.tsx`.
+- Shell frame wrapper (`<main>`, skip-link, and live-region) extracted to `src/components/admin-dashboard/DashboardShellFrame.tsx`.
 
 Next:
 - Continue Phase B composition cleanup by shrinking `AdminDashboardPage.tsx` orchestration surface.

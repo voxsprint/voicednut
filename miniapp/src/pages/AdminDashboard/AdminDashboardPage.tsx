@@ -8,6 +8,7 @@ import {
   resolveDashboardDialogDismissValue,
 } from '@/components/admin-dashboard/DashboardActionDialog';
 import { ProviderChannelCard } from '@/components/admin-dashboard/ProviderChannelCard';
+import { DashboardShellFrame } from '@/components/admin-dashboard/DashboardShellFrame';
 import { DashboardSettingsStage } from '@/components/admin-dashboard/DashboardSettingsStage';
 import { DashboardTopShell } from '@/components/admin-dashboard/DashboardTopShell';
 import { DashboardViewStage } from '@/components/admin-dashboard/DashboardViewStage';
@@ -2049,13 +2050,11 @@ export function AdminDashboardPage() {
 
   return (
     <>
-      <main className="va-dashboard" aria-busy={loading}>
-        <a className="va-skip-link" href="#va-view-stage-root">Skip to active content</a>
-        <p className="va-sr-only" role="status" aria-live="polite" aria-atomic="true">
-          {settingsOpen
-            ? 'Settings panel active.'
-            : `${activeModuleLabel} module active.`}
-        </p>
+      <DashboardShellFrame
+        loading={loading}
+        settingsOpen={settingsOpen}
+        activeModuleLabel={activeModuleLabel}
+      >
         <DashboardTopShell
           settingsOpen={settingsOpen}
           showOverviewMode={showOverviewMode}
@@ -2134,11 +2133,11 @@ export function AdminDashboardPage() {
         onSelectModule={selectModule}
         moduleVm={moduleVm}
         hasCapability={hasCapability}
-        moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
-        moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
-        onReload={handleRefresh}
-      />
-      </main>
+          moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
+          moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
+          onReload={handleRefresh}
+        />
+      </DashboardShellFrame>
       <DashboardActionDialog
         dialogState={dialogState}
         dialogInputValue={dialogInputValue}
