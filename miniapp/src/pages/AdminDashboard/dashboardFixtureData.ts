@@ -1,0 +1,330 @@
+import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
+
+const DASHBOARD_ALL_CAPS = [
+  'dashboard_view',
+  'sms_bulk_manage',
+  'email_bulk_manage',
+  'provider_manage',
+  'caller_flags_manage',
+  'users_manage',
+] as const;
+
+const DASHBOARD_ALL_MODULES = [
+  'ops',
+  'sms',
+  'mailer',
+  'provider',
+  'content',
+  'calllog',
+  'callerflags',
+  'scriptsparity',
+  'messaging',
+  'persona',
+  'users',
+  'audit',
+] as const;
+
+function createDashboardFixturePayload(nowIso: string): Record<string, unknown> {
+  return {
+    success: true,
+    poll_interval_seconds: 15,
+    poll_at: nowIso,
+    server_time: nowIso,
+    session: {
+      telegram_id: 1,
+      role: 'admin',
+      role_source: 'dev_fixture',
+      caps: [...DASHBOARD_ALL_CAPS],
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    module_layout: {
+      active_module: 'ops',
+      modules: DASHBOARD_ALL_MODULES.map((id, index) => ({ id, enabled: true, order: index })),
+    },
+    provider: {
+      providers: {
+        call: {
+          provider: 'twilio',
+          supported_providers: ['twilio', 'vonage'],
+          readiness: { twilio: 'ready', vonage: 'ready' },
+        },
+        sms: {
+          provider: 'twilio',
+          supported_providers: ['twilio', 'vonage'],
+          readiness: { twilio: 'ready', vonage: 'ready' },
+        },
+        email: {
+          provider: 'ses',
+          supported_providers: ['ses', 'sendgrid'],
+          readiness: { ses: 'ready', sendgrid: 'ready' },
+        },
+      },
+    },
+    provider_compatibility: {
+      channels: {
+        call: {
+          twilio: { ready: true, degraded: false, parity_gaps: [] },
+          vonage: { ready: true, degraded: false, parity_gaps: [] },
+        },
+        sms: {
+          twilio: { ready: true, degraded: false, parity_gaps: [] },
+          vonage: { ready: true, degraded: false, parity_gaps: [] },
+        },
+        email: {
+          ses: { ready: true, degraded: false, parity_gaps: [] },
+          sendgrid: { ready: true, degraded: false, parity_gaps: [] },
+        },
+      },
+    },
+    sms_bulk: {
+      summary: {
+        totalRecipients: 0,
+        totalSuccessful: 0,
+        totalFailed: 0,
+      },
+    },
+    email_bulk_stats: {
+      stats: {
+        total_recipients: 0,
+        sent: 0,
+        failed: 0,
+        delivered: 0,
+        bounced: 0,
+        complained: 0,
+        suppressed: 0,
+      },
+    },
+    email_bulk_history: { jobs: [] },
+    dlq: {
+      call_open: 0,
+      email_open: 0,
+      call_preview: [],
+      email_preview: [],
+    },
+    call_logs: {
+      rows: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    },
+    call_scripts: {
+      scripts: [
+        {
+          id: 1,
+          name: 'Welcome Script',
+          description: 'Default fixture script for local QA flows.',
+          prompt: 'You are a helpful assistant.',
+          first_message: 'Hello, this is the fixture flow.',
+          default_profile: 'default',
+          objective_tags: ['support'],
+          flow_type: 'default',
+          lifecycle_state: 'draft',
+          version: 1,
+        },
+      ],
+      total: 1,
+      limit: 20,
+      flow_types: ['default'],
+    },
+    call_stats: {
+      total_calls: 0,
+      completed_calls: 0,
+      failed_calls: 0,
+      success_rate: 100,
+      recent_calls: 0,
+      unique_users: 0,
+    },
+    voice_runtime: {
+      runtime: {
+        effective_mode: 'legacy',
+        configured_mode: 'legacy',
+        mode_override: 'none',
+        effective_canary_percent: 0,
+        canary_percent_override: null,
+        circuit: {
+          is_open: false,
+          forced_legacy_until: null,
+        },
+      },
+      active_calls: {
+        total: 0,
+        legacy: 0,
+        voice_agent: 0,
+      },
+      actions: [],
+      applied: [],
+    },
+    users: {
+      rows: [
+        {
+          telegram_id: 1,
+          role: 'admin',
+          role_source: 'dev_fixture',
+          total_calls: 0,
+          successful_calls: 0,
+          failed_calls: 0,
+          last_activity: nowIso,
+        },
+      ],
+      total: 1,
+    },
+    audit: {
+      rows: [
+        {
+          id: 'fixture-audit-1',
+          service_name: 'miniapp',
+          status: 'ok',
+          details: 'Fixture audit event',
+          timestamp: nowIso,
+        },
+      ],
+      summary: {
+        total: 1,
+      },
+      hours: 24,
+    },
+    incidents: {
+      alerts: [],
+      total_alerts: 0,
+      runbooks: [
+        { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+      ],
+      summary: {
+        open: 0,
+      },
+    },
+    ops: {
+      queue_backlog: {
+        total: 0,
+        dlq_call_open: 0,
+        dlq_email_open: 0,
+        sms_failed: 0,
+        email_failed: 0,
+      },
+      status: 'healthy',
+      health: 'ok',
+      qa: {
+        window_hours: 168,
+        totals: {
+          total: 12,
+          passed: 10,
+          pass_rate: 83.33,
+          avg_score: 91.2,
+          scored: 12,
+          insufficient_transcript: 0,
+          skipped: 0,
+        },
+        top_findings: [
+          { finding: 'Long hold time before first response', count: 2 },
+          { finding: 'Compliance disclosure delayed', count: 1 },
+        ],
+        profile_breakdown: [
+          {
+            profile: 'customer_support',
+            total: 8,
+            passed: 7,
+            pass_rate: 87.5,
+            avg_score: 92.1,
+          },
+          {
+            profile: 'lead_qualification',
+            total: 4,
+            passed: 3,
+            pass_rate: 75,
+            avg_score: 89.5,
+          },
+        ],
+        trend_bucket: 'day',
+        trend_series: [
+          { bucket: '2026-03-12', total: 1, passed: 1, pass_rate: 100, avg_score: 94 },
+          { bucket: '2026-03-13', total: 2, passed: 2, pass_rate: 100, avg_score: 93.5 },
+          { bucket: '2026-03-14', total: 2, passed: 1, pass_rate: 50, avg_score: 82 },
+          { bucket: '2026-03-15', total: 1, passed: 1, pass_rate: 100, avg_score: 95 },
+          { bucket: '2026-03-16', total: 3, passed: 2, pass_rate: 66.67, avg_score: 88 },
+          { bucket: '2026-03-17', total: 2, passed: 2, pass_rate: 100, avg_score: 96 },
+          { bucket: '2026-03-18', total: 1, passed: 1, pass_rate: 100, avg_score: 90 },
+        ],
+        profile_thresholds: {
+          default: 70,
+          customer_support: 85,
+          lead_qualification: 90,
+        },
+        low_score_calls: [],
+        updated_at: nowIso,
+      },
+    },
+    bridge: {
+      hard_failures: 0,
+      soft_failures: 0,
+    },
+  };
+}
+
+function resolveDashboardFixtureActionData(action: string, nowIso: string): Record<string, unknown> {
+  switch (action) {
+    case 'users.list':
+      return {
+        rows: [
+          {
+            telegram_id: 1,
+            role: 'admin',
+            role_source: 'dev_fixture',
+            total_calls: 0,
+            successful_calls: 0,
+            failed_calls: 0,
+            last_activity: nowIso,
+          },
+        ],
+        total: 1,
+      };
+    case 'audit.feed':
+      return {
+        rows: [
+          {
+            id: 'fixture-audit-1',
+            service_name: 'miniapp',
+            status: 'ok',
+            details: 'Fixture audit event',
+            timestamp: nowIso,
+          },
+        ],
+        summary: { total: 1 },
+        hours: 24,
+      };
+    case 'incidents.summary':
+      return {
+        alerts: [],
+        total_alerts: 0,
+        runbooks: [
+          { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+        ],
+        summary: { open: 0 },
+      };
+    case 'provider.preflight':
+      return { success: true, result: 'ok' };
+    default:
+      return { success: true, applied_at: nowIso };
+  }
+}
+
+export function resolveDashboardFixtureRequest(path: string, options: RequestInit = {}): unknown {
+  const nowIso = new Date().toISOString();
+  if (path === '/miniapp/bootstrap' || path === '/miniapp/jobs/poll') {
+    return createDashboardFixturePayload(nowIso);
+  }
+  if (path === '/miniapp/action') {
+    const rawBody = typeof options.body === 'string' ? options.body : '{}';
+    let parsedBody: Record<string, unknown> = {};
+    try {
+      parsedBody = asRecord(JSON.parse(rawBody));
+    } catch {
+      parsedBody = {};
+    }
+    const action = toText(parsedBody.action, '');
+    return {
+      success: true,
+      data: resolveDashboardFixtureActionData(action, nowIso),
+    };
+  }
+  return { success: true };
+}

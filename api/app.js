@@ -6935,6 +6935,7 @@ function validateMiniAppInitDataWithCandidates(initDataRaw, options = {}) {
     try {
       const validation = validateInitData(initDataRaw, candidate, {
         maxAgeSeconds: options.maxAgeSeconds,
+        maxAgeGraceSeconds: options.maxAgeGraceSeconds,
       });
       return {
         ...validation,
@@ -18569,6 +18570,34 @@ app.post("/miniapp/session", async (req, res) => {
   try {
     const validation = validateMiniAppInitDataWithCandidates(initDataRaw, {
       botTokens: botTokenCandidates,
+      maxAgeSeconds: config.miniApp?.initDataMaxAgeSeconds,
+      maxAgeGraceSeconds: config.miniApp?.initDataExpiryGraceSeconds,
+    });
+    const initDataAcceptedWithGrace = Boolean(validation.acceptedWithGrace);
+    if (initDataAcceptedWithGrace) {
+      console.warn("miniapp_init_data_expiry_grace_applied", {
+        route: "session",
+        request_id: req.requestId || null,
+        source: initDataSource,
+        age_seconds: Number.isFinite(Number(validation.ageSeconds))
+          ? Math.floor(Number(validation.ageSeconds))
+          : null,
+        max_age_seconds: Number.isFinite(Number(validation.maxAgeSeconds))
+          ? Math.floor(Number(validation.maxAgeSeconds))
+          : null,
+        grace_seconds: Number.isFinite(Number(validation.maxAgeGraceSeconds))
+          ? Math.floor(Number(validation.maxAgeGraceSeconds))
+          : null,
+        expired_by_seconds: Number.isFinite(Number(validation.expiredBySeconds))
+          ? Math.floor(Number(validation.expiredBySeconds))
+          : null,
+      });
+    }
+    setMiniAppTelemetryContext(res, {
+      init_data_age_seconds: Number.isFinite(Number(validation.ageSeconds))
+        ? Math.floor(Number(validation.ageSeconds))
+        : null,
+      init_data_expiry_grace_applied: initDataAcceptedWithGrace,
     });
     const userId =
       validation.user?.id || validation.chat?.id || validation.receiver?.id || null;
@@ -18641,6 +18670,12 @@ app.post("/miniapp/session", async (req, res) => {
     });
 
     const nowSeconds = Math.floor(Date.now() / 1000);
+    const sessionTtlSecondsRaw = Number(config.miniApp?.sessionTtlSeconds);
+    const sessionTtlSeconds =
+      Number.isFinite(sessionTtlSecondsRaw) && sessionTtlSecondsRaw > 0
+        ? Math.max(60, Math.floor(sessionTtlSecondsRaw))
+        : 900;
+    const expiresAtSeconds = nowSeconds + sessionTtlSeconds;
     const jti = uuidv4();
     const token = createMiniAppSessionToken(
       {
@@ -18654,16 +18689,20 @@ app.post("/miniapp/session", async (req, res) => {
         query_id: validation.queryId || null,
       },
       config.miniApp.sessionSecret,
-      { nowSeconds },
+      {
+        nowSeconds,
+        ttlSeconds: sessionTtlSeconds,
+      },
     );
 
     return res.json({
       success: true,
       token_type: "Bearer",
       token,
-      expires_in: null,
-      expires_at: null,
+      expires_in: sessionTtlSeconds,
+      expires_at: expiresAtSeconds,
       replay_detected: replayDetected,
+      init_data_refresh_recommended: initDataAcceptedWithGrace,
       session: {
         telegram_id: normalizedUserId,
         username: validation.user?.username || null,
@@ -18671,6 +18710,7 @@ app.post("/miniapp/session", async (req, res) => {
         role,
         role_source: roleSource,
         caps,
+        init_data_refresh_recommended: initDataAcceptedWithGrace,
       },
       launch_url: resolveMiniAppPublicUrl(req),
       request_id: req.requestId || null,
@@ -18727,6 +18767,78 @@ app.post("/miniapp/session", async (req, res) => {
       req.requestId || null,
     );
   }
+});
+
+app.post("/miniapp/session/refresh", requireMiniAppSession, async (req, res) => {
+  res.locals.miniAppRoute = "session_refresh";
+  if (await enforceMiniAppRateLimit(req, res, "session")) {
+    return;
+  }
+  const session = req.miniAppSession || {};
+  const telegramId = String(session.telegram_id || "").trim();
+  if (!telegramId) {
+    return sendApiError(
+      res,
+      401,
+      "miniapp_auth_invalid",
+      "Mini App session token is missing telegram_id",
+      req.requestId || null,
+    );
+  }
+  const role = resolveMiniAppUserRole(telegramId) || "viewer";
+  const caps = getMiniAppCapabilitiesForRole(role);
+  const roleSource = resolveMiniAppRoleSource(telegramId);
+  setMiniAppTelemetryContext(res, {
+    auth_role: role,
+    auth_role_source: roleSource,
+  });
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const sessionTtlSecondsRaw = Number(config.miniApp?.sessionTtlSeconds);
+  const sessionTtlSeconds =
+    Number.isFinite(sessionTtlSecondsRaw) && sessionTtlSecondsRaw > 0
+      ? Math.max(60, Math.floor(sessionTtlSecondsRaw))
+      : 900;
+  const expiresAtSeconds = nowSeconds + sessionTtlSeconds;
+  const jti = uuidv4();
+  const token = createMiniAppSessionToken(
+    {
+      jti,
+      sub: `tg:${telegramId}`,
+      telegram_id: telegramId,
+      username: session.username || null,
+      first_name: session.first_name || null,
+      role,
+      caps,
+      query_id: session.query_id || null,
+    },
+    config.miniApp.sessionSecret,
+    {
+      nowSeconds,
+      ttlSeconds: sessionTtlSeconds,
+    },
+  );
+
+  return res.json({
+    success: true,
+    token_type: "Bearer",
+    token,
+    expires_in: sessionTtlSeconds,
+    expires_at: expiresAtSeconds,
+    replay_detected: false,
+    init_data_refresh_recommended: false,
+    session: {
+      telegram_id: telegramId,
+      username: session.username || null,
+      first_name: session.first_name || null,
+      role,
+      role_source: roleSource,
+      caps,
+      init_data_refresh_recommended: false,
+    },
+    launch_url: resolveMiniAppPublicUrl(req),
+    request_id: req.requestId || null,
+  });
 });
 
 app.post("/miniapp/logout", requireMiniAppSession, async (req, res) => {

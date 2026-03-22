@@ -440,9 +440,30 @@ const miniAppAllowUnknownUsers = readBooleanEnv("MINI_APP_ALLOW_UNKNOWN_USERS", 
 const miniAppSessionTtlSeconds = Number(
   readEnv("MINI_APP_SESSION_TTL_SECONDS") || "900",
 );
-const miniAppInitDataMaxAgeSeconds = Number(
-  readEnv("MINI_APP_INITDATA_MAX_AGE_SECONDS") || "300",
+const miniAppInitDataMaxAgeRaw = String(
+  readEnv("MINI_APP_INITDATA_MAX_AGE_SECONDS") || "",
+).trim();
+const miniAppInitDataMaxAgeSeconds = Number(miniAppInitDataMaxAgeRaw || "86400");
+const miniAppInitDataMaxAgeSecondsResolved =
+  Number.isFinite(miniAppInitDataMaxAgeSeconds) &&
+  Math.floor(miniAppInitDataMaxAgeSeconds) === 300
+    ? 86400
+    : Number.isFinite(miniAppInitDataMaxAgeSeconds)
+      ? Math.max(30, Math.floor(miniAppInitDataMaxAgeSeconds))
+      : 86400;
+if (miniAppInitDataMaxAgeRaw === "300") {
+  console.warn(
+    'MINI_APP_INITDATA_MAX_AGE_SECONDS=300 detected (legacy default). Using 86400 seconds to reduce Telegram init-data expiry interruptions.',
+  );
+}
+const miniAppInitDataExpiryGraceSeconds = Number(
+  readEnv("MINI_APP_INITDATA_EXPIRY_GRACE_SECONDS") || "604800",
 );
+const miniAppInitDataExpiryGraceSecondsResolved = Number.isFinite(
+  miniAppInitDataExpiryGraceSeconds,
+)
+  ? Math.max(0, Math.min(30 * 24 * 60 * 60, Math.floor(miniAppInitDataExpiryGraceSeconds)))
+  : 604800;
 const miniAppReplayWindowSeconds = Number(
   readEnv("MINI_APP_REPLAY_WINDOW_SECONDS") || "600",
 );
@@ -1048,9 +1069,8 @@ module.exports = {
     sessionTtlSeconds: Number.isFinite(miniAppSessionTtlSeconds)
       ? Math.max(60, Math.floor(miniAppSessionTtlSeconds))
       : 900,
-    initDataMaxAgeSeconds: Number.isFinite(miniAppInitDataMaxAgeSeconds)
-      ? Math.max(30, Math.floor(miniAppInitDataMaxAgeSeconds))
-      : 300,
+    initDataMaxAgeSeconds: miniAppInitDataMaxAgeSecondsResolved,
+    initDataExpiryGraceSeconds: miniAppInitDataExpiryGraceSecondsResolved,
     replayWindowSeconds: Number.isFinite(miniAppReplayWindowSeconds)
       ? Math.max(60, Math.floor(miniAppReplayWindowSeconds))
       : 600,

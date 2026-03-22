@@ -3,10 +3,41 @@ import type { AuditRow, IncidentRow, JsonRecord, UserRow } from './types';
 type ToTextFn = (value: unknown, fallback?: string) => string;
 type ToIntFn = (value: unknown, fallback?: number) => number;
 type AsRecordFn = (value: unknown) => JsonRecord;
+type SelectorParams = Record<string, unknown>;
 
 export type UserRoleFilter = 'all' | 'admin' | 'operator' | 'viewer';
 export type UserSortBy = 'last_activity' | 'total_calls' | 'role';
 export type UserSortDir = 'asc' | 'desc';
+
+function areSelectorParamsEqual(prev: SelectorParams, next: SelectorParams): boolean {
+  const prevKeys = Object.keys(prev);
+  const nextKeys = Object.keys(next);
+  if (prevKeys.length !== nextKeys.length) return false;
+  for (const key of prevKeys) {
+    if (!Object.prototype.hasOwnProperty.call(next, key)) return false;
+    if (!Object.is(prev[key], next[key])) return false;
+  }
+  return true;
+}
+
+function createMemoizedSelector<Params extends SelectorParams, Result>(
+  selector: (params: Params) => Result,
+): (params: Params) => Result {
+  let hasCachedResult = false;
+  let cachedParams = {} as Params;
+  let cachedResult = {} as Result;
+
+  return (params: Params): Result => {
+    if (hasCachedResult && areSelectorParamsEqual(cachedParams, params)) {
+      return cachedResult;
+    }
+    const nextResult = selector(params);
+    cachedParams = params;
+    cachedResult = nextResult;
+    hasCachedResult = true;
+    return nextResult;
+  };
+}
 
 export function selectUsersRows(params: {
   usersRows: UserRow[];
@@ -219,3 +250,9 @@ export function selectAuditRows(params: {
       return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
     });
 }
+
+export const selectUsersRowsMemoized = createMemoizedSelector(selectUsersRows);
+export const selectIncidentFilterOptionsMemoized = createMemoizedSelector(selectIncidentFilterOptions);
+export const selectIncidentRowsMemoized = createMemoizedSelector(selectIncidentRows);
+export const selectAuditFilterOptionsMemoized = createMemoizedSelector(selectAuditFilterOptions);
+export const selectAuditRowsMemoized = createMemoizedSelector(selectAuditRows);

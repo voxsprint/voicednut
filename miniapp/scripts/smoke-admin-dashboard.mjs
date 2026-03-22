@@ -30,6 +30,14 @@ function expectContains(relativePath, needle) {
   );
 }
 
+function expectNotContains(relativePath, needle) {
+  const content = read(relativePath);
+  assert.ok(
+    !content.includes(needle),
+    `Expected ${relativePath} to not include: ${needle}`,
+  );
+}
+
 function parseActionGuardKeys(content) {
   const actionMapMatch = content.match(/const ACTION_GUARDS:[\s\S]*?=\s*\{([\s\S]*?)\};/);
   assert.ok(actionMapMatch, 'Could not parse ACTION_GUARDS map');
@@ -52,6 +60,9 @@ function main() {
     'src/services/admin-dashboard/dashboardVm/buildProviderVmSection.ts',
     'src/services/admin-dashboard/dashboardVm/buildGovernanceVmSection.ts',
     'src/pages/AdminDashboard/vmSelectors.ts',
+    'src/components/admin-dashboard/DashboardOverviewMetrics.tsx',
+    'src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx',
+    'src/components/admin-dashboard/DashboardViewStage.tsx',
     'src/index.css',
   ];
   requiredFiles.forEach(expectFile);
@@ -99,22 +110,25 @@ function main() {
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'onKeyDownCapture={handleSectionShortcutKeyDown}');
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'if (key !== \'/\'');
   expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'aria-keyshortcuts="Alt+R"');
-  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'Quick Queries');
-  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'clearExplorerSnapshots');
-  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'Quick Queries');
-  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'clearInvestigationSnapshots');
+  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'Search & Inspect');
+  expectContains('src/pages/AdminDashboard/CallLogExplorerPage.tsx', 'No call rows loaded');
+  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'SMS Diagnostics');
+  expectContains('src/pages/AdminDashboard/MessagingInvestigationPage.tsx', 'No SMS diagnostics loaded');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'resolveTelegramIdentity');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'va-nav-drawer-overlay');
-  expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'onOpenNavigation');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'Focus active panel search');
+  expectNotContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'va-nav-drawer-overlay');
+  expectNotContains('src/components/admin-dashboard/DashboardChrome.tsx', 'onOpenNavigation');
+  expectNotContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'Focus active panel search');
   expectContains('src/components/App.tsx', 'const adminWorkspaceRoutes = [');
   expectContains('src/components/App.tsx', "path={path} element={<AdminDashboardPage />}");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'parseWorkspaceRoute');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "location.hash.replace(/^#/, '')");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardFocusedHeader');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'className="va-overview-launcher"');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'id={`va-launcher-module-${module.id}`}');
+  expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'className="va-overview-launcher"');
+  expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'id={`va-launcher-module-${module.id}`}');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardViewStage');
+  expectContains('src/components/admin-dashboard/DashboardViewStage.tsx', '<DashboardOverviewMetrics');
+  expectContains('src/components/admin-dashboard/DashboardViewStage.tsx', '<DashboardWorkspaceLauncher');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'moduleDetail="Choose a workspace to continue."');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "if (!visibleModules.some((module) => module.id === moduleId)) return;");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "navigate(fallbackPath, { replace: true });");

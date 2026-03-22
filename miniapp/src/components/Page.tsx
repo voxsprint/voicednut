@@ -12,13 +12,20 @@ export function Page({ children, back = true }: PropsWithChildren<{
 
   useEffect(() => {
     if (back) {
-      backButton.show();
-      return backButton.onClick(() => {
-        navigate(-1);
-      });
+      backButton.show.ifAvailable();
+      const off = backButton.onClick.isAvailable()
+        ? backButton.onClick(() => {
+          navigate(-1);
+        })
+        : undefined;
+      return () => {
+        off?.();
+        backButton.hide.ifAvailable();
+      };
     }
-    backButton.hide();
-  }, [back]);
+    backButton.hide.ifAvailable();
+    return undefined;
+  }, [back, navigate]);
 
   return <>{children}</>;
 }

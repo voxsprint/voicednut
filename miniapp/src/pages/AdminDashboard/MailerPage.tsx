@@ -1,8 +1,12 @@
 import { useState } from 'react';
 
+import { buildMailerRequestState } from './moduleRequestState';
 import type { DashboardVm, EmailJob } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectMailerPageVm } from './vmSelectors';
+import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
 type MailerPageProps = {
   visible: boolean;
@@ -58,6 +62,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
     invokeAction,
     loading,
   } = selectMailerPageVm(vm);
+  const mailerRequestState = buildMailerRequestState({ loading, busyAction });
   const mailerHasRecipients = mailerRecipientsParsed.length > 0;
   const mailerHasTemplate = mailerTemplateIdInput.trim().length > 0;
   const mailerHasSubject = mailerSubjectInput.trim().length > 0;
@@ -80,51 +85,14 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
   const mailerCanSubmit = mailerMissingRequirements.length === 0;
   const [messageIdInput, setMessageIdInput] = useState<string>('');
   const [jobIdInput, setJobIdInput] = useState<string>('');
-  const [investigationBusy, setInvestigationBusy] = useState<string>('');
-  const [investigationError, setInvestigationError] = useState<string>('');
   const [messageSnapshot, setMessageSnapshot] = useState<Record<string, unknown> | null>(null);
   const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
   const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
-
-  const asRecord = (value: unknown): Record<string, unknown> => (
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? value as Record<string, unknown>
-      : {}
-  );
-  const asDisplayText = (value: unknown, fallback = ''): string => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      return trimmed ? trimmed : fallback;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-    return fallback;
-  };
-  const pickDisplayText = (values: unknown[], fallback = ''): string => {
-    for (const value of values) {
-      const next = asDisplayText(value);
-      if (next) return next;
-    }
-    return fallback;
-  };
-
-  const runInvestigationAction = async (
-    action: string,
-    payload: Record<string, unknown>,
-    onSuccess: (result: Record<string, unknown>) => void,
-  ): Promise<void> => {
-    setInvestigationBusy(action);
-    setInvestigationError('');
-    try {
-      const data = await invokeAction(action, payload);
-      onSuccess(asRecord(data));
-    } catch (error) {
-      setInvestigationError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setInvestigationBusy('');
-    }
-  };
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
 
   return (
     <>
@@ -143,17 +111,11 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
         </div>
       </section>
 
-      {loading && mailerRecipientsParsed.length === 0 ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Loading mailer telemetry"
-              description="Syncing recipient analytics, domain health, and recent delivery outcomes."
-              tone="info"
-            />
-          </UiCard>
-        </section>
-      ) : null}
+      <LoadingTelemetryCard
+        visible={mailerRequestState.isLoading && mailerRecipientsParsed.length === 0}
+        title="Loading mailer telemetry"
+        description="Syncing recipient analytics, domain health, and recent delivery outcomes."
+      />
       <section className="va-section-block">
         <header className="va-section-header">
           <h3 className="va-section-title">Compose & Queue</h3>
@@ -256,7 +218,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               </label>
               <UiButton
                 variant="primary"
-                disabled={busyAction.length > 0 || !mailerCanSubmit}
+                disabled={mailerRequestState.isBusy || !mailerCanSubmit}
                 onClick={() => { void sendMailerFromConsole(); }}
               >
                 Queue Mailer Job

@@ -1,12 +1,12 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import type { AuditRow, DashboardVm, IncidentRow, RunbookRow } from './types';
 import { selectAuditIncidentsPageVm } from './vmSelectors';
 import {
-  selectAuditFilterOptions,
-  selectAuditRows,
-  selectIncidentFilterOptions,
-  selectIncidentRows,
+  selectAuditFilterOptionsMemoized,
+  selectAuditRowsMemoized,
+  selectIncidentFilterOptionsMemoized,
+  selectIncidentRowsMemoized,
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
@@ -256,54 +256,41 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
     actorOptions: incidentActorOptions,
     moduleOptions: incidentModuleOptions,
     severityOptions: incidentSeverityOptions,
-  } = useMemo(() => selectIncidentFilterOptions({
+  } = selectIncidentFilterOptionsMemoized({
     incidentRows,
     asRecord,
     toText,
-  }), [asRecord, incidentRows, toText]);
+  });
 
-  const filteredIncidentRows = useMemo(() => {
-    return selectIncidentRows({
-      incidentRows,
-      query: incidentQuery,
-      statusFilter: incidentStatusFilter,
-      actorFilter: incidentActorFilter,
-      moduleFilter: incidentModuleFilter,
-      severityFilter: incidentSeverityFilter,
-      asRecord,
-      toText,
-    });
-  }, [
-    asRecord,
-    incidentActorFilter,
-    incidentModuleFilter,
-    incidentQuery,
+  const filteredIncidentRows = selectIncidentRowsMemoized({
     incidentRows,
-    incidentSeverityFilter,
-    incidentStatusFilter,
+    query: incidentQuery,
+    statusFilter: incidentStatusFilter,
+    actorFilter: incidentActorFilter,
+    moduleFilter: incidentModuleFilter,
+    severityFilter: incidentSeverityFilter,
+    asRecord,
     toText,
-  ]);
+  });
 
-  const filteredAuditRows = useMemo(() => {
-    return selectAuditRows({
-      auditRows,
-      query: auditQuery,
-      actorFilter: auditActorFilter,
-      moduleFilter: auditModuleFilter,
-      severityFilter: auditSeverityFilter,
-      asRecord,
-      toText,
-    });
-  }, [asRecord, auditActorFilter, auditModuleFilter, auditQuery, auditRows, auditSeverityFilter, toText]);
+  const filteredAuditRows = selectAuditRowsMemoized({
+    auditRows,
+    query: auditQuery,
+    actorFilter: auditActorFilter,
+    moduleFilter: auditModuleFilter,
+    severityFilter: auditSeverityFilter,
+    asRecord,
+    toText,
+  });
   const {
     actorOptions: auditActorOptions,
     moduleOptions: auditModuleOptions,
     severityOptions: auditSeverityOptions,
-  } = useMemo(() => selectAuditFilterOptions({
+  } = selectAuditFilterOptionsMemoized({
     auditRows,
     asRecord,
     toText,
-  }), [asRecord, auditRows, toText]);
+  });
 
   const incidentTotalPages = Math.max(1, Math.ceil(filteredIncidentRows.length / incidentPageSize));
   const auditTotalPages = Math.max(1, Math.ceil(filteredAuditRows.length / auditPageSize));

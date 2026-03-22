@@ -11,6 +11,19 @@ function pickVm<K extends keyof DashboardVm>(
   return selected;
 }
 
+function createMemoizedVmSelector<K extends keyof DashboardVm>(keys: readonly K[]) {
+  const cache = new WeakMap<DashboardVm, Pick<DashboardVm, K>>();
+  return (vm: DashboardVm): Pick<DashboardVm, K> => {
+    const cached = cache.get(vm);
+    if (cached) {
+      return cached;
+    }
+    const selected = pickVm(vm, keys);
+    cache.set(vm, selected);
+    return selected;
+  };
+}
+
 const OPS_VM_KEYS = [
   'isFeatureEnabled',
   'isDashboardDegraded',
@@ -269,30 +282,38 @@ export type ScriptStudioPageVm = Pick<DashboardVm, typeof SCRIPT_STUDIO_VM_KEYS[
 export type UsersRolePageVm = Pick<DashboardVm, typeof USERS_ROLE_VM_KEYS[number]>;
 export type AuditIncidentsPageVm = Pick<DashboardVm, typeof AUDIT_INCIDENTS_VM_KEYS[number]>;
 
+const selectOpsPageVmMemoized = createMemoizedVmSelector(OPS_VM_KEYS);
+const selectSmsPageVmMemoized = createMemoizedVmSelector(SMS_VM_KEYS);
+const selectMailerPageVmMemoized = createMemoizedVmSelector(MAILER_VM_KEYS);
+const selectProviderPageVmMemoized = createMemoizedVmSelector(PROVIDER_VM_KEYS);
+const selectScriptStudioPageVmMemoized = createMemoizedVmSelector(SCRIPT_STUDIO_VM_KEYS);
+const selectUsersRolePageVmMemoized = createMemoizedVmSelector(USERS_ROLE_VM_KEYS);
+const selectAuditIncidentsPageVmMemoized = createMemoizedVmSelector(AUDIT_INCIDENTS_VM_KEYS);
+
 export function selectOpsPageVm(vm: DashboardVm): OpsPageVm {
-  return pickVm(vm, OPS_VM_KEYS);
+  return selectOpsPageVmMemoized(vm);
 }
 
 export function selectSmsPageVm(vm: DashboardVm): SmsPageVm {
-  return pickVm(vm, SMS_VM_KEYS);
+  return selectSmsPageVmMemoized(vm);
 }
 
 export function selectMailerPageVm(vm: DashboardVm): MailerPageVm {
-  return pickVm(vm, MAILER_VM_KEYS);
+  return selectMailerPageVmMemoized(vm);
 }
 
 export function selectProviderPageVm(vm: DashboardVm): ProviderPageVm {
-  return pickVm(vm, PROVIDER_VM_KEYS);
+  return selectProviderPageVmMemoized(vm);
 }
 
 export function selectScriptStudioPageVm(vm: DashboardVm): ScriptStudioPageVm {
-  return pickVm(vm, SCRIPT_STUDIO_VM_KEYS);
+  return selectScriptStudioPageVmMemoized(vm);
 }
 
 export function selectUsersRolePageVm(vm: DashboardVm): UsersRolePageVm {
-  return pickVm(vm, USERS_ROLE_VM_KEYS);
+  return selectUsersRolePageVmMemoized(vm);
 }
 
 export function selectAuditIncidentsPageVm(vm: DashboardVm): AuditIncidentsPageVm {
-  return pickVm(vm, AUDIT_INCIDENTS_VM_KEYS);
+  return selectAuditIncidentsPageVmMemoized(vm);
 }

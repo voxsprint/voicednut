@@ -139,18 +139,6 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     });
   };
 
-  const clearInvestigationSnapshots = (): void => {
-    setError('');
-    setBusy('');
-    setStatusSnapshot(null);
-    setRecentMessages([]);
-    setConversationMessages([]);
-    setSmsStatsSnapshot(null);
-    setMessageSnapshot(null);
-    setJobSnapshot(null);
-    setHistorySnapshot([]);
-  };
-
   return (
     <>
       <section className="va-page-intro">
@@ -185,99 +173,6 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           <span>Request state</span>
           <strong>{error ? 'Attention required' : controlsBusy ? 'In progress' : 'Ready'}</strong>
         </article>
-      </section>
-
-      <section className="va-overview-quick va-investigation-quick" aria-labelledby="va-investigation-quick-title">
-        <div className="va-overview-head">
-          <h3 id="va-investigation-quick-title" className="va-section-title">Quick Queries</h3>
-          <p className="va-muted">Run common diagnostics fast before drilling into detailed lists.</p>
-        </div>
-        <div className="va-overview-quick-grid">
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy}
-            onClick={runSmsRecentLookup}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>✉</span>
-            <span className="va-quick-action-copy">
-              <strong>Load SMS recent</strong>
-              <span>Fetch latest SMS events.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy}
-            onClick={runSmsStatsLookup}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>⌁</span>
-            <span className="va-quick-action-copy">
-              <strong>Load SMS stats</strong>
-              <span>Inspect 24-hour delivery posture.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy}
-            onClick={runEmailHistoryLookup}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>✦</span>
-            <span className="va-quick-action-copy">
-              <strong>Load email history</strong>
-              <span>Fetch recent bulk email jobs.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy || (!statusSid && !messageId)}
-            onClick={() => {
-              if (statusSid) {
-                runSmsStatusLookup();
-                return;
-              }
-              runEmailMessageLookup();
-            }}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>⌕</span>
-            <span className="va-quick-action-copy">
-              <strong>Lookup message ID</strong>
-              <span>Use SMS SID or email message ID.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy || !jobId}
-            onClick={runEmailJobLookup}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>⚑</span>
-            <span className="va-quick-action-copy">
-              <strong>Lookup job ID</strong>
-              <span>Inspect an email bulk job snapshot.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-          <UiButton
-            variant="plain"
-            className="va-quick-action-card"
-            disabled={controlsBusy}
-            onClick={clearInvestigationSnapshots}
-          >
-            <span className="va-quick-action-glyph" aria-hidden>↺</span>
-            <span className="va-quick-action-copy">
-              <strong>Clear results</strong>
-              <span>Reset loaded snapshots and lists.</span>
-            </span>
-            <span className="va-quick-action-trail" aria-hidden>›</span>
-          </UiButton>
-        </div>
       </section>
 
       {error ? (

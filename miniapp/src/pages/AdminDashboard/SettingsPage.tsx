@@ -20,7 +20,6 @@ type SettingsPageProps = {
   onTogglePolling: () => void;
   onSyncNow: () => void;
   onRetrySession: () => void;
-  onOpenShortcuts: () => void;
   onJumpToModule: (moduleId: string) => void;
 };
 
@@ -123,7 +122,6 @@ export function SettingsPage({
   onTogglePolling,
   onSyncNow,
   onRetrySession,
-  onOpenShortcuts,
   onJumpToModule,
 }: SettingsPageProps) {
   const actionsDisabled = loading || busy;
@@ -138,7 +136,7 @@ export function SettingsPage({
       <div className="va-settings-hero">
         <div className="va-settings-title-wrap">
           <h2 className="va-settings-title">General settings</h2>
-          <p className="va-muted">Manage account access, sync controls, and workspace shortcuts.</p>
+          <p className="va-muted">Manage account access, sync controls, and workspace access.</p>
         </div>
         <div className="va-settings-summary">
           <span className={`va-settings-flag-state ${pollingPaused ? 'is-disabled' : 'is-enabled'}`}>
@@ -157,15 +155,6 @@ export function SettingsPage({
             title={userLabel}
             description={`Signed in as ${sessionRole}.`}
             value={roleLabel}
-          />
-          <SettingsRow
-            icon="⌨"
-            iconTone="is-blue"
-            title="Keyboard shortcuts"
-            description="Navigation and command shortcuts."
-            value="View"
-            onClick={onOpenShortcuts}
-            disabled={loading}
           />
           <SettingsRow
             icon="⟳"

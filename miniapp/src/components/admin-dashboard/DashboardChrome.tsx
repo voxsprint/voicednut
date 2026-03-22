@@ -17,9 +17,7 @@ type DashboardMainHeaderProps = {
   activeModuleGlyph: string;
   loading: boolean;
   compact?: boolean;
-  onOpenNavigation: () => void;
   onOpenSettings: () => void;
-  onOpenShortcuts: () => void;
 };
 
 type DashboardModuleNavProps = {
@@ -35,9 +33,7 @@ type DashboardFocusedHeaderProps = {
   userAvatarFallback: string;
   loading: boolean;
   onBackToDashboard: () => void;
-  onOpenNavigation: () => void;
   onOpenSettings: () => void;
-  onOpenShortcuts: () => void;
 };
 
 type DashboardBottomNavProps = {
@@ -59,9 +55,7 @@ export function DashboardMainHeader({
   activeModuleGlyph,
   loading,
   compact = false,
-  onOpenNavigation,
   onOpenSettings,
-  onOpenShortcuts,
 }: DashboardMainHeaderProps) {
   return (
     <header className="va-header">
@@ -108,26 +102,6 @@ export function DashboardMainHeader({
             </>
           )}
         </div>
-        <div className="va-header-actions">
-          <UiButton
-            id="va-main-shortcuts-btn"
-            variant="secondary"
-            aria-keyshortcuts="Alt+Slash Shift+Slash"
-            onClick={onOpenShortcuts}
-            disabled={loading}
-          >
-            Shortcuts
-          </UiButton>
-          <UiButton
-            variant="secondary"
-            aria-label="Open navigation menu"
-            title="Menu"
-            onClick={onOpenNavigation}
-            disabled={loading}
-          >
-            Menu
-          </UiButton>
-        </div>
       </div>
     </header>
   );
@@ -167,9 +141,7 @@ export function DashboardFocusedHeader({
   userAvatarFallback,
   loading,
   onBackToDashboard,
-  onOpenNavigation,
   onOpenSettings,
-  onOpenShortcuts,
 }: DashboardFocusedHeaderProps) {
   return (
     <header className="va-focused-header">
@@ -208,27 +180,6 @@ export function DashboardFocusedHeader({
           ) : (
             <span className="va-profile-avatar-fallback" aria-hidden>{userAvatarFallback}</span>
           )}
-        </UiButton>
-        <UiButton
-          variant="secondary"
-          className="va-focused-icon-btn"
-          aria-label="Open keyboard shortcuts"
-          aria-keyshortcuts="Alt+Slash Shift+Slash"
-          title="Shortcuts"
-          onClick={onOpenShortcuts}
-          disabled={loading}
-        >
-          ⌨
-        </UiButton>
-        <UiButton
-          variant="secondary"
-          className="va-focused-icon-btn"
-          aria-label="Open navigation menu"
-          title="Menu"
-          onClick={onOpenNavigation}
-          disabled={loading}
-        >
-          ☰
         </UiButton>
       </div>
     </header>

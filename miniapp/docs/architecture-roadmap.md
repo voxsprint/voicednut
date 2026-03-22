@@ -107,19 +107,25 @@ Done:
 - Dashboard blocked/empty/skeleton/fallback state cards extracted to `src/components/admin-dashboard/DashboardStateCards.tsx`.
 - Header/module-navigation chrome extracted to `src/components/admin-dashboard/DashboardChrome.tsx`.
 - Unified request-state and observability rail extracted to `src/components/admin-dashboard/DashboardStatusRail.tsx`.
+- Focused module rendering (lazy registry, capability guard, boundary fallback) extracted to `src/components/admin-dashboard/DashboardFocusedModulePane.tsx`.
 - Action payload guard layer added in `src/services/admin-dashboard/dashboardActionGuards.ts`.
 - Bootstrap/poll/stream response contract validation added in `src/services/admin-dashboard/dashboardApiContracts.ts`.
 - Dashboard VM composition entrypoint added in `src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts`.
 - Dashboard VM per-module builders added in `src/services/admin-dashboard/dashboardVm/build{Ops,Sms,Mailer,Provider,Governance}VmSection.ts`.
 - Per-module builder typing tightened with explicit `Pick<DashboardVm, ...>` section contracts in `src/services/admin-dashboard/dashboardVm/types.ts`.
 - Per-page VM selectors extracted to `src/pages/AdminDashboard/vmSelectors.ts` and wired across module pages.
+- Module-level request-state primitives extracted to `src/pages/AdminDashboard/moduleRequestState.ts` and wired into `SmsSenderPage`, `MailerPage`, and `ProviderControlPage`.
+- Investigation side-effect helper extracted to `src/pages/AdminDashboard/useInvestigationAction.ts` and wired into messaging module pages.
+- Shell-level memoized selectors for script lookup and SMS route simulation extracted to `src/pages/AdminDashboard/shellSelectors.ts`.
 - Production smoke gate added in `scripts/smoke-admin-dashboard.mjs` and wired to `npm run validate:prod`.
 - Module layout parsing extracted to `src/services/admin-dashboard/dashboardLayout.ts`.
 - Session/cache/url transport helpers extracted to `src/services/admin-dashboard/dashboardTransport.ts`.
+- Settings stage rendering extracted to `src/components/admin-dashboard/DashboardSettingsStage.tsx`.
+- Action dialog rendering extracted to `src/components/admin-dashboard/DashboardActionDialog.tsx`.
+- View-stage branching (session blocked, overview, focused module) extracted to `src/components/admin-dashboard/DashboardViewStage.tsx`.
 
 Next:
-- Add module-level request-state primitives inside page modules (`sms`, `mailer`, `provider`).
-- Add lightweight memoized selector helpers for expensive list/table derivations to reduce re-renders.
+- Continue Phase B composition cleanup by shrinking `AdminDashboardPage.tsx` orchestration surface.
 
 ### Phase B: Page Composition Cleanup
 - Ensure each feature module has a dedicated page component under `src/pages/AdminDashboard/`.

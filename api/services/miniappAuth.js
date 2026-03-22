@@ -154,10 +154,43 @@ function validateInitData(initDataRaw, botToken, options = {}) {
     );
   }
 
+  const maxAgeSeconds = Number(options.maxAgeSeconds);
+  const maxAgeGraceSeconds = Number(options.maxAgeGraceSeconds);
+  const boundedMaxAgeSeconds = Number.isFinite(maxAgeSeconds) && maxAgeSeconds > 0
+    ? Math.floor(maxAgeSeconds)
+    : 0;
+  const boundedMaxAgeGraceSeconds =
+    Number.isFinite(maxAgeGraceSeconds) && maxAgeGraceSeconds > 0
+      ? Math.floor(maxAgeGraceSeconds)
+      : 0;
+  const maxAcceptedAgeSeconds = boundedMaxAgeSeconds + boundedMaxAgeGraceSeconds;
+  const expiredBySeconds = boundedMaxAgeSeconds > 0
+    ? Math.max(0, ageSeconds - boundedMaxAgeSeconds)
+    : 0;
+  const acceptedWithGrace =
+    boundedMaxAgeSeconds > 0 &&
+    boundedMaxAgeGraceSeconds > 0 &&
+    expiredBySeconds > 0 &&
+    ageSeconds <= maxAcceptedAgeSeconds;
+  if (boundedMaxAgeSeconds > 0 && ageSeconds > boundedMaxAgeSeconds && !acceptedWithGrace) {
+    const guidance = boundedMaxAgeGraceSeconds > 0
+      ? ` (grace ${boundedMaxAgeGraceSeconds}s exceeded)`
+      : "";
+    throw new MiniAppAuthError(
+      `Telegram init data is expired${guidance}`,
+      "miniapp_init_data_expired",
+      401,
+    );
+  }
+
   return {
     ...parsed,
     nowSeconds,
     ageSeconds,
+    expiredBySeconds,
+    acceptedWithGrace,
+    maxAgeSeconds: boundedMaxAgeSeconds || null,
+    maxAgeGraceSeconds: boundedMaxAgeGraceSeconds || null,
   };
 }
 
@@ -192,9 +225,9 @@ function createMiniAppSessionToken(claims, secret, options = {}) {
     iat: nowSeconds,
     nbf: nowSeconds,
   };
-  const includeExpiration = options.includeExpiration === true;
+  const includeExpiration = options.includeExpiration !== false;
   const ttlSeconds = Number.isFinite(Number(options.ttlSeconds))
-    ? Number(options.ttlSeconds)
+    ? Math.floor(Number(options.ttlSeconds))
     : 900;
   if (includeExpiration && ttlSeconds > 0) {
     payload.exp = nowSeconds + Math.max(60, ttlSeconds);
@@ -257,11 +290,28 @@ function verifyMiniAppSessionToken(token, secret, options = {}) {
   const skewSeconds = Number.isFinite(Number(options.skewSeconds))
     ? Number(options.skewSeconds)
     : 30;
+  const requireExpiration = options.requireExpiration !== false;
 
   if (Number.isFinite(Number(payload.nbf)) && nowSeconds + skewSeconds < Number(payload.nbf)) {
     throw new MiniAppAuthError(
       "Mini App session token is not active",
       "miniapp_token_not_active",
+      401,
+    );
+  }
+  const expSeconds = Number(payload.exp);
+  if (!Number.isFinite(expSeconds) || expSeconds <= 0) {
+    if (requireExpiration) {
+      throw new MiniAppAuthError(
+        "Mini App session token is missing expiration",
+        "miniapp_token_missing_exp",
+        401,
+      );
+    }
+  } else if (nowSeconds - Math.max(0, skewSeconds) >= expSeconds) {
+    throw new MiniAppAuthError(
+      "Mini App session token is expired",
+      "miniapp_token_expired",
       401,
     );
   }

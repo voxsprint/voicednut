@@ -102,7 +102,8 @@ Mini App session bootstrap now supports replay validation modes:
 Related controls:
 
 - `MINI_APP_REPLAY_WINDOW_SECONDS` defines the dedupe window.
-- `MINI_APP_INITDATA_MAX_AGE_SECONDS` is currently a legacy no-op for Mini App auth.
+- `MINI_APP_INITDATA_MAX_AGE_SECONDS` controls Telegram init-data freshness validation during session bootstrap (recommended: `86400` for production operator consoles to avoid frequent relaunch expiry).
+- `MINI_APP_INITDATA_EXPIRY_GRACE_SECONDS` allows bounded post-expiry session bootstrap grace (recommended: `604800` for operator consoles to reduce forced Telegram relaunch loops while replay checks remain enabled).
 
 Recommended rollout:
 

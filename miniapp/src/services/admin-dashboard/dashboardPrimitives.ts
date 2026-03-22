@@ -98,6 +98,25 @@ export function toText(value: unknown, fallback = 'unknown'): string {
   return fallback;
 }
 
+export function toDisplayText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : fallback;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return fallback;
+}
+
+export function pickDisplayText(values: unknown[], fallback = ''): string {
+  for (const value of values) {
+    const next = toDisplayText(value);
+    if (next) return next;
+  }
+  return fallback;
+}
+
 export function formatTime(value: unknown): string {
   if (!value) return '—';
   const valueText = toText(value, '');

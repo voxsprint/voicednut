@@ -1,5 +1,7 @@
+import { buildProviderRequestState } from './moduleRequestState';
 import type { DashboardVm, ProviderMatrixRow } from './types';
 import { selectProviderPageVm } from './vmSelectors';
+import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiButton, UiCard, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type ProviderControlPageProps = {
@@ -32,24 +34,23 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
     renderProviderSection,
   } = selectProviderPageVm(vm);
   const matrixReady = providerMatrixRows.length > 0;
-  const providerBusy = busyAction.length > 0 || providerPreflightBusy.length > 0;
+  const providerRequestState = buildProviderRequestState({
+    loading,
+    busyAction,
+    providerPreflightBusy,
+  });
+  const providerBusy = providerRequestState.isBusy;
   const supportedProviderTotal = (['call', 'sms', 'email'] as const)
     .reduce((total, channel) => total + (providerSupportedByChannel[channel]?.length || 0), 0);
   const plannerConfigured = supportedProviderTotal > 0;
 
   return (
     <>
-      {loading && !matrixReady ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Loading provider diagnostics"
-              description="Syncing compatibility matrix, readiness signals, and switch safety checks."
-              tone="info"
-            />
-          </UiCard>
-        </section>
-      ) : null}
+      <LoadingTelemetryCard
+        visible={providerRequestState.isLoading && !matrixReady}
+        title="Loading provider diagnostics"
+        description="Syncing compatibility matrix, readiness signals, and switch safety checks."
+      />
 
       <section className="va-grid">
         <UiCard>

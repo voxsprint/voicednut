@@ -1,8 +1,8 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import type { DashboardVm, UserRow } from './types';
 import { selectUsersRolePageVm } from './vmSelectors';
-import { selectUsersRows, type UserRoleFilter } from './tableSelectors';
+import { selectUsersRowsMemoized, type UserRoleFilter } from './tableSelectors';
 import { downloadCsv } from './csvExport';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -163,17 +163,15 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
     }
   }, [pageSize, reasonTemplate, roleFilter]);
 
-  const filteredAndSortedUsers = useMemo(() => {
-    return selectUsersRows({
-      usersRows,
-      roleFilter,
-      userSearch,
-      userSortBy: userSortBy as 'last_activity' | 'total_calls' | 'role',
-      userSortDir: userSortDir as 'asc' | 'desc',
-      toText,
-      toInt,
-    });
-  }, [roleFilter, toInt, toText, userSearch, userSortBy, userSortDir, usersRows]);
+  const filteredAndSortedUsers = selectUsersRowsMemoized({
+    usersRows,
+    roleFilter,
+    userSearch,
+    userSortBy: userSortBy as 'last_activity' | 'total_calls' | 'role',
+    userSortDir: userSortDir as 'asc' | 'desc',
+    toText,
+    toInt,
+  });
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedUsers.length / pageSize));
   useEffect(() => {

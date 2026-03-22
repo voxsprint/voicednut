@@ -36,15 +36,42 @@ type SessionResponse = {
   success?: boolean;
   token?: string;
   expires_at?: number;
+  init_data_refresh_recommended?: boolean;
+  session?: {
+    init_data_refresh_recommended?: boolean;
+  };
   code?: string;
   error?: string;
 };
 
 type DashboardApiClient = {
   createSession: () => Promise<string>;
+  refreshSession: (token: string) => Promise<string>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   clearSession: () => void;
 };
+
+export type DashboardApiError = Error & {
+  code?: string;
+  httpStatus?: number;
+};
+
+function createDashboardApiError(
+  message: string,
+  options: {
+    code?: string;
+    httpStatus?: number;
+  } = {},
+): DashboardApiError {
+  const error = new Error(message) as DashboardApiError;
+  if (options.code) {
+    error.code = options.code;
+  }
+  if (Number.isFinite(options.httpStatus)) {
+    error.httpStatus = options.httpStatus;
+  }
+  return error;
+}
 
 function buildSessionHeaders(initDataRaw: string, config: DashboardApiClientConfig): Headers {
   const sessionHeaders = new Headers({
@@ -81,6 +108,7 @@ export function createDashboardApiClient(
   callbacks: DashboardApiClientCallbacks,
 ): DashboardApiClient {
   let sessionRequest: Promise<string> | null = null;
+  let sessionRefreshRequest: Promise<string> | null = null;
   let sessionExpiryEpochSeconds: number | null = null;
 
   const clearSession = (): void => {
@@ -112,7 +140,10 @@ export function createDashboardApiClient(
         'Session blocked',
         'Mini App init data is unavailable. Open this page from Telegram.',
       );
-      throw new Error('Mini App init data is unavailable. Open this page from Telegram.');
+      throw createDashboardApiError(
+        'Mini App init data is unavailable. Open this page from Telegram.',
+        { code: 'miniapp_missing_init_data' },
+      );
     }
 
     sessionRequest = (async (): Promise<string> => {
@@ -136,7 +167,13 @@ export function createDashboardApiClient(
         if (code) {
           callbacks.setErrorCode(code);
         }
-        throw new Error(payload?.error || `Session request failed (${response.status})`);
+        throw createDashboardApiError(
+          payload?.error || `Session request failed (${response.status})`,
+          {
+            code,
+            httpStatus: response.status,
+          },
+        );
       }
 
       const nextToken = payload.token;
@@ -150,6 +187,15 @@ export function createDashboardApiClient(
       callbacks.setToken(nextToken);
       callbacks.setErrorCode('');
       callbacks.setSessionBlocked(false);
+      const initDataRefreshRecommended = payload.init_data_refresh_recommended === true
+        || payload.session?.init_data_refresh_recommended === true;
+      if (initDataRefreshRecommended) {
+        callbacks.pushActivity(
+          'info',
+          'Telegram refresh recommended',
+          'Session recovered from init-data expiry grace. Reopen this Mini App from Telegram soon to refresh launch credentials.',
+        );
+      }
       callbacks.pushActivity('success', 'Session established', 'Mini App session token created successfully.');
       return nextToken;
     })();
@@ -158,6 +204,67 @@ export function createDashboardApiClient(
       return await sessionRequest;
     } finally {
       sessionRequest = null;
+    }
+  };
+
+  const refreshSession = async (token: string): Promise<string> => {
+    const authToken = String(token || '').trim();
+    if (!authToken) {
+      throw new Error('Mini App session token is unavailable for refresh.');
+    }
+
+    if (sessionRefreshRequest) {
+      return sessionRefreshRequest;
+    }
+
+    sessionRefreshRequest = (async (): Promise<string> => {
+      const response = await fetch(buildApiUrl('/miniapp/session/refresh', config.apiBaseUrl), {
+        method: 'POST',
+        headers: buildRequestHeaders(authToken, {}, config),
+      });
+      const payload = (await parseJsonResponse(response)) as SessionResponse | null;
+      if (response.ok && !payload) {
+        throw new Error(
+          'Session refresh endpoint returned an empty/non-JSON response. Verify VITE_API_BASE_URL points to the API origin.',
+        );
+      }
+
+      const code = toText(payload?.code, '');
+      if (!response.ok || !payload?.success || !payload?.token) {
+        if (isSessionBootstrapBlockingCode(code)) {
+          callbacks.setSessionBlocked(true);
+        }
+        if (code) {
+          callbacks.setErrorCode(code);
+        }
+        throw createDashboardApiError(
+          payload?.error || `Session refresh failed (${response.status})`,
+          {
+            code,
+            httpStatus: response.status,
+          },
+        );
+      }
+
+      const nextToken = payload.token;
+      const expiresAtSeconds = Number(payload.expires_at);
+      const cacheEntry: SessionCacheEntry = {
+        token: nextToken,
+        exp: Number.isFinite(expiresAtSeconds) && expiresAtSeconds > 0 ? expiresAtSeconds : null,
+      };
+      sessionExpiryEpochSeconds = cacheEntry.exp;
+      writeSessionCache(config.sessionStorageKey, cacheEntry);
+      callbacks.setToken(nextToken);
+      callbacks.setErrorCode('');
+      callbacks.setSessionBlocked(false);
+      callbacks.pushActivity('success', 'Session refreshed', 'Mini App session token was refreshed.');
+      return nextToken;
+    })();
+
+    try {
+      return await sessionRefreshRequest;
+    } finally {
+      sessionRefreshRequest = null;
     }
   };
 
@@ -171,13 +278,21 @@ export function createDashboardApiClient(
         }
         : null,
     );
-    if (tokenFromState && tokenFromStateExpired) {
-      clearSession();
+    let activeToken: string;
+    if (!tokenFromState) {
+      activeToken = await createSession();
+    } else if (tokenFromStateExpired) {
       callbacks.pushActivity('info', 'Session refresh', 'Session token expired, refreshing.');
+      try {
+        activeToken = await refreshSession(tokenFromState);
+      } catch {
+        clearSession();
+        callbacks.pushActivity('info', 'Session refresh', 'Session refresh failed, requesting a new Telegram session.');
+        activeToken = await createSession();
+      }
+    } else {
+      activeToken = tokenFromState;
     }
-    const activeToken = (!tokenFromState || tokenFromStateExpired)
-      ? await createSession()
-      : tokenFromState;
     const response = await fetch(buildApiUrl(path, config.apiBaseUrl), {
       ...options,
       headers: buildRequestHeaders(activeToken, options, config),
@@ -191,8 +306,12 @@ export function createDashboardApiClient(
     }
 
     if (response.status === 401 && retryCount < config.sessionRefreshRetryCount) {
-      clearSession();
-      callbacks.pushActivity('info', 'Session refresh', 'Received 401, refreshing session token.');
+      callbacks.pushActivity('info', 'Session refresh', 'Received 401, attempting secure session refresh.');
+      try {
+        await refreshSession(activeToken);
+      } catch {
+        clearSession();
+      }
       return request<T>(path, options, retryCount + 1);
     }
 
@@ -204,7 +323,13 @@ export function createDashboardApiClient(
       if (isSessionBootstrapBlockingCode(code)) {
         callbacks.setSessionBlocked(true);
       }
-      throw new Error(parseApiError(payload, response.status));
+      throw createDashboardApiError(
+        parseApiError(payload, response.status),
+        {
+          code,
+          httpStatus: response.status,
+        },
+      );
     }
 
     callbacks.setErrorCode('');
@@ -213,6 +338,7 @@ export function createDashboardApiClient(
 
   return {
     createSession,
+    refreshSession,
     request,
     clearSession,
   };

@@ -1,8 +1,12 @@
 import { useState } from 'react';
 
+import { buildSmsRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
+import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
 type SmsSenderPageProps = {
   visible: boolean;
@@ -43,6 +47,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     invokeAction,
     loading,
   } = selectSmsPageVm(vm);
+  const smsRequestState = buildSmsRequestState({ loading, busyAction });
   const smsHasRecipients = smsRecipientsParsed.length > 0;
   const smsHasMessage = smsMessageInput.trim().length > 0;
   const smsRecipientsInvalid = !smsHasRecipients;
@@ -55,52 +60,15 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
       : 'Add a message body to enable batch execution.';
   const [statusSidInput, setStatusSidInput] = useState<string>('');
   const [conversationPhoneInput, setConversationPhoneInput] = useState<string>('');
-  const [investigationBusy, setInvestigationBusy] = useState<string>('');
-  const [investigationError, setInvestigationError] = useState<string>('');
   const [statusSnapshot, setStatusSnapshot] = useState<Record<string, unknown> | null>(null);
   const [recentMessages, setRecentMessages] = useState<Array<Record<string, unknown>>>([]);
   const [conversationMessages, setConversationMessages] = useState<Array<Record<string, unknown>>>([]);
   const [statsSnapshot, setStatsSnapshot] = useState<Record<string, unknown> | null>(null);
-
-  const asRecord = (value: unknown): Record<string, unknown> => (
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? value as Record<string, unknown>
-      : {}
-  );
-  const asDisplayText = (value: unknown, fallback = ''): string => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      return trimmed ? trimmed : fallback;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-    return fallback;
-  };
-  const pickDisplayText = (values: unknown[], fallback = ''): string => {
-    for (const value of values) {
-      const next = asDisplayText(value);
-      if (next) return next;
-    }
-    return fallback;
-  };
-
-  const runInvestigationAction = async (
-    action: string,
-    payload: Record<string, unknown>,
-    onSuccess: (payload: Record<string, unknown>) => void,
-  ): Promise<void> => {
-    setInvestigationBusy(action);
-    setInvestigationError('');
-    try {
-      const data = await invokeAction(action, payload);
-      onSuccess(asRecord(data));
-    } catch (error) {
-      setInvestigationError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setInvestigationBusy('');
-    }
-  };
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
 
   return (
     <>
@@ -119,17 +87,11 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         </div>
       </section>
 
-      {loading && smsRecipientsParsed.length === 0 ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Loading SMS telemetry"
-              description="Syncing recipient analytics, route simulation, and job outcomes."
-              tone="info"
-            />
-          </UiCard>
-        </section>
-      ) : null}
+      <LoadingTelemetryCard
+        visible={smsRequestState.isLoading && smsRecipientsParsed.length === 0}
+        title="Loading SMS telemetry"
+        description="Syncing recipient analytics, route simulation, and job outcomes."
+      />
 
       <section className="va-section-block">
         <header className="va-section-header">
@@ -221,7 +183,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               </label>
               <UiButton
                 variant="primary"
-                disabled={busyAction.length > 0 || !smsCanSubmit}
+                disabled={smsRequestState.isBusy || !smsCanSubmit}
                 onClick={() => { void sendSmsFromConsole(); }}
               >
                 {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
