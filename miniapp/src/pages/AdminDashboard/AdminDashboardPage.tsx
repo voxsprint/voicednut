@@ -1,5 +1,5 @@
 import { hapticFeedback, initData, miniApp, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import '@/pages/AdminDashboard/AdminDashboardPage.css';
@@ -40,9 +40,15 @@ import { buildOpsVmSection } from '@/services/admin-dashboard/dashboardVm/buildO
 import { buildProviderVmSection } from '@/services/admin-dashboard/dashboardVm/buildProviderVmSection';
 import { buildSmsVmSection } from '@/services/admin-dashboard/dashboardVm/buildSmsVmSection';
 import {
+  useDashboardAbortCleanup,
+} from '@/hooks/admin-dashboard/useDashboardAbortCleanup';
+import {
   useDashboardActions,
 } from '@/hooks/admin-dashboard/useDashboardActions';
 import type { ActionRequestMeta } from '@/hooks/admin-dashboard/useDashboardActions';
+import {
+  useDashboardAuthRefs,
+} from '@/hooks/admin-dashboard/useDashboardAuthRefs';
 import { useDashboardEventStream } from '@/hooks/admin-dashboard/useDashboardEventStream';
 import {
   useDashboardFeatureFlags,
@@ -93,6 +99,9 @@ import {
 import {
   useDashboardProviderMetrics,
 } from '@/hooks/admin-dashboard/useDashboardProviderMetrics';
+import {
+  useDashboardProviderSwitchDefaults,
+} from '@/hooks/admin-dashboard/useDashboardProviderSwitchDefaults';
 import {
   useDashboardProviderActions,
 } from '@/hooks/admin-dashboard/useDashboardProviderActions';
@@ -480,10 +489,10 @@ export function AdminDashboardPage() {
     closeDialog(resolveDashboardDialogDismissValue(state));
   }, [closeDialog]);
 
-  useEffect(() => () => {
-    bootstrapAbortRef.current?.abort();
-    pollAbortRef.current?.abort();
-  }, []);
+  useDashboardAbortCleanup({
+    bootstrapAbortRef,
+    pollAbortRef,
+  });
 
   const triggerHaptic = useCallback((
     mode: 'selection' | 'impact' | 'success' | 'warning' | 'error',
@@ -677,14 +686,10 @@ export function AdminDashboardPage() {
     initialServerModuleAppliedRef,
   });
 
-  const tokenRef = useRef<string | null>(token);
-  const initDataRawRef = useRef<string>(initDataRaw || '');
-  useEffect(() => {
-    tokenRef.current = token;
-  }, [token]);
-  useEffect(() => {
-    initDataRawRef.current = initDataRaw || '';
-  }, [initDataRaw]);
+  const { tokenRef, initDataRawRef } = useDashboardAuthRefs({
+    token,
+    initDataRaw,
+  });
   const dashboardApiClient = useMemo(() => createDashboardApiClient(
     {
       apiBaseUrl: API_BASE_URL,
@@ -1274,24 +1279,11 @@ export function AdminDashboardPage() {
     providerCompatibilityChannels,
     providersByChannel: asRecord(providersByChannel),
   });
-  useEffect(() => {
-    setProviderSwitchPlanByChannel((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      (['call', 'sms', 'email'] as ProviderChannel[]).forEach((channel) => {
-        const current = providerCurrentByChannel[channel];
-        const supported = providerSupportedByChannel[channel];
-        const fallbackTarget = current || supported[0] || '';
-        if (!fallbackTarget || prev[channel].target) return;
-        changed = true;
-        next[channel] = {
-          ...prev[channel],
-          target: fallbackTarget,
-        };
-      });
-      return changed ? next : prev;
-    });
-  }, [providerCurrentByChannel, providerSupportedByChannel]);
+  useDashboardProviderSwitchDefaults({
+    providerCurrentByChannel,
+    providerSupportedByChannel,
+    setProviderSwitchPlanByChannel,
+  });
   const smsRouteSimulationRows = selectSmsRouteSimulationRowsMemoized({
     providerMatrixRows,
   });
