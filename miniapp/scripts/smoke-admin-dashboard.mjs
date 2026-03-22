@@ -50,17 +50,22 @@ function main() {
   const requiredFiles = [
     'index.html',
     'src/pages/AdminDashboard/AdminDashboardPage.tsx',
+    'src/hooks/admin-dashboard/useDashboardActivityFeed.ts',
     'src/hooks/admin-dashboard/useDashboardAbortCleanup.ts',
     'src/hooks/admin-dashboard/useDashboardActions.ts',
     'src/hooks/admin-dashboard/useDashboardAuthRefs.ts',
     'src/hooks/admin-dashboard/useDashboardBootstrapLifecycle.ts',
     'src/hooks/admin-dashboard/useDashboardFocusManagement.ts',
+    'src/hooks/admin-dashboard/useDashboardHaptic.ts',
     'src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts',
     'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
+    'src/hooks/admin-dashboard/useDashboardNotice.ts',
     'src/hooks/admin-dashboard/useDashboardProviderSwitchDefaults.ts',
+    'src/hooks/admin-dashboard/useDashboardSessionControls.ts',
     'src/hooks/admin-dashboard/useDashboardStoredPrefs.ts',
     'src/hooks/admin-dashboard/useDashboardTelegramButtons.ts',
     'src/hooks/admin-dashboard/useDashboardWorkspaceRouteSync.ts',
+    'src/hooks/admin-dashboard/providerSwitchPlanState.ts',
     'src/services/admin-dashboard/dashboardApiContracts.ts',
     'src/services/admin-dashboard/dashboardActionGuards.ts',
     'src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts',
@@ -105,8 +110,12 @@ function main() {
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validatePollPayload');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'validateStreamPayload');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardAbortCleanup');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardActivityFeed');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardAuthRefs');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardHaptic');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardNotice');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardProviderSwitchDefaults');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'useDashboardSessionControls');
   expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'isSessionCacheEntryExpired');
   expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'Session token expired, refreshing.');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'const STREAM_STALE_FALLBACK_MS = 45000;');

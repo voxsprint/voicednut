@@ -1,4 +1,4 @@
-import { hapticFeedback, initData, miniApp, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
+import { initData, miniApp, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -46,6 +46,8 @@ import {
   useDashboardActions,
 } from '@/hooks/admin-dashboard/useDashboardActions';
 import type { ActionRequestMeta } from '@/hooks/admin-dashboard/useDashboardActions';
+import type { ActivityEntry } from '@/hooks/admin-dashboard/useDashboardActivityFeed';
+import { useDashboardActivityFeed } from '@/hooks/admin-dashboard/useDashboardActivityFeed';
 import {
   useDashboardAuthRefs,
 } from '@/hooks/admin-dashboard/useDashboardAuthRefs';
@@ -105,8 +107,14 @@ import {
 import {
   useDashboardProviderActions,
 } from '@/hooks/admin-dashboard/useDashboardProviderActions';
+import { useDashboardHaptic } from '@/hooks/admin-dashboard/useDashboardHaptic';
+import { useDashboardNotice } from '@/hooks/admin-dashboard/useDashboardNotice';
 import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPollingLoop';
+import { useDashboardSessionControls } from '@/hooks/admin-dashboard/useDashboardSessionControls';
 import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardKeyboardShortcuts';
+import {
+  createDefaultProviderSwitchPlanByChannel,
+} from '@/hooks/admin-dashboard/providerSwitchPlanState';
 import type { DashboardDialogState } from '@/hooks/admin-dashboard/useDashboardDialog';
 import { useDashboardDialog } from '@/hooks/admin-dashboard/useDashboardDialog';
 import {
@@ -141,11 +149,11 @@ import {
   type DashboardModule,
 } from '@/pages/AdminDashboard/dashboardShellConfig';
 import {
-  resolveNoticeTone,
   resolveTelegramIdentity,
   type DashboardNoticeTone,
 } from '@/pages/AdminDashboard/dashboardShellHelpers';
 import { resolveDashboardFixtureRequest } from '@/pages/AdminDashboard/dashboardFixtureData';
+import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
 
 const POLL_BASE_INTERVAL_MS = 10000;
 const POLL_MAX_INTERVAL_MS = 60000;
@@ -169,7 +177,6 @@ const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 const SESSION_REFRESH_RETRY_COUNT = 1;
 const DASHBOARD_DEV_FIXTURES_ENABLED = import.meta.env.DEV && ['1', 'true', 'yes']
   .includes(String(import.meta.env.VITE_ADMIN_DASHBOARD_DEV_FIXTURES || '').trim().toLowerCase());
-type ProviderChannel = 'call' | 'sms' | 'email';
 
 interface SessionStateUser {
   username?: unknown;
@@ -336,24 +343,6 @@ interface DashboardApiPayload extends DashboardPayload {
   server_time?: unknown;
 }
 
-type ActivityStatus = 'info' | 'success' | 'error';
-type ProviderSwitchStage = 'idle' | 'simulated' | 'confirmed' | 'applied' | 'failed';
-type ProviderSwitchPostCheck = 'idle' | 'ok' | 'failed';
-type ProviderSwitchPlanState = {
-  target: string;
-  stage: ProviderSwitchStage;
-  postCheck: ProviderSwitchPostCheck;
-  rollbackSuggestion: string;
-};
-
-interface ActivityEntry {
-  id: string;
-  title: string;
-  detail: string;
-  status: ActivityStatus;
-  at: string;
-}
-
 interface MiniAppSessionSummary {
   telegram_id?: unknown;
   role?: unknown;
@@ -438,12 +427,8 @@ export function AdminDashboardPage() {
     Partial<Record<ProviderChannel, string>>
   >({});
   const [providerSwitchPlanByChannel, setProviderSwitchPlanByChannel] = useState<
-    Record<ProviderChannel, ProviderSwitchPlanState>
-  >({
-    call: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-    sms: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-    email: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-  });
+    Record<ProviderChannel, ProviderSwitchPlan>
+  >(createDefaultProviderSwitchPlanByChannel);
   const [userSearch, setUserSearch] = useState<string>('');
   const [userSortBy, setUserSortBy] = useState<string>('last_activity');
   const [userSortDir, setUserSortDir] = useState<string>('desc');
@@ -468,11 +453,6 @@ export function AdminDashboardPage() {
   const bootstrapAbortRef = useRef<AbortController | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
   const initialServerModuleAppliedRef = useRef<boolean>(false);
-  const lastActivityRef = useRef<{ signature: string; at: number; repeats: number }>({
-    signature: '',
-    at: 0,
-    repeats: 0,
-  });
   const {
     actionDialogRef,
     dialogCancelButtonRef,
@@ -494,50 +474,7 @@ export function AdminDashboardPage() {
     pollAbortRef,
   });
 
-  const triggerHaptic = useCallback((
-    mode: 'selection' | 'impact' | 'success' | 'warning' | 'error',
-    impactStyle: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light',
-  ): void => {
-    const api = hapticFeedback as unknown as {
-      isSupported?: (() => boolean) | boolean;
-      selectionChanged?: (() => void) | { ifAvailable?: () => void };
-      impactOccurred?: ((style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void) | {
-        ifAvailable?: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
-      };
-      notificationOccurred?: ((state: 'success' | 'warning' | 'error') => void) | {
-        ifAvailable?: (state: 'success' | 'warning' | 'error') => void;
-      };
-    };
-    try {
-      const supported = typeof api.isSupported === 'function'
-        ? Boolean(api.isSupported())
-        : api.isSupported !== false;
-      if (!supported) return;
-      if (mode === 'selection') {
-        if (typeof api.selectionChanged === 'function') {
-          api.selectionChanged();
-          return;
-        }
-        api.selectionChanged?.ifAvailable?.();
-        return;
-      }
-      if (mode === 'impact') {
-        if (typeof api.impactOccurred === 'function') {
-          api.impactOccurred(impactStyle);
-          return;
-        }
-        api.impactOccurred?.ifAvailable?.(impactStyle);
-        return;
-      }
-      if (typeof api.notificationOccurred === 'function') {
-        api.notificationOccurred(mode);
-        return;
-      }
-      api.notificationOccurred?.ifAvailable?.(mode);
-    } catch {
-      // Ignore haptic errors to avoid blocking control-path actions.
-    }
-  }, []);
+  const { triggerHaptic } = useDashboardHaptic();
 
   const toggleSettings = useCallback((next?: boolean, options?: { fallbackModule?: DashboardModule }): void => {
     const target = typeof next === 'boolean' ? next : !settingsOpen;
@@ -594,56 +531,16 @@ export function AdminDashboardPage() {
     }
   }, [location.pathname, navigate, triggerHaptic]);
 
-  const pushActivity = useCallback((
-    status: ActivityStatus,
-    title: string,
-    detail: string,
-  ): void => {
-    const now = Date.now();
-    const signature = `${status}:${title}:${detail}`;
-    if (status === 'info'
-      && lastActivityRef.current.signature === signature
-      && (now - lastActivityRef.current.at) < ACTIVITY_INFO_DEDUPE_MS) {
-      const nextRepeats = lastActivityRef.current.repeats + 1;
-      lastActivityRef.current = {
-        signature,
-        at: now,
-        repeats: nextRepeats,
-      };
-      setActivityLog((prev) => {
-        if (prev.length === 0) return prev;
-        const [first, ...rest] = prev;
-        const baseDetail = first.detail.replace(/ \(x\d+\)$/, '');
-        if (first.status !== status || first.title !== title || baseDetail !== detail) {
-          return prev;
-        }
-        return [{
-          ...first,
-          detail: `${detail} (x${nextRepeats})`,
-          at: new Date(now).toISOString(),
-        }, ...rest];
-      });
-      return;
-    }
-    lastActivityRef.current = {
-      signature: status === 'info' ? signature : '',
-      at: now,
-      repeats: 1,
-    };
-    const entry: ActivityEntry = {
-      id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
-      title,
-      detail,
-      status,
-      at: new Date(now).toISOString(),
-    };
-    setActivityLog((prev) => [entry, ...prev].slice(0, MAX_ACTIVITY_ITEMS));
-  }, []);
+  const { pushActivity, clearActivityLog } = useDashboardActivityFeed({
+    setActivityLog,
+    maxItems: MAX_ACTIVITY_ITEMS,
+    infoDedupeMs: ACTIVITY_INFO_DEDUPE_MS,
+  });
 
-  const setNoticeMessage = useCallback((value: string): void => {
-    setNotice(value);
-    setNoticeTone(resolveNoticeTone(value));
-  }, []);
+  const { setNoticeMessage } = useDashboardNotice({
+    setNotice,
+    setNoticeTone,
+  });
 
   const resolveEventStreamUrl = useCallback((path: string): string => (
     buildEventStreamUrl(path, API_BASE_URL)
@@ -1284,72 +1181,54 @@ export function AdminDashboardPage() {
     providerSupportedByChannel,
     setProviderSwitchPlanByChannel,
   });
+
+  const resetProviderSwitchPlanState = useCallback((): void => {
+    setProviderSwitchPlanByChannel(createDefaultProviderSwitchPlanByChannel());
+  }, []);
+
+  const {
+    handleRefresh,
+    handleTogglePolling,
+    handleCloseMiniApp,
+    resetSession,
+  } = useDashboardSessionControls({
+    triggerHaptic,
+    pushActivity,
+    setNoticeMessage,
+    setPollingPaused,
+    loadBootstrap,
+    closeMiniApp: () => miniApp.close.ifAvailable(),
+    stateEpochRef,
+    bootstrapRequestSeqRef,
+    pollRequestSeqRef,
+    bootstrapAbortRef,
+    pollAbortRef,
+    clearSession: dashboardApiClient.clearSession,
+    setError,
+    setErrorCode,
+    setSessionBlocked,
+    setBootstrap,
+    setPollPayload,
+    setLastPollAt,
+    setLastSuccessfulPollAt,
+    setNextPollAt,
+    setPollFailureCount,
+    setActionLatencyMsSamples,
+    setRuntimeCanaryInput,
+    setSmsCostPerSegment,
+    smsDefaultCostPerSegment: SMS_DEFAULT_COST_PER_SEGMENT,
+    setSmsDryRunMode,
+    setCallScriptsSnapshot,
+    setSelectedCallScriptId,
+    setScriptSimulationResult,
+    resetProviderSwitchPlan: resetProviderSwitchPlanState,
+    setSettingsOpen,
+    clearActivityLog,
+    pollFailureNotedRef,
+  });
   const smsRouteSimulationRows = selectSmsRouteSimulationRowsMemoized({
     providerMatrixRows,
   });
-
-  const handleRefresh = (): void => {
-    triggerHaptic('impact', 'light');
-    pushActivity('info', 'Manual refresh', 'Operator triggered dashboard refresh.');
-    void loadBootstrap();
-  };
-
-  const handleTogglePolling = useCallback((): void => {
-    triggerHaptic('selection');
-    setPollingPaused((prev) => {
-      const next = !prev;
-      setNoticeMessage(next ? 'Live updates paused.' : 'Live updates resumed.');
-      return next;
-    });
-  }, [setNoticeMessage, triggerHaptic]);
-
-  const handleCloseMiniApp = useCallback((): void => {
-    triggerHaptic('impact', 'light');
-    miniApp.close.ifAvailable();
-  }, [triggerHaptic]);
-
-  const resetSession = useCallback((): void => {
-    stateEpochRef.current += 1;
-    bootstrapRequestSeqRef.current += 1;
-    pollRequestSeqRef.current += 1;
-    if (bootstrapAbortRef.current) {
-      bootstrapAbortRef.current.abort();
-      bootstrapAbortRef.current = null;
-    }
-    if (pollAbortRef.current) {
-      pollAbortRef.current.abort();
-      pollAbortRef.current = null;
-    }
-    triggerHaptic('warning');
-    dashboardApiClient.clearSession();
-    setError('');
-    setErrorCode('');
-    setNoticeMessage('');
-    setSessionBlocked(false);
-    setBootstrap(null);
-    setPollPayload(null);
-    setLastPollAt(null);
-    setLastSuccessfulPollAt(null);
-    setNextPollAt(null);
-    setPollFailureCount(0);
-    setPollingPaused(false);
-    setActionLatencyMsSamples([]);
-    setRuntimeCanaryInput('');
-    setSmsCostPerSegment(String(SMS_DEFAULT_COST_PER_SEGMENT));
-    setSmsDryRunMode(false);
-    setCallScriptsSnapshot(null);
-    setSelectedCallScriptId(0);
-    setScriptSimulationResult(null);
-    setProviderSwitchPlanByChannel({
-      call: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-      sms: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-      email: { target: '', stage: 'idle', postCheck: 'idle', rollbackSuggestion: '' },
-    });
-    setSettingsOpen(false);
-    setActivityLog([]);
-    pollFailureNotedRef.current = false;
-    void loadBootstrap();
-  }, [dashboardApiClient, loadBootstrap, setNoticeMessage, triggerHaptic]);
 
   const handleRecipientsFile = useCallback(async (
     file: File | null,

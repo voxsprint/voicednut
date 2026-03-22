@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
+import type { ProviderChannel, UserRole } from '@/pages/AdminDashboard/types';
 
 const USER_ROLE_REASON_TEMPLATES = [
   'Policy update',
@@ -11,7 +12,6 @@ const USER_ROLE_REASON_TEMPLATES = [
 ] as const;
 
 type ActivityStatus = 'info' | 'success' | 'error';
-type ProviderChannel = 'call' | 'sms' | 'email';
 
 type ProviderChannelData = {
   provider?: unknown;
@@ -48,7 +48,7 @@ type UseDashboardGovernanceActionsResult = {
   roleReasonTemplates: string[];
   handleApplyUserRole: (
     telegramId: string,
-    role: 'admin' | 'operator' | 'viewer',
+    role: UserRole,
     reasonHint?: string,
   ) => Promise<void>;
   runbookAction: (action: string, payload?: Record<string, unknown>) => Promise<void>;
@@ -66,7 +66,7 @@ export function useDashboardGovernanceActions({
 }: UseDashboardGovernanceActionsOptions): UseDashboardGovernanceActionsResult {
   const handleApplyUserRole = useCallback(async (
     telegramId: string,
-    role: 'admin' | 'operator' | 'viewer',
+    role: UserRole,
     reasonHint = '',
   ): Promise<void> => {
     const reasonInputRaw = requestTextInput

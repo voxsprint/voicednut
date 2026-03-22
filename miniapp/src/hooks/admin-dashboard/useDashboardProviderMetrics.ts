@@ -1,18 +1,9 @@
 import { useMemo } from 'react';
 
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
+import type { ProviderChannel, ProviderMatrixRow } from '@/pages/AdminDashboard/types';
 
-export type ProviderChannel = 'call' | 'sms' | 'email';
-
-export type ProviderMatrixRow = {
-  channel: ProviderChannel;
-  provider: string;
-  ready: boolean;
-  degraded: boolean;
-  flowCount: number;
-  parityGapCount: number;
-  paymentMode: string;
-};
+export type { ProviderChannel, ProviderMatrixRow };
 
 type UseDashboardProviderMetricsOptions = {
   providerCompatibilityChannels: Record<string, unknown>;

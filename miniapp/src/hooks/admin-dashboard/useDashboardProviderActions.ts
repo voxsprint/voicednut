@@ -1,21 +1,11 @@
 import { useCallback } from 'react';
 
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
-
-export type ProviderChannel = 'call' | 'sms' | 'email';
+import { createEmptyProviderSwitchPlan } from '@/hooks/admin-dashboard/providerSwitchPlanState';
+import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
 
 type ActivityStatus = 'info' | 'success' | 'error';
-type ProviderSwitchStage = 'idle' | 'simulated' | 'confirmed' | 'applied' | 'failed';
-type ProviderSwitchPostCheck = 'idle' | 'ok' | 'failed';
-
-type ProviderSwitchPlanState = {
-  target: string;
-  stage: ProviderSwitchStage;
-  postCheck: ProviderSwitchPostCheck;
-  rollbackSuggestion: string;
-};
-
-type ProviderSwitchPlanStateMap = Record<ProviderChannel, ProviderSwitchPlanState>;
+type ProviderSwitchPlanStateMap = Record<ProviderChannel, ProviderSwitchPlan>;
 type ProviderChannelData = {
   provider?: unknown;
   supported_providers?: unknown;
@@ -434,12 +424,7 @@ export function useDashboardProviderActions({
   const resetProviderSwitchPlan = useCallback((channel: ProviderChannel): void => {
     setProviderSwitchPlanByChannel((prev) => ({
       ...prev,
-      [channel]: {
-        target: '',
-        stage: 'idle',
-        postCheck: 'idle',
-        rollbackSuggestion: '',
-      },
+      [channel]: createEmptyProviderSwitchPlan(),
     }));
   }, [setProviderSwitchPlanByChannel]);
 

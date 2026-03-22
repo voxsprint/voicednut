@@ -1,11 +1,9 @@
 import { useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
-import type { ProviderChannel } from '@/hooks/admin-dashboard/useDashboardProviderMetrics';
+import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
 
-type ProviderSwitchPlanWithTarget = {
-  target: string;
-};
+type ProviderSwitchPlanWithTarget = Pick<ProviderSwitchPlan, 'target'>;
 
 type UseDashboardProviderSwitchDefaultsOptions<TPlanState extends ProviderSwitchPlanWithTarget> = {
   providerCurrentByChannel: Record<ProviderChannel, string>;
