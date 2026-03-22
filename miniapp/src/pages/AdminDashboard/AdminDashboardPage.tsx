@@ -4,16 +4,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import '@/pages/AdminDashboard/AdminDashboardPage.css';
 import {
-  DashboardFocusedHeader,
-  DashboardMainHeader,
-} from '@/components/admin-dashboard/DashboardChrome';
-import {
   DashboardActionDialog,
   resolveDashboardDialogDismissValue,
 } from '@/components/admin-dashboard/DashboardActionDialog';
 import { ProviderChannelCard } from '@/components/admin-dashboard/ProviderChannelCard';
 import { DashboardSettingsStage } from '@/components/admin-dashboard/DashboardSettingsStage';
-import { DashboardStatusRail } from '@/components/admin-dashboard/DashboardStatusRail';
+import { DashboardTopShell } from '@/components/admin-dashboard/DashboardTopShell';
 import { DashboardViewStage } from '@/components/admin-dashboard/DashboardViewStage';
 import {
   asRecord,
@@ -2060,54 +2056,36 @@ export function AdminDashboardPage() {
             ? 'Settings panel active.'
             : `${activeModuleLabel} module active.`}
         </p>
-        {!settingsOpen ? (
-          <section className="va-top-shell">
-            {showOverviewMode ? (
-              <DashboardMainHeader
-                userLabel={userLabel}
-                userAvatarUrl={userAvatarUrl}
-                userAvatarFallback={userAvatarFallback}
-                sessionRole={sessionRole}
-                sessionRoleSource={sessionRoleSource}
-                settingsStatusLabel={settingsStatusLabel}
-                featureFlagsCount={Object.keys(featureFlags).length || 'default'}
-                moduleDetail="Choose a workspace to continue."
-                activeModuleGlyph="⌂"
-                loading={loading}
-                compact
-                onOpenSettings={() => toggleSettings(true)}
-              />
-            ) : (
-              <DashboardFocusedHeader
-                title={activeModuleLabel}
-                subtitle={activeModuleMeta.subtitle}
-                userAvatarUrl={userAvatarUrl}
-                userAvatarFallback={userAvatarFallback}
-                loading={loading}
-                onBackToDashboard={() => navigate('/')}
-                onOpenSettings={() => toggleSettings(true)}
-              />
-            )}
-          </section>
-        ) : null}
-
-        {!sessionBlocked && showOverviewMode && (loading || error || notice || busyAction.length > 0 || isDashboardDegraded) ? (
-          <DashboardStatusRail
-            loading={loading}
-            error={error}
-            notice={notice}
-            noticeTone={noticeTone}
-            busyAction={busyAction}
-            syncHealthState={syncHealthState}
-            syncModeLabel={syncModeLabel}
-            syncHealthMessage={syncHealthMessage}
-            pollFailureCount={pollFailureCount}
-            streamFailureCount={streamFailureCount}
-            bridgeHardFailures={bridgeHardFailures}
-            bridgeSoftFailures={bridgeSoftFailures}
-            actionTelemetry={actionTelemetry}
-          />
-        ) : null}
+        <DashboardTopShell
+          settingsOpen={settingsOpen}
+          showOverviewMode={showOverviewMode}
+          sessionBlocked={sessionBlocked}
+          loading={loading}
+          userLabel={userLabel}
+          userAvatarUrl={userAvatarUrl}
+          userAvatarFallback={userAvatarFallback}
+          sessionRole={sessionRole}
+          sessionRoleSource={sessionRoleSource}
+          settingsStatusLabel={settingsStatusLabel}
+          featureFlagsCount={Object.keys(featureFlags).length || 'default'}
+          activeModuleLabel={activeModuleLabel}
+          activeModuleSubtitle={activeModuleMeta.subtitle}
+          onBackToDashboard={() => navigate('/')}
+          onOpenSettings={() => toggleSettings(true)}
+          error={error}
+          notice={notice}
+          noticeTone={noticeTone}
+          busyAction={busyAction}
+          isDashboardDegraded={isDashboardDegraded}
+          syncHealthState={syncHealthState}
+          syncModeLabel={syncModeLabel}
+          syncHealthMessage={syncHealthMessage}
+          pollFailureCount={pollFailureCount}
+          streamFailureCount={streamFailureCount}
+          bridgeHardFailures={bridgeHardFailures}
+          bridgeSoftFailures={bridgeSoftFailures}
+          actionTelemetry={actionTelemetry}
+        />
       <DashboardSettingsStage
         isOpen={settingsOpen}
         userLabel={userLabel}

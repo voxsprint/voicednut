@@ -61,6 +61,7 @@ function main() {
     'src/services/admin-dashboard/dashboardVm/buildGovernanceVmSection.ts',
     'src/pages/AdminDashboard/vmSelectors.ts',
     'src/components/admin-dashboard/DashboardOverviewMetrics.tsx',
+    'src/components/admin-dashboard/DashboardTopShell.tsx',
     'src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx',
     'src/components/admin-dashboard/DashboardViewStage.tsx',
     'src/index.css',
@@ -123,13 +124,14 @@ function main() {
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'parseWorkspaceRoute');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "location.hash.replace(/^#/, '')");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardFocusedHeader');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardTopShell');
   expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'className="va-overview-launcher"');
   expectContains('src/components/admin-dashboard/DashboardWorkspaceLauncher.tsx', 'id={`va-launcher-module-${module.id}`}');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', '<DashboardViewStage');
   expectContains('src/components/admin-dashboard/DashboardViewStage.tsx', '<DashboardOverviewMetrics');
   expectContains('src/components/admin-dashboard/DashboardViewStage.tsx', '<DashboardWorkspaceLauncher');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'moduleDetail="Choose a workspace to continue."');
+  expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', '<DashboardFocusedHeader');
+  expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', 'MODULE_DETAIL_DEFAULT');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "if (!visibleModules.some((module) => module.id === moduleId)) return;");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "navigate(fallbackPath, { replace: true });");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "toggleSettings(false, { fallbackModule: nextModule.id });");
