@@ -1,0 +1,64 @@
+import { useEffect } from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { NavigateFunction } from 'react-router-dom';
+
+import type { DashboardModule, WorkspaceRoute } from '@/pages/AdminDashboard/dashboardShellConfig';
+
+type UseDashboardModuleRouteGuardsOptions = {
+  activeModule: DashboardModule;
+  setActiveModule: Dispatch<SetStateAction<DashboardModule>>;
+  visibleModules: Array<{ id: DashboardModule }>;
+  workspaceRoute: WorkspaceRoute;
+  locationPathname: string;
+  navigate: NavigateFunction;
+  preferredServerModule: DashboardModule | null;
+  moduleRoutePath: (moduleId: DashboardModule) => string;
+  initialServerModuleAppliedRef: MutableRefObject<boolean>;
+};
+
+export function useDashboardModuleRouteGuards({
+  activeModule,
+  setActiveModule,
+  visibleModules,
+  workspaceRoute,
+  locationPathname,
+  navigate,
+  preferredServerModule,
+  moduleRoutePath: toModuleRoutePath,
+  initialServerModuleAppliedRef,
+}: UseDashboardModuleRouteGuardsOptions): void {
+  useEffect(() => {
+    if (visibleModules.length === 0) return;
+    if (!visibleModules.some((module) => module.id === activeModule)) {
+      setActiveModule(visibleModules[0].id);
+    }
+  }, [activeModule, setActiveModule, visibleModules]);
+
+  useEffect(() => {
+    if (!workspaceRoute || workspaceRoute === 'settings') return;
+    if (visibleModules.length === 0) {
+      if (locationPathname !== '/') {
+        navigate('/', { replace: true });
+      }
+      return;
+    }
+    if (visibleModules.some((module) => module.id === workspaceRoute)) return;
+    const fallbackModule = visibleModules[0]?.id;
+    if (!fallbackModule) return;
+    const fallbackPath = toModuleRoutePath(fallbackModule);
+    if (locationPathname !== fallbackPath) {
+      navigate(fallbackPath, { replace: true });
+    }
+  }, [locationPathname, navigate, toModuleRoutePath, visibleModules, workspaceRoute]);
+
+  useEffect(() => {
+    if (initialServerModuleAppliedRef.current) return;
+    if (!preferredServerModule) return;
+    if (!visibleModules.some((module) => module.id === preferredServerModule)) {
+      initialServerModuleAppliedRef.current = true;
+      return;
+    }
+    initialServerModuleAppliedRef.current = true;
+    setActiveModule(preferredServerModule);
+  }, [preferredServerModule, setActiveModule, visibleModules, initialServerModuleAppliedRef]);
+}

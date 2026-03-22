@@ -51,6 +51,8 @@ function main() {
     'index.html',
     'src/pages/AdminDashboard/AdminDashboardPage.tsx',
     'src/hooks/admin-dashboard/useDashboardActions.ts',
+    'src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts',
+    'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
     'src/services/admin-dashboard/dashboardApiContracts.ts',
     'src/services/admin-dashboard/dashboardActionGuards.ts',
     'src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts',
@@ -135,8 +137,8 @@ function main() {
   expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', '<DashboardFocusedHeader');
   expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', 'MODULE_DETAIL_DEFAULT');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "if (!visibleModules.some((module) => module.id === moduleId)) return;");
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "navigate(fallbackPath, { replace: true });");
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "toggleSettings(false, { fallbackModule: nextModule.id });");
+  expectContains('src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts', "navigate(fallbackPath, { replace: true });");
+  expectContains('src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts', "toggleSettings(false, { fallbackModule: nextModule.id });");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-launcher-card.is-active');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '@media (pointer: coarse), (max-width: 768px)');
   expectContains('src/index.css', '@media (pointer: coarse)');

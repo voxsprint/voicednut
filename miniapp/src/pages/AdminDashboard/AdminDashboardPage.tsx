@@ -51,6 +51,9 @@ import {
   useDashboardModuleLayout,
 } from '@/hooks/admin-dashboard/useDashboardModuleLayout';
 import {
+  useDashboardModuleRouteGuards,
+} from '@/hooks/admin-dashboard/useDashboardModuleRouteGuards';
+import {
   useDashboardMessagingMetrics,
 } from '@/hooks/admin-dashboard/useDashboardMessagingMetrics';
 import {
@@ -78,6 +81,7 @@ import {
   useDashboardProviderActions,
 } from '@/hooks/admin-dashboard/useDashboardProviderActions';
 import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPollingLoop';
+import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardKeyboardShortcuts';
 import type { DashboardDialogState } from '@/hooks/admin-dashboard/useDashboardDialog';
 import { useDashboardDialog } from '@/hooks/admin-dashboard/useDashboardDialog';
 import {
@@ -1264,38 +1268,17 @@ export function AdminDashboardPage() {
         : 'Mounted'
       : 'Pending';
 
-  useEffect(() => {
-    if (visibleModules.length === 0) return;
-    if (!visibleModules.some((module) => module.id === activeModule)) {
-      setActiveModule(visibleModules[0].id);
-    }
-  }, [activeModule, visibleModules]);
-  useEffect(() => {
-    if (!workspaceRoute || workspaceRoute === 'settings') return;
-    if (visibleModules.length === 0) {
-      if (location.pathname !== '/') {
-        navigate('/', { replace: true });
-      }
-      return;
-    }
-    if (visibleModules.some((module) => module.id === workspaceRoute)) return;
-    const fallbackModule = visibleModules[0]?.id;
-    if (!fallbackModule) return;
-    const fallbackPath = moduleRoutePath(fallbackModule);
-    if (location.pathname !== fallbackPath) {
-      navigate(fallbackPath, { replace: true });
-    }
-  }, [location.pathname, navigate, visibleModules, workspaceRoute]);
-  useEffect(() => {
-    if (initialServerModuleAppliedRef.current) return;
-    if (!preferredServerModule) return;
-    if (!visibleModules.some((module) => module.id === preferredServerModule)) {
-      initialServerModuleAppliedRef.current = true;
-      return;
-    }
-    initialServerModuleAppliedRef.current = true;
-    setActiveModule(preferredServerModule);
-  }, [preferredServerModule, visibleModules]);
+  useDashboardModuleRouteGuards({
+    activeModule,
+    setActiveModule,
+    visibleModules,
+    workspaceRoute,
+    locationPathname: location.pathname,
+    navigate,
+    preferredServerModule,
+    moduleRoutePath,
+    initialServerModuleAppliedRef,
+  });
   const activeModuleMeta = MODULE_CONTEXT[activeModule] || MODULE_CONTEXT.ops;
   const activeModuleLabel = useMemo(() => (
     MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label || activeModule
@@ -1318,55 +1301,9 @@ export function AdminDashboardPage() {
   const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;
   const showFocusedModuleMode = focusedWorkspaceMode && !settingsOpen;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (isTypingTarget(event.target)) return;
-      const key = event.key.toLowerCase();
-      if (dialogState && key === 'escape') {
-        event.preventDefault();
-        dismissDialog(dialogState);
-        return;
-      }
-      if (dialogState) return;
-      if ((event.ctrlKey || event.metaKey) && key === ',') {
-        event.preventDefault();
-        toggleSettings();
-        return;
-      }
-      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (key === 'r') {
-        event.preventDefault();
-        triggerHaptic('impact', 'light');
-        pushActivity('info', 'Manual refresh', 'Operator triggered dashboard refresh.');
-        void loadBootstrap();
-        return;
-      }
-      if (key === 's') {
-        event.preventDefault();
-        toggleSettings();
-        return;
-      }
-      const moduleIndex = Number.parseInt(key, 10);
-      if (!Number.isFinite(moduleIndex) || moduleIndex < 1 || moduleIndex > visibleModules.length) return;
-      const nextModule = visibleModules[moduleIndex - 1];
-      if (!nextModule) return;
-      event.preventDefault();
-      restoreFocusSelectorRef.current = `#va-launcher-module-${nextModule.id}, #va-view-stage-root`;
-      if (settingsOpen) {
-        toggleSettings(false, { fallbackModule: nextModule.id });
-        selectModule(nextModule.id);
-        return;
-      }
-      selectModule(nextModule.id, { fromKeyboard: true });
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [
-    dismissDialog,
+  useDashboardKeyboardShortcuts({
     dialogState,
+    dismissDialog,
     loadBootstrap,
     pushActivity,
     selectModule,
@@ -1374,7 +1311,9 @@ export function AdminDashboardPage() {
     toggleSettings,
     triggerHaptic,
     visibleModules,
-  ]);
+    restoreFocusSelectorRef,
+    isTypingTarget,
+  });
 
   useEffect(() => {
     if (callScripts.length === 0) {
