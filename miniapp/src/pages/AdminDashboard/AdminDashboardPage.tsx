@@ -1,4 +1,4 @@
-import { backButton, hapticFeedback, initData, miniApp, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
+import { hapticFeedback, initData, miniApp, settingsButton, useRawInitData, useSignal } from '@tma.js/sdk-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -74,6 +74,10 @@ import {
 import {
   useDashboardStoredPrefs,
 } from '@/hooks/admin-dashboard/useDashboardStoredPrefs';
+import {
+  useDashboardWorkspaceRouteSync,
+} from '@/hooks/admin-dashboard/useDashboardWorkspaceRouteSync';
+import { useDashboardTelegramButtons } from '@/hooks/admin-dashboard/useDashboardTelegramButtons';
 import {
   useDashboardRuntimeControls,
 } from '@/hooks/admin-dashboard/useDashboardRuntimeControls';
@@ -675,16 +679,13 @@ export function AdminDashboardPage() {
     initialServerModuleAppliedRef,
   });
 
-  useEffect(() => {
-    if (workspaceRoute === 'settings') {
-      setSettingsOpen((prev) => (prev ? prev : true));
-      return;
-    }
-    setSettingsOpen((prev) => (prev ? false : prev));
-    if (!workspaceRoute || workspaceRoute === activeModule) return;
-    initialServerModuleAppliedRef.current = true;
-    setActiveModule(workspaceRoute);
-  }, [activeModule, workspaceRoute]);
+  useDashboardWorkspaceRouteSync({
+    workspaceRoute,
+    activeModule,
+    setSettingsOpen,
+    setActiveModule,
+    initialServerModuleAppliedRef,
+  });
 
   const tokenRef = useRef<string | null>(token);
   const initDataRawRef = useRef<string>(initDataRaw || '');
@@ -961,82 +962,18 @@ export function AdminDashboardPage() {
     pushActivity('info', 'Dev fixture mode', 'Using local dashboard fixture data.');
   }, [pushActivity, setNoticeMessage]);
 
-  useEffect(() => {
-    if (!settingsButtonSupported) return undefined;
-    settingsButton.mount.ifAvailable();
-    settingsButton.show.ifAvailable();
-    return () => {
-      settingsButton.hide.ifAvailable();
-    };
-  }, [settingsButtonSupported]);
-
-  useEffect(() => {
-    if (!settingsButton.onClick.isAvailable()) {
-      return undefined;
-    }
-    return settingsButton.onClick(() => {
-      toggleSettings();
-    });
-  }, [toggleSettings]);
-
-  useEffect(() => {
-    if (
-      Boolean(dialogState)
-      || settingsOpen
-      || focusedWorkspaceMode
-      || activeModule !== 'ops'
-    ) {
-      backButton.show.ifAvailable();
-      return;
-    }
-    backButton.hide.ifAvailable();
-  }, [activeModule, dialogState, focusedWorkspaceMode, settingsOpen]);
-
-  useEffect(() => (
-    () => {
-      backButton.hide.ifAvailable();
-    }
-  ), []);
-
-  useEffect(() => {
-    if (!backButton.onClick.isAvailable()) {
-      return undefined;
-    }
-    return backButton.onClick(() => {
-      if (dialogState) {
-        dismissDialog(dialogState);
-        triggerHaptic('selection');
-        return;
-      }
-      if (settingsOpen) {
-        toggleSettings(false);
-        return;
-      }
-      if (focusedWorkspaceMode) {
-        triggerHaptic('selection');
-        navigate('/');
-        return;
-      }
-      if (activeModule !== 'ops') {
-        selectModule('ops', { fromKeyboard: true });
-        return;
-      }
-      if (typeof window !== 'undefined' && window.history.length > 1) {
-        triggerHaptic('impact', 'light');
-        window.history.back();
-      }
-    });
-  }, [
-    activeModule,
-    dismissDialog,
-    dialogState,
-    focusedWorkspaceMode,
-    navigate,
-    selectModule,
-    settingsOpen,
+  useDashboardTelegramButtons({
+    settingsButtonSupported,
     toggleSettings,
+    dialogState,
+    dismissDialog,
     triggerHaptic,
-  ]);
+    settingsOpen,
+    focusedWorkspaceMode,
+    activeModule,
+    selectModule,
+    navigate,
+  });
 
   useEffect(() => {
     if (settingsOpen) return;
