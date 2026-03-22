@@ -51,6 +51,8 @@ function main() {
     'index.html',
     'src/pages/AdminDashboard/AdminDashboardPage.tsx',
     'src/hooks/admin-dashboard/useDashboardActions.ts',
+    'src/hooks/admin-dashboard/useDashboardBootstrapLifecycle.ts',
+    'src/hooks/admin-dashboard/useDashboardFocusManagement.ts',
     'src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts',
     'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
     'src/hooks/admin-dashboard/useDashboardStoredPrefs.ts',
@@ -148,7 +150,7 @@ function main() {
   expectContains('src/index.css', 'font-size: 16px;');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'VITE_ADMIN_DASHBOARD_DEV_FIXTURES');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'resolveDashboardFixtureRequest');
-  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'Dev fixture mode enabled');
+  expectContains('src/hooks/admin-dashboard/useDashboardBootstrapLifecycle.ts', 'Dev fixture mode enabled');
   expectContains('index.html', 'viewport-fit=cover');
   expectContains('index.html', 'interactive-widget=resizes-content');
   expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'export function DashboardFocusedHeader');

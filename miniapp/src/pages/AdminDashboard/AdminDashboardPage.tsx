@@ -48,6 +48,9 @@ import {
   useDashboardFeatureFlags,
 } from '@/hooks/admin-dashboard/useDashboardFeatureFlags';
 import {
+  useDashboardFocusManagement,
+} from '@/hooks/admin-dashboard/useDashboardFocusManagement';
+import {
   useDashboardModuleLayout,
 } from '@/hooks/admin-dashboard/useDashboardModuleLayout';
 import {
@@ -71,6 +74,9 @@ import {
 import {
   useDashboardCallScriptSelectionSync,
 } from '@/hooks/admin-dashboard/useDashboardCallScriptSelectionSync';
+import {
+  useDashboardBootstrapLifecycle,
+} from '@/hooks/admin-dashboard/useDashboardBootstrapLifecycle';
 import {
   useDashboardStoredPrefs,
 } from '@/hooks/admin-dashboard/useDashboardStoredPrefs';
@@ -354,26 +360,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button',
-  'input',
-  'select',
-  'textarea',
-  '[tabindex]:not([tabindex="-1"])',
-].join(', ');
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((element) => {
-      if (element.matches(':disabled')) return false;
-      if (element.getAttribute('aria-hidden') === 'true') return false;
-      if (element instanceof HTMLInputElement && element.type === 'hidden') return false;
-      if (element.tabIndex < 0) return false;
-      return element.getClientRects().length > 0;
-    });
-}
-
 export function AdminDashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -473,18 +459,22 @@ export function AdminDashboardPage() {
   const bootstrapAbortRef = useRef<AbortController | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
   const initialServerModuleAppliedRef = useRef<boolean>(false);
-  const fixtureModeNotedRef = useRef<boolean>(false);
   const lastActivityRef = useRef<{ signature: string; at: number; repeats: number }>({
     signature: '',
     at: 0,
     repeats: 0,
   });
-  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
-  const dialogCancelButtonRef = useRef<HTMLButtonElement>(null);
-  const actionDialogRef = useRef<HTMLElement>(null);
-  const restoreFocusSelectorRef = useRef<string>('#va-view-stage-root');
-  const shouldRestoreFocusRef = useRef<boolean>(false);
-  const shouldFocusStageRef = useRef<boolean>(false);
+  const {
+    actionDialogRef,
+    dialogCancelButtonRef,
+    restoreFocusSelectorRef,
+    shouldRestoreFocusRef,
+    shouldFocusStageRef,
+  } = useDashboardFocusManagement({
+    activeModule,
+    settingsOpen,
+    dialogState,
+  });
   const dismissDialog = useCallback((state: DashboardDialogState | null): void => {
     if (!state) return;
     closeDialog(resolveDashboardDialogDismissValue(state));
@@ -950,17 +940,12 @@ export function AdminDashboardPage() {
     registry: FEATURE_FLAG_REGISTRY,
   });
 
-  useEffect(() => {
-    void loadBootstrap();
-  }, [loadBootstrap]);
-
-  useEffect(() => {
-    if (!DASHBOARD_DEV_FIXTURES_ENABLED) return;
-    if (fixtureModeNotedRef.current) return;
-    fixtureModeNotedRef.current = true;
-    setNoticeMessage('Dev fixture mode enabled: backend calls are bypassed for local QA.');
-    pushActivity('info', 'Dev fixture mode', 'Using local dashboard fixture data.');
-  }, [pushActivity, setNoticeMessage]);
+  useDashboardBootstrapLifecycle({
+    loadBootstrap,
+    devFixturesEnabled: DASHBOARD_DEV_FIXTURES_ENABLED,
+    setNoticeMessage,
+    pushActivity,
+  });
 
   useDashboardTelegramButtons({
     settingsButtonSupported,
@@ -974,93 +959,6 @@ export function AdminDashboardPage() {
     selectModule,
     navigate,
   });
-
-  useEffect(() => {
-    if (settingsOpen) return;
-    if (!shouldRestoreFocusRef.current) return;
-    shouldRestoreFocusRef.current = false;
-    if (typeof document === 'undefined') return;
-    requestAnimationFrame(() => {
-      const target = document.querySelector<HTMLElement>(restoreFocusSelectorRef.current)
-        || document.querySelector<HTMLElement>('#va-view-stage-root');
-      target?.focus({ preventScroll: true });
-    });
-  }, [activeModule, settingsOpen]);
-
-  useEffect(() => {
-    if (settingsOpen) return;
-    if (!shouldFocusStageRef.current) return;
-    shouldFocusStageRef.current = false;
-    if (typeof document === 'undefined') return;
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('#va-view-stage-root')?.focus({ preventScroll: true });
-    });
-  }, [activeModule, settingsOpen]);
-
-  useEffect(() => {
-    if (!dialogState) return;
-    if (typeof document === 'undefined') return;
-    const activeElement = document.activeElement;
-    dialogReturnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
-    if (dialogState.kind === 'prompt') return;
-    requestAnimationFrame(() => {
-      dialogCancelButtonRef.current?.focus({ preventScroll: true });
-    });
-  }, [dialogState]);
-
-  useEffect(() => {
-    if (dialogState) return;
-    const previousFocus = dialogReturnFocusRef.current;
-    if (!previousFocus) return;
-    dialogReturnFocusRef.current = null;
-    if (typeof document === 'undefined') return;
-    requestAnimationFrame(() => {
-      if (previousFocus.isConnected) {
-        previousFocus.focus({ preventScroll: true });
-        return;
-      }
-      document.querySelector<HTMLElement>('#va-view-stage-root')?.focus({ preventScroll: true });
-    });
-  }, [dialogState]);
-
-  useEffect(() => {
-    if (!dialogState) return undefined;
-    if (typeof document === 'undefined') return undefined;
-
-    const handleTabTrap = (event: KeyboardEvent): void => {
-      if (event.key !== 'Tab') return;
-      const surface = actionDialogRef.current;
-      if (!surface) return;
-      const focusable = getFocusableElements(surface);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        surface.focus({ preventScroll: true });
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const activeElement = document.activeElement;
-      if (!(activeElement instanceof HTMLElement) || !surface.contains(activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus({ preventScroll: true });
-        return;
-      }
-      if (!event.shiftKey && activeElement === last) {
-        event.preventDefault();
-        first.focus({ preventScroll: true });
-        return;
-      }
-      if (event.shiftKey && activeElement === first) {
-        event.preventDefault();
-        last.focus({ preventScroll: true });
-      }
-    };
-
-    document.addEventListener('keydown', handleTabTrap, true);
-    return () => {
-      document.removeEventListener('keydown', handleTabTrap, true);
-    };
-  }, [dialogState]);
 
   const serverPollIntervalMs = useMemo(() => {
     const intervalSeconds = Number(bootstrap?.poll_interval_seconds);
