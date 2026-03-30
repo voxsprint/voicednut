@@ -48,6 +48,12 @@
 ## Skill routing hints
 - Provider/API docs lookup and integration behavior validation -> use `integration-docs-kit`.
 - Feature implementation/code generation -> use `intent-codegen`.
+- Miniapp UI/UX enhancement and visual quality improvements -> use `frontend-skill` with `intent-codegen`.
+- Design-to-code implementation from Figma URLs/nodes -> use `figma-implement-design` (and `figma` for MCP setup/troubleshooting).
+- Figma code component mapping workflows -> use `figma-code-connect-components`.
+- Design-system rule generation for project consistency -> use `figma-create-design-system-rules`.
+- Figma canvas read/write actions via JS Plugin API -> use `figma-use` before any `use_figma` tool call.
+- Browser-level Mini App validation and interaction checks -> use `playwright`.
 - Complex code reading/explanation -> use `legacy-code-explainer`.
 - Bug/edge-case/code-risk review -> use `bug-risk-review`.
 - Repro + root-cause + fix -> use `debug-fix-playbook`.
@@ -71,14 +77,36 @@
 - Cross-check auth/signature verification against Init Data docs before code changes.
 - Use Context7 for `@tma.js` package version compatibility when available.
 
+## Miniapp skill orchestration (required)
+- For Mini App enhancement tasks, route by default through this sequence unless task scope requires otherwise:
+  1) `intent-codegen` for scoped implementation plan and minimal diff strategy.
+  2) `frontend-skill` for UI hierarchy, polish, and interaction quality.
+  3) `playwright` for UI/runtime validation on critical flows.
+  4) `bug-risk-review` for high-risk paths (auth, admin actions, destructive operations).
+- When Figma context exists, add:
+  1) `figma` for connection/setup checks.
+  2) `figma-implement-design` or `figma-generate-design` for design translation.
+  3) `figma-code-connect-components` for component mapping.
+  4) `figma-create-design-system-rules` when rule generation is requested.
+  5) `figma-use` before any direct `use_figma` write/read action.
+- If a relevant installed skill is available and the task matches it, use that skill instead of ad-hoc workflow.
+
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.
 ### Available skills
 - bug-risk-review: Use when reviewing code for bugs, logic errors, race conditions, security flaws, and unhandled edge cases. Optimized for rapid triage, high-signal findings, and actionable remediation guidance. (file: /home/codespace/.codex/skills/bug-risk-review/SKILL.md)
 - debug-fix-playbook: Use when diagnosing failures, reproducing bugs, and delivering verified fixes. Emphasizes reproducibility, hypothesis-driven debugging, minimal patches, and regression prevention. (file: /home/codespace/.codex/skills/debug-fix-playbook/SKILL.md)
+- figma: Use the Figma MCP server to fetch design context, screenshots, variables, and assets from Figma, and to translate Figma nodes into production code. (file: /home/codespace/.codex/skills/figma/SKILL.md)
+- figma-code-connect-components: Connects Figma design components to code components using Code Connect mapping tools. (file: /home/codespace/.codex/skills/figma-code-connect-components/SKILL.md)
+- figma-create-design-system-rules: Generates custom design system rules for the user's codebase. (file: /home/codespace/.codex/skills/figma-create-design-system-rules/SKILL.md)
+- figma-generate-design: Preferred for building/updating full Figma screens from app/page code or specs. (file: /home/codespace/.codex/skills/figma-generate-design/SKILL.md)
+- figma-implement-design: Translate Figma nodes into production-ready code with high visual fidelity. (file: /home/codespace/.codex/skills/figma-implement-design/SKILL.md)
+- figma-use: Mandatory prerequisite before any direct `use_figma` tool call. (file: /home/codespace/.codex/skills/figma-use/SKILL.md)
+- frontend-skill: Use for visually strong app/website UI implementation and polish. (file: /home/codespace/.codex/skills/frontend-skill/SKILL.md)
 - integration-docs-kit: Use when work touches Twilio, Vonage, AWS, OpenRouter, Deepgram, or grammY. Detects integration surface, maps to official docs + Context7, and enforces evidence-backed implementation/review. (file: /home/codespace/.codex/skills/integration-docs-kit/SKILL.md)
 - intent-codegen: Use when the user asks to implement features or generate code that must match existing project architecture, conventions, and intent. Optimized for fast constraint extraction, minimal diffs, and risk-scaled verification. (file: /home/codespace/.codex/skills/intent-codegen/SKILL.md)
 - legacy-code-explainer: Use when the user asks to understand, explain, or untangle complex/legacy code. Produces layered explanations, call/data-flow maps, invariants, and concrete refactor-safe guidance. (file: /home/codespace/.codex/skills/legacy-code-explainer/SKILL.md)
+- playwright: Use when tasks require browser automation, flow validation, screenshots, and UI debugging. (file: /home/codespace/.codex/skills/playwright/SKILL.md)
 - voxly-provider-contract-guard: Use for Voxly provider-facing changes to enforce docs-backed webhook/auth contract checks, version drift detection, and deterministic provider validation commands. (file: /home/codespace/.codex/skills/voxly-provider-contract-guard/SKILL.md)
 - workflow-automation: Use when the user asks to automate repetitive engineering workflows such as setup, refactoring loops, migrations, lint/test runs, and release-prep checks. Includes reusable local scripts. (file: /home/codespace/.codex/skills/workflow-automation/SKILL.md)
 - vercel-deploy: Deploy applications and websites to Vercel. Use when users ask to deploy, publish a preview link, or ship to production on Vercel. (file: /home/codespace/.codex/skills/vercel-deploy/SKILL.md)

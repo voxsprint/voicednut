@@ -237,6 +237,7 @@ const SCRIPT_STUDIO_VM_KEYS = [
   'simulateCallScript',
   'scriptSimulationResult',
   'asRecord',
+  'runAction',
   'invokeAction',
 ] as const satisfies readonly (keyof DashboardVm)[];
 

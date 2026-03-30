@@ -93,6 +93,16 @@ export function useDashboardDialog(): UseDashboardDialogResult {
   const handleDialogConfirm = useCallback((): void => {
     if (!dialogState) return;
     if (dialogState.kind === 'confirm') {
+      const requiredValue = dialogState.requireMatchText?.trim();
+      if (requiredValue) {
+        const enteredValue = dialogInputValue.trim();
+        if (enteredValue !== requiredValue) {
+          setDialogInputError(
+            dialogState.requireMatchValidationMessage || `Type ${requiredValue} exactly to continue.`,
+          );
+          return;
+        }
+      }
       closeDialog(true);
       return;
     }

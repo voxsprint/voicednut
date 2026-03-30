@@ -5,6 +5,7 @@ import { asRecord } from '@/services/admin-dashboard/dashboardPrimitives';
 import { validateActionEnvelope } from '@/services/admin-dashboard/dashboardApiContracts';
 import {
   getDashboardActionPolicy,
+  resolveDashboardActionId,
   validateDashboardActionPayload,
 } from '@/services/admin-dashboard/dashboardActionGuards';
 
@@ -34,6 +35,7 @@ export type RunActionOptions = {
   confirmText?: string;
   successMessage?: string;
   optimisticUpdate?: () => void | (() => void);
+  onSuccess?: () => void | Promise<void>;
 };
 
 export type DashboardActionConfirmDialog = {
@@ -42,6 +44,10 @@ export type DashboardActionConfirmDialog = {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: 'default' | 'warning' | 'danger';
+  requireMatchText?: string;
+  requireMatchPlaceholder?: string;
+  requireMatchValidationMessage?: string;
+  requireMatchHint?: string;
 };
 
 type UseDashboardActionsOptions = {
@@ -146,24 +152,28 @@ export function useDashboardActions({
     payload: Record<string, unknown>,
     metaOverride?: Partial<ActionRequestMeta>,
   ): Promise<unknown> => {
-    const actionPolicy = getDashboardActionPolicy(action);
+    const resolvedAction = resolveDashboardActionId(action);
+    if (!resolvedAction) {
+      throw new Error('Missing miniapp action id');
+    }
+    const actionPolicy = getDashboardActionPolicy(resolvedAction);
     if (actionPolicy.capability && hasCapability && !hasCapability(actionPolicy.capability)) {
-      throw new Error(`Missing capability "${actionPolicy.capability}" for ${action}`);
+      throw new Error(`Missing capability "${actionPolicy.capability}" for ${resolvedAction}`);
     }
     const actionMeta: ActionRequestMeta = {
-      ...createActionMeta(action),
+      ...createActionMeta(resolvedAction),
       ...metaOverride,
     };
-    const guardError = validateDashboardActionPayload(action, payload);
+    const guardError = validateDashboardActionPayload(resolvedAction, payload);
     if (guardError) {
-      throw new Error(`Invalid payload for ${action}: ${guardError}`);
+      throw new Error(`Invalid payload for ${resolvedAction}: ${guardError}`);
     }
 
     const startedAt = Date.now();
     const traceHint = actionMeta.action_id.slice(-8);
     setActionTelemetry({
       traceHint,
-      action,
+      action: resolvedAction,
       status: 'running',
       at: new Date(startedAt).toISOString(),
       latencyMs: 0,
@@ -180,7 +190,7 @@ export function useDashboardActions({
           'X-Action-Id': actionMeta.action_id,
           'X-Idempotency-Key': actionMeta.idempotency_key,
         },
-        body: JSON.stringify({ action, payload, meta: actionMeta }),
+        body: JSON.stringify({ action: resolvedAction, payload, meta: actionMeta }),
       });
       const envelopeCheck = validateActionEnvelope(rawResult);
       if (!envelopeCheck.ok) {
@@ -190,7 +200,7 @@ export function useDashboardActions({
       const latencyMs = Math.max(0, Date.now() - startedAt);
       setActionTelemetry({
         traceHint,
-        action,
+        action: resolvedAction,
         status: 'success',
         at: new Date().toISOString(),
         latencyMs,
@@ -207,7 +217,7 @@ export function useDashboardActions({
       const latencyMs = Math.max(0, Date.now() - startedAt);
       setActionTelemetry({
         traceHint,
-        action,
+        action: resolvedAction,
         status: 'error',
         at: new Date().toISOString(),
         latencyMs,
@@ -227,17 +237,25 @@ export function useDashboardActions({
     payload: Record<string, unknown>,
     options: RunActionOptions = {},
   ): Promise<void> => {
-    const actionPolicy = getDashboardActionPolicy(action);
+    const resolvedAction = resolveDashboardActionId(action);
+    if (!resolvedAction) {
+      const missingActionDetail = 'Blocked action: missing miniapp action id.';
+      setError(missingActionDetail);
+      triggerHaptic('warning');
+      pushActivity('error', 'Action blocked', missingActionDetail);
+      return;
+    }
+    const actionPolicy = getDashboardActionPolicy(resolvedAction);
     if (actionPolicy.capability && hasCapability && !hasCapability(actionPolicy.capability)) {
-      const deniedDetail = `Blocked ${action}: missing capability ${actionPolicy.capability}`;
+      const deniedDetail = `Blocked ${resolvedAction}: missing capability ${actionPolicy.capability}`;
       setError(deniedDetail);
       triggerHaptic('warning');
       pushActivity('error', 'Action blocked', deniedDetail);
       return;
     }
-    const dedupeKey = `${action}:${toStablePayloadKey(payload)}`;
+    const dedupeKey = `${resolvedAction}:${toStablePayloadKey(payload)}`;
     if (inFlightRunActionKeysRef.current.has(dedupeKey)) {
-      const duplicateDetail = `Duplicate submit ignored: ${action}`;
+      const duplicateDetail = `Duplicate submit ignored: ${resolvedAction}`;
       setNotice(duplicateDetail);
       triggerHaptic('warning');
       pushActivity('info', 'Duplicate action ignored', duplicateDetail);
@@ -258,7 +276,7 @@ export function useDashboardActions({
           ...cachedActionMeta.meta,
           requested_at: new Date().toISOString(),
         }
-        : createActionMeta(action);
+        : createActionMeta(resolvedAction);
       retryActionMetaCacheRef.current.set(dedupeKey, {
         meta: actionMeta,
         expiresAt: now + RETRY_ACTION_META_TTL_MS,
@@ -268,9 +286,18 @@ export function useDashboardActions({
       const actionAuditHint = `trace:${traceHint} idem:${idempotencyHint}`;
       const requiresPolicyConfirmation = actionPolicy.risk === 'danger';
       const shouldConfirm = typeof window !== 'undefined' && (Boolean(options.confirmText) || requiresPolicyConfirmation);
+      const requiresTypedConfirmation = Boolean(actionPolicy.confirmIrreversible);
+      const typedConfirmationValue = 'CONFIRM';
       if (shouldConfirm) {
+        if (requiresTypedConfirmation && !confirmAction) {
+          const fallbackError = `Blocked ${resolvedAction}: typed confirmation dialog is required for irreversible actions.`;
+          setError(fallbackError);
+          triggerHaptic('warning');
+          pushActivity('error', 'Action blocked', `${fallbackError} (${actionAuditHint})`);
+          return;
+        }
         const baseConfirmMessage = options.confirmText
-          || `Execute ${action}?`;
+          || `Execute ${resolvedAction}?`;
         const consequenceLine = actionPolicy.confirmConsequence
           || (actionPolicy.risk === 'danger'
             ? 'This action impacts live operations.'
@@ -291,19 +318,27 @@ export function useDashboardActions({
             cancelLabel: 'Cancel',
             tone: actionPolicy.confirmTone
               || (actionPolicy.risk === 'danger' ? 'danger' : 'warning'),
+            requireMatchText: requiresTypedConfirmation ? typedConfirmationValue : undefined,
+            requireMatchPlaceholder: requiresTypedConfirmation ? `Type ${typedConfirmationValue}` : undefined,
+            requireMatchValidationMessage: requiresTypedConfirmation
+              ? `Type ${typedConfirmationValue} exactly to continue.`
+              : undefined,
+            requireMatchHint: requiresTypedConfirmation
+              ? `Type ${typedConfirmationValue} to acknowledge this irreversible action.`
+              : undefined,
           })
           : window.confirm(confirmMessage);
         if (!allowed) {
           triggerHaptic('warning');
-          pushActivity('info', 'Action cancelled', `Cancelled: ${action} (${actionAuditHint})`);
+          pushActivity('info', 'Action cancelled', `Cancelled: ${resolvedAction} (${actionAuditHint})`);
           return;
         }
       }
 
-      setBusyAction(action);
+      setBusyAction(resolvedAction);
       setNotice('');
       setError('');
-      pushActivity('info', 'Action started', `Executing: ${action} (${actionAuditHint})`);
+      pushActivity('info', 'Action started', `Executing: ${resolvedAction} (${actionAuditHint})`);
       const startedAt = Date.now();
       let rollbackOptimisticUpdate: (() => void) | null = null;
       if (options.optimisticUpdate) {
@@ -313,13 +348,16 @@ export function useDashboardActions({
         }
       }
       try {
-        await invokeAction(action, payload, actionMeta);
+        await invokeAction(resolvedAction, payload, actionMeta);
         retryActionMetaCacheRef.current.delete(dedupeKey);
-        const successMessage = options.successMessage || `Action completed: ${action}`;
+        const successMessage = options.successMessage || `Action completed: ${resolvedAction}`;
         setNotice(`${successMessage} [${traceHint}|${idempotencyHint}]`);
         triggerHaptic('success');
         pushActivity('success', 'Action completed', `${successMessage} (${actionAuditHint})`);
         await Promise.resolve(loadBootstrap());
+        if (options.onSuccess) {
+          await Promise.resolve(options.onSuccess());
+        }
       } catch (err) {
         if (rollbackOptimisticUpdate) {
           rollbackOptimisticUpdate();
@@ -327,7 +365,7 @@ export function useDashboardActions({
         const detail = err instanceof Error ? err.message : String(err);
         setError(detail);
         triggerHaptic('error');
-        pushActivity('error', `Action failed: ${action}`, `${detail} (${actionAuditHint})`);
+        pushActivity('error', `Action failed: ${resolvedAction}`, `${detail} (${actionAuditHint})`);
       } finally {
         const latencyMs = Math.max(0, Date.now() - startedAt);
         setActionLatencyMsSamples((prev) => [...prev, latencyMs].slice(-actionLatencySampleLimit));

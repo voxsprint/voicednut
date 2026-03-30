@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type { CallLogRow, DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -36,83 +38,74 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
   const [detailsSid, setDetailsSid] = useState<string>('');
   const [events, setEvents] = useState<Array<Record<string, unknown>>>([]);
   const [eventsSid, setEventsSid] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [busy, setBusy] = useState<string>('');
+  const [validationError, setValidationError] = useState<string>('');
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
+  const activeActionLabel = requestState.activeActionLabel;
+  const error = validationError || investigationError;
 
   const recentStates = useMemo(() => events.slice(0, 12), [events]);
-  const controlsBusy = busy.length > 0 || busyAction.length > 0;
   const activeSid = callSid.trim();
   const hasDetails = Boolean(details) && detailsSid === activeSid;
   const hasEvents = recentStates.length > 0 && eventsSid === activeSid;
   const loadedRowsCount = rows.length > 0 ? rows.length : callLogs.length;
 
   const loadRows = async (): Promise<void> => {
-    setBusy('rows');
-    setError('');
-    try {
-      const trimmed = query.trim();
-      const data = trimmed.length >= 2
-        ? await invokeAction('calls.search', { query: trimmed, limit: 20 })
-        : await invokeAction('calls.list', { limit: 20, offset: 0 });
-      const payload = asRecord(data);
-      const nextRows = Array.isArray(payload.results)
-        ? payload.results as CallLogRow[]
-        : Array.isArray(payload.rows)
-          ? payload.rows as CallLogRow[]
+    setValidationError('');
+    const trimmed = query.trim();
+    const action = trimmed.length >= 2 ? 'calls.search' : 'calls.list';
+    const payload = trimmed.length >= 2
+      ? { query: trimmed, limit: 20 }
+      : { limit: 20, offset: 0 };
+    await runInvestigationAction(action, payload, (data) => {
+      const nextRows = Array.isArray(data.results)
+        ? data.results as CallLogRow[]
+        : Array.isArray(data.rows)
+          ? data.rows as CallLogRow[]
           : [];
       setRows(nextRows);
       if (nextRows.length > 0 && !activeSid) {
         const firstSid = toText(nextRows[0]?.call_sid, '');
         if (firstSid) setCallSid(firstSid);
       }
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy('');
-    }
+    });
   };
 
   const loadDetails = async (): Promise<void> => {
     const targetSid = callSid.trim();
     if (!targetSid) {
-      setError('Provide a call SID before loading details.');
+      setValidationError('Provide a call SID before loading details.');
       return;
     }
-    setBusy('details');
-    setError('');
-    try {
-      const data = await invokeAction('calls.get', { call_sid: targetSid });
-      const payload = asRecord(data);
-      const nextDetails = payload.call && typeof payload.call === 'object' && !Array.isArray(payload.call)
-        ? payload.call as Record<string, unknown>
-        : payload;
+    setValidationError('');
+    await runInvestigationAction('calls.get', { call_sid: targetSid }, (data) => {
+      const nextDetails = data.call && typeof data.call === 'object' && !Array.isArray(data.call)
+        ? data.call as Record<string, unknown>
+        : data;
       setDetails(nextDetails);
       setDetailsSid(targetSid);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy('');
-    }
+    });
   };
 
   const loadEvents = async (): Promise<void> => {
     const targetSid = callSid.trim();
     if (!targetSid) {
-      setError('Provide a call SID before loading events.');
+      setValidationError('Provide a call SID before loading events.');
       return;
     }
-    setBusy('events');
-    setError('');
-    try {
-      const data = await invokeAction('calls.events', { call_sid: targetSid });
-      const payload = asRecord(data);
-      setEvents(Array.isArray(payload.recent_states) ? payload.recent_states.map(asRecord) : []);
+    setValidationError('');
+    await runInvestigationAction('calls.events', { call_sid: targetSid }, (data) => {
+      setEvents(Array.isArray(data.recent_states) ? data.recent_states.map(asRecord) : []);
       setEventsSid(targetSid);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy('');
-    }
+    });
   };
 
   return (
@@ -186,7 +179,7 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
             <UiStatePanel
               compact
               title="Request in progress"
-              description="Loading latest call explorer data."
+              description={`Running ${activeActionLabel || 'request'}...`}
             />
           ) : null}
           {error ? (

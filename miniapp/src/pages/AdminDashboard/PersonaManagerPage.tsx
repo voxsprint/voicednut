@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -23,26 +25,30 @@ function toRows(value: unknown): Array<Record<string, unknown>> {
 export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
   if (!visible) return null;
 
-  const { toText, invokeAction } = selectScriptStudioPageVm(vm);
+  const { toText, invokeAction, busyAction } = selectScriptStudioPageVm(vm);
 
-  const [busy, setBusy] = useState<string>('');
-  const [error, setError] = useState<string>('');
   const [builtin, setBuiltin] = useState<Array<Record<string, unknown>>>([]);
   const [custom, setCustom] = useState<Array<Record<string, unknown>>>([]);
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
 
   const loadPersonas = async (): Promise<void> => {
-    setBusy('persona.list');
-    setError('');
-    try {
-      const result = await invokeAction('persona.list', {});
-      const payload = asRecord(result);
-      setBuiltin(toRows(payload.builtin));
-      setCustom(toRows(payload.custom));
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy('');
-    }
+    await runInvestigationAction(
+      'persona.list',
+      {},
+      (data) => {
+        setBuiltin(toRows(data.builtin));
+        setCustom(toRows(data.custom));
+      },
+    );
   };
 
   useEffect(() => {
@@ -58,7 +64,7 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
         <div className="va-inline-metrics">
           <UiBadge>Built-in {builtin.length}</UiBadge>
           <UiBadge>Custom {custom.length}</UiBadge>
-          <UiBadge variant={busy ? 'info' : 'success'}>{busy ? 'Refreshing' : 'Synced'}</UiBadge>
+          <UiBadge variant={controlsBusy ? 'info' : 'success'}>{controlsBusy ? 'Refreshing' : 'Synced'}</UiBadge>
         </div>
       </section>
 
@@ -68,13 +74,13 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
           <div className="va-inline-tools">
             <UiButton
               variant="secondary"
-              disabled={busy.length > 0}
+              disabled={controlsBusy}
               onClick={() => { void loadPersonas(); }}
             >
               Refresh Personas
             </UiButton>
           </div>
-          {busy.length > 0 ? (
+          {controlsBusy ? (
             <UiStatePanel
               compact
               title="Refreshing persona catalog"
@@ -129,12 +135,12 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
         </UiCard>
       </section>
 
-      {error ? (
+      {investigationError ? (
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
               title="Persona action failed"
-              description={error}
+              description={investigationError}
               tone="error"
             />
           </UiCard>

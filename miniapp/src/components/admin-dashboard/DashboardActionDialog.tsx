@@ -38,6 +38,8 @@ export function DashboardActionDialog({
   if (!dialogState) {
     return null;
   }
+  const requiresTextMatch = dialogState.kind === 'confirm' && Boolean(dialogState.requireMatchText);
+  const showInput = dialogState.kind === 'prompt' || requiresTextMatch;
 
   return (
     <div className="va-dialog-overlay" role="presentation" onClick={onDismiss}>
@@ -53,12 +55,14 @@ export function DashboardActionDialog({
       >
         <h3 id="va-dialog-title">{dialogState.title}</h3>
         <p id="va-dialog-message" className="va-muted">{dialogState.message}</p>
-        {dialogState.kind === 'prompt' ? (
+        {showInput ? (
           <div className="va-dialog-input-wrap">
             <UiInput
               autoFocus
               value={dialogInputValue}
-              placeholder={dialogState.placeholder || ''}
+              placeholder={dialogState.kind === 'prompt'
+                ? (dialogState.placeholder || '')
+                : (dialogState.requireMatchPlaceholder || `Type ${dialogState.requireMatchText}`)}
               onChange={(event) => {
                 setDialogInputValue(event.target.value);
                 setDialogInputError('');
@@ -70,6 +74,9 @@ export function DashboardActionDialog({
                 }
               }}
             />
+            {requiresTextMatch && dialogState.requireMatchHint ? (
+              <p className="va-muted">{dialogState.requireMatchHint}</p>
+            ) : null}
             {dialogInputError ? <p className="va-error">{dialogInputError}</p> : null}
           </div>
         ) : null}

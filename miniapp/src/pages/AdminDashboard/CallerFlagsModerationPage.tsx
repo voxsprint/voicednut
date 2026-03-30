@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -23,37 +25,33 @@ function toRows(value: unknown): Array<Record<string, unknown>> {
 export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModerationPageProps) {
   if (!visible) return null;
 
-  const { toText, invokeAction } = selectScriptStudioPageVm(vm);
+  const { toText, invokeAction, runAction, busyAction } = selectScriptStudioPageVm(vm);
 
-  const [busy, setBusy] = useState<string>('');
-  const [error, setError] = useState<string>('');
   const [flags, setFlags] = useState<Array<Record<string, unknown>>>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [phoneInput, setPhoneInput] = useState<string>('');
   const [statusInput, setStatusInput] = useState<string>('blocked');
   const [noteInput, setNoteInput] = useState<string>('');
-
-  const executeAction = async (
-    action: string,
-    payload: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> => {
-    setBusy(action);
-    setError('');
-    try {
-      const result = await invokeAction(action, payload);
-      return asRecord(result);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-      return {};
-    } finally {
-      setBusy('');
-    }
-  };
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
 
   const loadFlags = async (): Promise<void> => {
     const status = statusFilter === 'all' ? undefined : statusFilter;
-    const data = await executeAction('callerflags.list', { status, limit: 120 });
-    setFlags(toRows(data.flags));
+    await runInvestigationAction(
+      'callerflags.list',
+      { status, limit: 120 },
+      (data) => {
+        setFlags(toRows(data.flags));
+      },
+    );
   };
 
   useEffect(() => {
@@ -69,7 +67,7 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
         <div className="va-inline-metrics">
           <UiBadge>Flags {flags.length}</UiBadge>
           <UiBadge>Filter {statusFilter}</UiBadge>
-          <UiBadge variant={busy ? 'info' : 'success'}>{busy ? 'Updating' : 'Idle'}</UiBadge>
+          <UiBadge variant={controlsBusy ? 'info' : 'success'}>{controlsBusy ? 'Updating' : 'Idle'}</UiBadge>
         </div>
       </section>
 
@@ -86,7 +84,7 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
               <option value="blocked">Blocked</option>
               <option value="spam">Spam</option>
             </UiSelect>
-            <UiButton variant="secondary" disabled={busy.length > 0} onClick={() => { void loadFlags(); }}>
+            <UiButton variant="secondary" disabled={controlsBusy} onClick={() => { void loadFlags(); }}>
               Refresh Flags
             </UiButton>
           </div>
@@ -111,17 +109,24 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
             />
             <UiButton
               variant="primary"
-              disabled={busy.length > 0 || !phoneInput.trim()}
+              disabled={controlsBusy || !phoneInput.trim()}
               onClick={() => {
-                void executeAction('callerflags.upsert', {
-                  phone_number: phoneInput.trim(),
-                  status: statusInput,
-                  note: noteInput.trim() || undefined,
-                }).then(() => {
-                  setPhoneInput('');
-                  setNoteInput('');
-                  void loadFlags();
-                });
+                void runAction(
+                  'callerflags.upsert',
+                  {
+                    phone_number: phoneInput.trim(),
+                    status: statusInput,
+                    note: noteInput.trim() || undefined,
+                  },
+                  {
+                    successMessage: `Updated caller flag for ${phoneInput.trim()}`,
+                    onSuccess: () => {
+                      setPhoneInput('');
+                      setNoteInput('');
+                      void loadFlags();
+                    },
+                  },
+                );
               }}
             >
               Upsert Flag
@@ -147,12 +152,12 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
         </UiCard>
       </section>
 
-      {error ? (
+      {investigationError ? (
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
               title="Caller flags action failed"
-              description={error}
+              description={investigationError}
               tone="error"
             />
           </UiCard>

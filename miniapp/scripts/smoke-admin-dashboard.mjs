@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,12 +38,69 @@ function expectNotContains(relativePath, needle) {
   );
 }
 
+function expectRegex(relativePath, regex, description) {
+  const content = read(relativePath);
+  assert.ok(
+    regex.test(content),
+    `Expected ${relativePath} to match ${description}: ${String(regex)}`,
+  );
+}
+
 function parseActionGuardKeys(content) {
   const actionMapMatch = content.match(/const ACTION_GUARDS:[\s\S]*?=\s*\{([\s\S]*?)\};/);
   assert.ok(actionMapMatch, 'Could not parse ACTION_GUARDS map');
   const body = actionMapMatch[1];
   const matches = [...body.matchAll(/'([^']+)'\s*:\s*[a-zA-Z0-9_]+/g)];
   return new Set(matches.map((entry) => entry[1]));
+}
+
+function parseStringListWithin(content, regex, label) {
+  const match = content.match(regex);
+  assert.ok(match, `Could not parse ${label}`);
+  const body = match[1];
+  return new Set([...body.matchAll(/'([^']+)'/g)].map((entry) => entry[1]));
+}
+
+function listSourceFiles(relativeDir, extensions = ['.ts', '.tsx']) {
+  const rootDir = resolvePath(relativeDir);
+  const files = [];
+  const walk = (currentDir) => {
+    const entries = readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const absolute = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+        continue;
+      }
+      if (!extensions.some((ext) => absolute.endsWith(ext))) continue;
+      files.push(absolute);
+    }
+  };
+  if (existsSync(rootDir) && statSync(rootDir).isDirectory()) {
+    walk(rootDir);
+  }
+  return files;
+}
+
+function parseActionCalls(content) {
+  const matches = [...content.matchAll(/(?:runAction|invokeAction)\(\s*'([a-z0-9._]+)'/g)];
+  return new Set(matches.map((match) => match[1]));
+}
+
+function parseBackendActions(content) {
+  const matches = [...content.matchAll(/normalizedAction === "([a-z0-9._]+)"/g)];
+  return new Set(matches.map((match) => match[1]));
+}
+
+function parseActionAliases(content) {
+  const aliasMapMatch = content.match(/const ACTION_ALIASES:[\s\S]*?=\s*\{([\s\S]*?)\};/);
+  assert.ok(aliasMapMatch, 'Could not parse ACTION_ALIASES map');
+  const body = aliasMapMatch[1];
+  const aliases = new Map();
+  for (const match of body.matchAll(/'([^']+)'\s*:\s*'([^']+)'/g)) {
+    aliases.set(match[1], match[2]);
+  }
+  return aliases;
 }
 
 function main() {
@@ -54,19 +111,19 @@ function main() {
     'src/hooks/admin-dashboard/useDashboardAbortCleanup.ts',
     'src/hooks/admin-dashboard/useDashboardActions.ts',
     'src/hooks/admin-dashboard/useDashboardAuthRefs.ts',
-    'src/hooks/admin-dashboard/useDashboardBootstrapLifecycle.ts',
+    'src/hooks/admin-dashboard/useDashboardBootstrap.ts',
     'src/hooks/admin-dashboard/useDashboardFocusManagement.ts',
     'src/hooks/admin-dashboard/useDashboardHaptic.ts',
-    'src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts',
-    'src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts',
+    'src/hooks/admin-dashboard/useDashboardShortcuts.ts',
+    'src/hooks/admin-dashboard/useDashboardRouteGuards.ts',
     'src/hooks/admin-dashboard/useDashboardNotice.ts',
-    'src/hooks/admin-dashboard/useDashboardProviderSwitchDefaults.ts',
-    'src/hooks/admin-dashboard/useDashboardRecipientsImport.ts',
+    'src/hooks/admin-dashboard/useDashboardProviderDefaults.ts',
+    'src/hooks/admin-dashboard/useDashboardRecipientImport.ts',
     'src/hooks/admin-dashboard/useDashboardSessionControls.ts',
     'src/hooks/admin-dashboard/useDashboardStoredPrefs.ts',
     'src/hooks/admin-dashboard/useDashboardSyncLoaders.ts',
     'src/hooks/admin-dashboard/useDashboardTelegramButtons.ts',
-    'src/hooks/admin-dashboard/useDashboardWorkspaceRouteSync.ts',
+    'src/hooks/admin-dashboard/useDashboardWorkspaceSync.ts',
     'src/hooks/admin-dashboard/providerSwitchPlanState.ts',
     'src/services/admin-dashboard/dashboardApiContracts.ts',
     'src/services/admin-dashboard/dashboardSessionErrors.ts',
@@ -108,8 +165,50 @@ function main() {
     assert.ok(guardKeys.has(action), `Missing action guard mapping for: ${action}`);
   });
 
+  const transportContent = read('src/services/admin-dashboard/dashboardTransport.ts');
+  const blockingCodes = parseStringListWithin(
+    transportContent,
+    /export function isSessionBootstrapBlockingCode\(code: string\): boolean \{\s*return \[([\s\S]*?)\]\.includes/s,
+    'session bootstrap blocking code list',
+  );
+  [
+    'miniapp_init_data_expired',
+    'miniapp_token_expired',
+    'miniapp_token_revoked',
+    'miniapp_missing_init_data',
+    'miniapp_invalid_signature',
+  ].forEach((code) => {
+    assert.ok(blockingCodes.has(code), `Missing session bootstrap blocking code: ${code}`);
+  });
+
+  const sessionErrorsContent = read('src/services/admin-dashboard/dashboardSessionErrors.ts');
+  const tokenErrorCodes = parseStringListWithin(
+    sessionErrorsContent,
+    /const SESSION_TOKEN_ERROR_CODES = new Set<string>\(\[([\s\S]*?)\]\);/s,
+    'session token error code set',
+  );
+  [
+    'miniapp_token_expired',
+    'miniapp_token_revoked',
+    'miniapp_invalid_token',
+    'miniapp_auth_required',
+  ].forEach((code) => {
+    assert.ok(tokenErrorCodes.has(code), `Missing token error mapping: ${code}`);
+  });
+
   expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'validateDashboardActionPayload');
   expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'validateActionEnvelope');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'X-Idempotency-Key');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'inFlightRunActionKeysRef');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'Duplicate submit ignored');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'retryActionMetaCacheRef');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'requiresPolicyConfirmation = actionPolicy.risk === \'danger\'');
+  expectContains('src/hooks/admin-dashboard/useDashboardActions.ts', 'options.optimisticUpdate');
+  expectRegex(
+    'src/hooks/admin-dashboard/useDashboardActions.ts',
+    /if \(rollbackOptimisticUpdate\) \{\s*rollbackOptimisticUpdate\(\);\s*\}/s,
+    'optimistic rollback execution',
+  );
   expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validateBootstrapPayload');
   expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validatePollPayload');
   expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'validateStreamPayload');
@@ -164,6 +263,8 @@ function main() {
   expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', 'refreshFailureDiagnostics={refreshFailureDiagnostics}');
   expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Operator diagnostics');
   expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Failure class');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Failure groups');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'buildFailureGroups');
   expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Correlation ID');
   expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Trace hint');
   expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'resolveErrorCorrelationId');
@@ -176,22 +277,107 @@ function main() {
   expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'miniapp_token_expired');
   expectContains('src/services/admin-dashboard/dashboardSessionErrors.ts', 'describeDashboardRefreshFailure');
   expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'resolveResponseTraceHint');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'allowExpired: true');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'evictExpired: false');
+  expectRegex(
+    'src/services/admin-dashboard/dashboardApiClient.ts',
+    /if \(!isSessionCacheEntryExpired\(cached\)\) \{\s*return cached\.token;\s*\}[\s\S]*?await refreshSession\(cached\.token\)[\s\S]*?clearSession\(\)[\s\S]*?requesting a new Telegram session/s,
+    'expired cached token refresh fallback path',
+  );
+  expectRegex(
+    'src/services/admin-dashboard/dashboardApiClient.ts',
+    /else if \(tokenFromStateExpired\) \{[\s\S]*?await refreshSession\(tokenFromState\)[\s\S]*?clearSession\(\)[\s\S]*?activeToken = await createSession\(\);/s,
+    'state token refresh fallback path',
+  );
+  expectRegex(
+    'src/services/admin-dashboard/dashboardApiClient.ts',
+    /if \(response\.status === 401 && retryCount < config\.sessionRefreshRetryCount\) \{[\s\S]*?await refreshSession\(activeToken\)[\s\S]*?return request<T>\(path, options, retryCount \+ 1, refreshedToken\);/s,
+    '401 refresh-and-retry flow',
+  );
+  expectRegex(
+    'src/hooks/admin-dashboard/useDashboardSyncLoaders.ts',
+    /const blockedBySession = isSessionBootstrapBlockingCode\(errorCodeFromError\);[\s\S]*?if \(blockedBySession\) \{\s*setRefreshFailureDiagnostics\(null\);\s*setError\(''\);[\s\S]*?return;/s,
+    'bootstrap session-blocking catch path',
+  );
+  expectRegex(
+    'src/hooks/admin-dashboard/useDashboardSyncLoaders.ts',
+    /const blockedBySession = isSessionBootstrapBlockingCode\(errorCodeFromError\);[\s\S]*?if \(blockedBySession\) \{\s*setRefreshFailureDiagnostics\(null\);\s*setError\(''\);[\s\S]*?pollFailureNotedRef\.current = false;\s*return false;/s,
+    'poll session-blocking catch path',
+  );
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'refreshFailureDiagnostics={refreshFailureDiagnostics}');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-status-diagnostics');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-status-diagnostics-grid');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "if (!visibleModules.some((module) => module.id === moduleId)) return;");
-  expectContains('src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts', "navigate(fallbackPath, { replace: true });");
-  expectContains('src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts', "toggleSettings(false, { fallbackModule: nextModule.id });");
+  expectContains('src/hooks/admin-dashboard/useDashboardRouteGuards.ts', "navigate(fallbackPath, { replace: true });");
+  expectContains('src/hooks/admin-dashboard/useDashboardShortcuts.ts', "toggleSettings(false, { fallbackModule: nextModule.id });");
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-launcher-card.is-active');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '@media (pointer: coarse), (max-width: 768px)');
   expectContains('src/index.css', '@media (pointer: coarse)');
   expectContains('src/index.css', 'font-size: 16px;');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'VITE_ADMIN_DASHBOARD_DEV_FIXTURES');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'resolveDashboardFixtureRequest');
-  expectContains('src/hooks/admin-dashboard/useDashboardBootstrapLifecycle.ts', 'Dev fixture mode enabled');
+  expectContains('src/hooks/admin-dashboard/useDashboardBootstrap.ts', 'Dev fixture mode enabled');
   expectContains('index.html', 'viewport-fit=cover');
   expectContains('index.html', 'interactive-widget=resizes-content');
   expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'export function DashboardFocusedHeader');
+  expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'function DashboardProfileAvatarButton');
+  expectContains('src/components/admin-dashboard/DashboardChrome.tsx', '<DashboardProfileAvatarButton');
+  expectContains('src/components/admin-dashboard/DashboardChrome.tsx', 'compact={compact}');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-header button:not(.va-profile-trigger)');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-header button:not(.va-profile-trigger):hover');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-header button:not(.va-profile-trigger):disabled');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', 'border-radius: 50%;');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', 'object-position: center;');
+  expectContains('src/hooks/admin-dashboard/useDashboardTelegramButtons.ts', 'settingsLifecycleControl.unmount?.ifAvailable?.();');
+  expectContains('src/hooks/admin-dashboard/useDashboardTelegramButtons.ts', 'backButtonLifecycleControl.mount?.ifAvailable?.();');
+  expectContains('src/hooks/admin-dashboard/useDashboardTelegramButtons.ts', 'backButtonLifecycleControl.unmount?.ifAvailable?.();');
+  expectContains('src/hooks/admin-dashboard/useDashboardPullToRefresh.ts', 'refreshTriggerLockRef');
+  expectContains('src/hooks/admin-dashboard/useDashboardPullToRefresh.ts', 'onReadyStateChange');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'onReadyStateChange: handlePullReadyStateChange');
+  expectContains('src/components/ui/AdminPrimitives.tsx', 'export function UiMetricTile');
+  expectContains('src/components/admin-dashboard/DashboardOverviewMetrics.tsx', '<UiMetricTile label="Sync mode" value={syncModeLabel} />');
+  expectNotContains('src/components/admin-dashboard/DashboardOverviewMetrics.tsx', '<article className="va-overview-metric-card">');
+
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', 'const ACTION_ALIASES');
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', 'resolveDashboardActionId');
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', 'isDashboardActionSupported');
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', "'calls.search'");
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', "'sms.message.status'");
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', "'email.message.status'");
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', "'smsscript.list'");
+  expectContains('src/services/admin-dashboard/dashboardActionGuards.ts', "'emailtemplate.list'");
+  expectContains('src/pages/AdminDashboard/useInvestigationAction.ts', 'resolveDashboardActionId');
+  expectContains('src/pages/AdminDashboard/useInvestigationAction.ts', 'isDashboardActionSupported');
+  expectContains('src/pages/AdminDashboard/useInvestigationAction.ts', 'invokeAction(actionToInvoke, payload)');
+  expectNotContains('src/hooks/admin-dashboard/useDashboardProviderActions.ts', 'requestConfirmation');
+  expectNotContains('src/hooks/admin-dashboard/useDashboardProviderActions.ts', 'window.confirm(');
+  expectContains('src/hooks/admin-dashboard/useDashboardGovActions.ts', 'Unsupported runbook action');
+  expectContains('src/pages/AdminDashboard/AuditIncidentsPage.tsx', 'isDashboardActionSupported');
+  expectContains('src/pages/AdminDashboard/dashboardFixtureData.ts', "action: 'runbook.provider.preflight'");
+
+  const backendAppPath = path.resolve(root, '../api/app.js');
+  assert.ok(existsSync(backendAppPath), 'Expected backend action registry file to exist at ../api/app.js');
+  const backendActions = parseBackendActions(readFileSync(backendAppPath, 'utf8'));
+  const actionAliases = parseActionAliases(read('src/services/admin-dashboard/dashboardActionGuards.ts'));
+  const sourceFiles = [
+    ...listSourceFiles('src/pages/AdminDashboard'),
+    ...listSourceFiles('src/hooks/admin-dashboard'),
+  ];
+  const calledActions = new Set();
+  for (const sourceFile of sourceFiles) {
+    const content = readFileSync(sourceFile, 'utf8');
+    const fileActions = parseActionCalls(content);
+    for (const action of fileActions) {
+      calledActions.add(action);
+    }
+  }
+  for (const action of calledActions) {
+    const resolvedAction = actionAliases.get(action) || action;
+    assert.ok(
+      backendActions.has(resolvedAction),
+      `Action "${action}" resolves to "${resolvedAction}" which is unsupported by backend miniapp action handler`,
+    );
+  }
 
   process.stdout.write('miniapp smoke checks passed\n');
 }

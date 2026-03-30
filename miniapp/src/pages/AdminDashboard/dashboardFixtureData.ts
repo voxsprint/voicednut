@@ -187,7 +187,7 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
       alerts: [],
       total_alerts: 0,
       runbooks: [
-        { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+        { action: 'runbook.provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
       ],
       summary: {
         open: 0,
@@ -296,11 +296,12 @@ function resolveDashboardFixtureActionData(action: string, nowIso: string): Reco
         alerts: [],
         total_alerts: 0,
         runbooks: [
-          { action: 'provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+          { action: 'runbook.provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
         ],
         summary: { open: 0 },
       };
     case 'provider.preflight':
+    case 'runbook.provider.preflight':
       return { success: true, result: 'ok' };
     default:
       return { success: true, applied_at: nowIso };

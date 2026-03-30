@@ -5,6 +5,7 @@ import {
 } from '@/components/admin-dashboard/DashboardChrome';
 import {
   DashboardStatusRail,
+  type DashboardAuthTelemetryState,
   type RefreshFailureDiagnostics,
 } from '@/components/admin-dashboard/DashboardStatusRail';
 import type { DashboardReliabilityState } from '@/services/admin-dashboard/dashboardReliabilityState';
@@ -28,6 +29,7 @@ type DashboardTopShellProps = {
   error: string;
   errorCode: string;
   refreshFailureDiagnostics: RefreshFailureDiagnostics | null;
+  authTelemetry: DashboardAuthTelemetryState;
   notice: string;
   noticeTone: 'info' | 'success' | 'warning' | 'error';
   busyAction: string;
@@ -70,6 +72,7 @@ export function DashboardTopShell({
   error,
   errorCode,
   refreshFailureDiagnostics,
+  authTelemetry,
   notice,
   noticeTone,
   busyAction,
@@ -135,6 +138,7 @@ export function DashboardTopShell({
           error={error}
           errorCode={errorCode}
           refreshFailureDiagnostics={refreshFailureDiagnostics}
+          authTelemetry={authTelemetry}
           notice={notice}
           noticeTone={noticeTone}
           busyAction={busyAction}

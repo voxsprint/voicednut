@@ -16,6 +16,7 @@ export type ModuleRequestState = {
 
 type BuildBasicRequestStateParams = {
   busyAction?: string;
+  secondaryBusyAction?: string;
   loading?: boolean;
 };
 
@@ -27,7 +28,7 @@ function normalizeActionLabel(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
   return trimmed
-    .replace(/[_-]+/g, ' ')
+    .replace(/[._/\-:]+/g, ' ')
     .replace(/\s+/g, ' ')
     .replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
@@ -70,11 +71,19 @@ export function buildModuleRequestState(params: BuildModuleRequestStateParams): 
 }
 
 export function buildSmsRequestState(params: BuildBasicRequestStateParams): ModuleRequestState {
-  return buildModuleRequestState(params);
+  return buildModuleRequestState({
+    busyAction: params.busyAction,
+    secondaryBusyAction: params.secondaryBusyAction,
+    loading: params.loading,
+  });
 }
 
 export function buildMailerRequestState(params: BuildBasicRequestStateParams): ModuleRequestState {
-  return buildModuleRequestState(params);
+  return buildModuleRequestState({
+    busyAction: params.busyAction,
+    secondaryBusyAction: params.secondaryBusyAction,
+    loading: params.loading,
+  });
 }
 
 export function buildProviderRequestState(params: BuildProviderRequestStateParams): ModuleRequestState {

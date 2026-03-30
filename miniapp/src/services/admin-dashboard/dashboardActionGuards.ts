@@ -141,6 +141,15 @@ const ACTION_GUARDS: Record<string, (payload: Record<string, unknown>) => string
   'emailtemplate.update': validateEmailTemplateUpdate,
 };
 
+const ACTION_ALIASES: Record<string, string> = {
+  'sms.reconcile': 'runbook.sms.reconcile',
+  'payment.reconcile': 'runbook.payment.reconcile',
+  'provider.preflight.runbook': 'runbook.provider.preflight',
+  'runbook.sms_reconcile': 'runbook.sms.reconcile',
+  'runbook.payment_reconcile': 'runbook.payment.reconcile',
+  'runbook.provider_preflight': 'runbook.provider.preflight',
+};
+
 export type DashboardActionRisk = 'safe' | 'caution' | 'danger';
 
 export type DashboardActionPolicy = {
@@ -410,17 +419,56 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
   },
 };
 
+const SUPPORTED_ACTION_IDS = new Set<string>([
+  ...Object.keys(ACTION_GUARDS),
+  ...Object.keys(ACTION_POLICIES),
+  'audit.feed',
+  'callerflags.list',
+  'calls.events',
+  'calls.get',
+  'calls.list',
+  'calls.search',
+  'callscript.list',
+  'email.message.status',
+  'emailtemplate.list',
+  'incidents.summary',
+  'persona.list',
+  'runtime.status',
+  'sms.message.status',
+  'sms.messages.conversation',
+  'sms.messages.recent',
+  'sms.stats',
+  'smsscript.list',
+  'users.list',
+  'email.bulk.job',
+  'email.bulk.history',
+  'runbook.sms.reconcile',
+  'runbook.payment.reconcile',
+  'runbook.provider.preflight',
+]);
+
+export function resolveDashboardActionId(action: string): string {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  if (!normalizedAction) return '';
+  return ACTION_ALIASES[normalizedAction] || normalizedAction;
+}
+
+export function isDashboardActionSupported(action: string): boolean {
+  const resolvedAction = resolveDashboardActionId(action);
+  return resolvedAction.length > 0 && SUPPORTED_ACTION_IDS.has(resolvedAction);
+}
+
 export function validateDashboardActionPayload(action: string, payload: unknown): string | null {
   if (!isRecord(payload)) {
     return 'payload must be an object';
   }
-  const normalizedAction = String(action || '').trim().toLowerCase();
-  const guard = ACTION_GUARDS[normalizedAction];
+  const resolvedAction = resolveDashboardActionId(action);
+  const guard = ACTION_GUARDS[resolvedAction];
   if (!guard) return null;
   return guard(payload);
 }
 
 export function getDashboardActionPolicy(action: string): DashboardActionPolicy {
-  const normalizedAction = String(action || '').trim().toLowerCase();
-  return ACTION_POLICIES[normalizedAction] || { risk: 'safe' };
+  const resolvedAction = resolveDashboardActionId(action);
+  return ACTION_POLICIES[resolvedAction] || { risk: 'safe' };
 }

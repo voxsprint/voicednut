@@ -57,34 +57,34 @@ import {
 } from '@/hooks/admin-dashboard/useDashboardModuleLayout';
 import {
   useDashboardModuleRouteGuards,
-} from '@/hooks/admin-dashboard/useDashboardModuleRouteGuards';
+} from '@/hooks/admin-dashboard/useDashboardRouteGuards';
 import {
   useDashboardMessagingMetrics,
-} from '@/hooks/admin-dashboard/useDashboardMessagingMetrics';
+} from '@/hooks/admin-dashboard/useDashboardMessageMetrics';
 import {
   useDashboardMessagingActions,
-} from '@/hooks/admin-dashboard/useDashboardMessagingActions';
+} from '@/hooks/admin-dashboard/useDashboardMessageActions';
 import {
   useDashboardGovernanceData,
 } from '@/hooks/admin-dashboard/useDashboardGovernanceData';
 import {
   useDashboardGovernanceActions,
-} from '@/hooks/admin-dashboard/useDashboardGovernanceActions';
+} from '@/hooks/admin-dashboard/useDashboardGovActions';
 import {
   useDashboardCallScriptActions,
-} from '@/hooks/admin-dashboard/useDashboardCallScriptActions';
+} from '@/hooks/admin-dashboard/useDashboardScriptActions';
 import {
   useDashboardCallScriptSelectionSync,
-} from '@/hooks/admin-dashboard/useDashboardCallScriptSelectionSync';
+} from '@/hooks/admin-dashboard/useDashboardCallScriptSync';
 import {
   useDashboardBootstrapLifecycle,
-} from '@/hooks/admin-dashboard/useDashboardBootstrapLifecycle';
+} from '@/hooks/admin-dashboard/useDashboardBootstrap';
 import {
   useDashboardStoredPrefs,
 } from '@/hooks/admin-dashboard/useDashboardStoredPrefs';
 import {
   useDashboardWorkspaceRouteSync,
-} from '@/hooks/admin-dashboard/useDashboardWorkspaceRouteSync';
+} from '@/hooks/admin-dashboard/useDashboardWorkspaceSync';
 import { useDashboardTelegramButtons } from '@/hooks/admin-dashboard/useDashboardTelegramButtons';
 import {
   useDashboardRuntimeControls,
@@ -97,17 +97,20 @@ import {
 } from '@/hooks/admin-dashboard/useDashboardProviderMetrics';
 import {
   useDashboardProviderSwitchDefaults,
-} from '@/hooks/admin-dashboard/useDashboardProviderSwitchDefaults';
+} from '@/hooks/admin-dashboard/useDashboardProviderDefaults';
 import {
   useDashboardProviderActions,
 } from '@/hooks/admin-dashboard/useDashboardProviderActions';
 import { useDashboardHaptic } from '@/hooks/admin-dashboard/useDashboardHaptic';
 import { useDashboardNotice } from '@/hooks/admin-dashboard/useDashboardNotice';
 import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPollingLoop';
-import { useDashboardRecipientsImport } from '@/hooks/admin-dashboard/useDashboardRecipientsImport';
+import { useDashboardPullToRefresh } from '@/hooks/admin-dashboard/useDashboardPullToRefresh';
+import { useDashboardRecipientsImport } from '@/hooks/admin-dashboard/useDashboardRecipientImport';
 import { useDashboardSessionControls } from '@/hooks/admin-dashboard/useDashboardSessionControls';
-import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardKeyboardShortcuts';
+import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardShortcuts';
 import {
+  DEFAULT_DASHBOARD_AUTH_TELEMETRY,
+  type DashboardAuthTelemetry,
   type DashboardSyncFailureDiagnostics,
   useDashboardSyncLoaders,
 } from '@/hooks/admin-dashboard/useDashboardSyncLoaders';
@@ -224,6 +227,7 @@ export function AdminDashboardPage() {
   const [lastSuccessfulPollAt, setLastSuccessfulPollAt] = useState<number | null>(null);
   const [nextPollAt, setNextPollAt] = useState<number | null>(null);
   const [refreshFailureDiagnostics, setRefreshFailureDiagnostics] = useState<DashboardSyncFailureDiagnostics | null>(null);
+  const [authTelemetry, setAuthTelemetry] = useState<DashboardAuthTelemetry>(DEFAULT_DASHBOARD_AUTH_TELEMETRY);
   const [sessionBlocked, setSessionBlocked] = useState<boolean>(false);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [actionLatencyMsSamples, setActionLatencyMsSamples] = useState<number[]>([]);
@@ -464,6 +468,7 @@ export function AdminDashboardPage() {
     setError,
     setPollFailureCount,
     setRefreshFailureDiagnostics,
+    setAuthTelemetry,
     setBootstrap,
     setPollPayload,
     setLastPollAt,
@@ -903,6 +908,36 @@ export function AdminDashboardPage() {
     clearActivityLog,
     pollFailureNotedRef,
   });
+  const handlePullReadyStateChange = useCallback((ready: boolean): void => {
+    if (!ready) return;
+    triggerHaptic('selection');
+  }, [triggerHaptic]);
+  const handlePullRelease = useCallback((event: {
+    triggeredRefresh: boolean;
+    ready: boolean;
+    offset: number;
+  }): void => {
+    if (!event.ready || event.triggeredRefresh) return;
+    triggerHaptic('impact', 'soft');
+  }, [triggerHaptic]);
+  const {
+    pullOffset,
+    pullIndicatorVisible,
+    pullReady,
+    pullRefreshing,
+    pullLabel,
+    isPulling,
+    onTouchStart: handleStageTouchStart,
+    onTouchMove: handleStageTouchMove,
+    onTouchEnd: handleStageTouchEnd,
+    onTouchCancel: handleStageTouchCancel,
+  } = useDashboardPullToRefresh({
+    onRefresh: handleRefresh,
+    disabled: loading || busyAction.length > 0 || settingsOpen || sessionBlocked,
+    refreshing: loading,
+    onReadyStateChange: handlePullReadyStateChange,
+    onRelease: handlePullRelease,
+  });
   const smsRouteSimulationRows = selectSmsRouteSimulationRowsMemoized({
     providerMatrixRows,
   });
@@ -1044,7 +1079,6 @@ export function AdminDashboardPage() {
     providersByChannel,
     providerCurrentByChannel,
     providerSwitchPlanByChannel,
-    requestConfirmation: openConfirmDialog,
   });
 
   const renderProviderSection = (channel: ProviderChannel) => {
@@ -1349,6 +1383,7 @@ export function AdminDashboardPage() {
           error={error}
           errorCode={errorCode}
           refreshFailureDiagnostics={refreshFailureDiagnostics}
+          authTelemetry={authTelemetry}
           notice={notice}
           noticeTone={noticeTone}
           busyAction={busyAction}
@@ -1417,10 +1452,20 @@ export function AdminDashboardPage() {
         onSelectModule={selectModule}
         moduleVm={moduleVm}
         hasCapability={hasCapability}
-          moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
-          moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
-          onReload={handleRefresh}
-        />
+        moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
+        moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
+        onReload={handleRefresh}
+        pullOffset={pullOffset}
+        pullIndicatorVisible={pullIndicatorVisible}
+        pullReady={pullReady}
+        pullRefreshing={pullRefreshing}
+        pullLabel={pullLabel}
+        isPulling={isPulling}
+        onTouchStart={handleStageTouchStart}
+        onTouchMove={handleStageTouchMove}
+        onTouchEnd={handleStageTouchEnd}
+        onTouchCancel={handleStageTouchCancel}
+      />
       </DashboardShellFrame>
       <DashboardActionDialog
         dialogState={dialogState}

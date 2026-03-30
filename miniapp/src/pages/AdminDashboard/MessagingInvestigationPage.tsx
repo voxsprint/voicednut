@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -39,9 +41,6 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
 
   const { invokeAction, busyAction } = selectSmsPageVm(vm);
 
-  const [busy, setBusy] = useState<string>('');
-  const [error, setError] = useState<string>('');
-
   const [statusSidInput, setStatusSidInput] = useState<string>('');
   const [conversationPhoneInput, setConversationPhoneInput] = useState<string>('');
   const [statusSnapshot, setStatusSnapshot] = useState<Record<string, unknown> | null>(null);
@@ -54,7 +53,16 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
   const [messageSnapshot, setMessageSnapshot] = useState<Record<string, unknown> | null>(null);
   const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
   const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
-  const controlsBusy = busy.length > 0 || busyAction.length > 0;
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
   const statusSid = statusSidInput.trim();
   const conversationPhone = conversationPhoneInput.trim();
   const messageId = messageIdInput.trim();
@@ -80,61 +88,44 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
   const activeFilterCount = [statusSid, conversationPhone, messageId, jobId]
     .filter((value) => value.length > 0).length;
 
-  const runAction = async (
-    action: string,
-    payload: Record<string, unknown>,
-    onSuccess: (payload: Record<string, unknown>) => void,
-  ): Promise<void> => {
-    setBusy(action);
-    setError('');
-    try {
-      const result = await invokeAction(action, payload);
-      onSuccess(asRecord(result));
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy('');
-    }
-  };
-
   const runSmsStatusLookup = (): void => {
     if (!statusSid) return;
-    void runAction('sms.message.status', { message_sid: statusSid }, (payload) => {
+    void runInvestigationAction('sms.message.status', { message_sid: statusSid }, (payload) => {
       setStatusSnapshot(asRecord(payload.message) || payload);
     });
   };
 
   const runSmsConversationLookup = (): void => {
     if (!conversationPhone) return;
-    void runAction('sms.messages.conversation', { phone: conversationPhone, limit: 20 }, (payload) => {
+    void runInvestigationAction('sms.messages.conversation', { phone: conversationPhone, limit: 20 }, (payload) => {
       setConversationMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
     });
   };
 
   const runSmsRecentLookup = (): void => {
-    void runAction('sms.messages.recent', { limit: 12, offset: 0 }, (payload) => {
+    void runInvestigationAction('sms.messages.recent', { limit: 12, offset: 0 }, (payload) => {
       setRecentMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
     });
   };
 
   const runSmsStatsLookup = (): void => {
-    void runAction('sms.stats', { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
+    void runInvestigationAction('sms.stats', { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
   };
 
   const runEmailMessageLookup = (): void => {
     if (!messageId) return;
-    void runAction('email.message.status', { message_id: messageId }, (payload) => {
+    void runInvestigationAction('email.message.status', { message_id: messageId }, (payload) => {
       setMessageSnapshot(asRecord(payload.message) || payload);
     });
   };
 
   const runEmailJobLookup = (): void => {
     if (!jobId) return;
-    void runAction('email.bulk.job', { job_id: jobId }, (payload) => setJobSnapshot(payload));
+    void runInvestigationAction('email.bulk.job', { job_id: jobId }, (payload) => setJobSnapshot(payload));
   };
 
   const runEmailHistoryLookup = (): void => {
-    void runAction('email.bulk.history', { limit: 12, offset: 0 }, (payload) => {
+    void runInvestigationAction('email.bulk.history', { limit: 12, offset: 0 }, (payload) => {
       setHistorySnapshot(Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : []);
     });
   };
@@ -150,13 +141,13 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           <UiBadge>SMS conversation {conversationMessages.length}</UiBadge>
           <UiBadge>Email jobs {historySnapshot.length}</UiBadge>
           <UiBadge>Filters {activeFilterCount}</UiBadge>
-          <UiBadge variant={error ? 'error' : controlsBusy ? 'info' : 'success'}>
-            {error ? 'State error' : controlsBusy ? 'State busy' : 'State ready'}
+          <UiBadge variant={investigationError ? 'error' : controlsBusy ? 'info' : 'success'}>
+            {investigationError ? 'State error' : controlsBusy ? 'State busy' : 'State ready'}
           </UiBadge>
         </div>
       </section>
 
-      <section className={`va-overview-metrics va-investigation-metrics ${error ? 'is-degraded' : 'is-healthy'}`} aria-label="Investigation summary">
+      <section className={`va-overview-metrics va-investigation-metrics ${investigationError ? 'is-degraded' : 'is-healthy'}`} aria-label="Investigation summary">
         <article className="va-overview-metric-card">
           <span>SMS artifacts</span>
           <strong>{smsArtifactsCount}</strong>
@@ -171,29 +162,29 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         </article>
         <article className="va-overview-metric-card">
           <span>Request state</span>
-          <strong>{error ? 'Attention required' : controlsBusy ? 'In progress' : 'Ready'}</strong>
+          <strong>{investigationError ? 'Attention required' : controlsBusy ? 'In progress' : 'Ready'}</strong>
         </article>
       </section>
 
-      {error ? (
+      {investigationError ? (
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
               title="Messaging investigation failed"
-              description={error}
+              description={investigationError}
               tone="error"
             />
           </UiCard>
         </section>
       ) : null}
 
-      {controlsBusy ? (
+      {requestState.isBusy ? (
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
               compact
               title="Request in progress"
-              description={`Running ${busy || busyAction}...`}
+              description={`Running ${requestState.activeActionLabel || 'Request'}...`}
             />
           </UiCard>
         </section>

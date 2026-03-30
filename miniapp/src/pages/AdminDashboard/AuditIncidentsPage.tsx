@@ -10,6 +10,7 @@ import {
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { isDashboardActionSupported, resolveDashboardActionId } from '@/services/admin-dashboard/dashboardActionGuards';
 
 type AuditIncidentsPageProps = {
   visible: boolean;
@@ -580,16 +581,18 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             <ul className="va-list">
               {runbookRows.map((runbook: RunbookRow, index: number) => {
                 const action = toText(runbook.action, '');
+                const resolvedAction = resolveDashboardActionId(action);
+                const supportedAction = isDashboardActionSupported(resolvedAction);
                 const capability = toText(runbook.capability, 'dashboard_view');
                 return (
                   <li key={`runbook-${index}`}>
                     <strong>{toText(runbook.label, 'Runbook')}</strong>
-                    <span>{action || 'unknown_action'}</span>
+                    <span>{resolvedAction || action || 'unknown_action'}</span>
                     <UiButton
                       variant="secondary"
-                      disabled={busyAction.length > 0 || !action || !hasCapability(capability)}
+                      disabled={busyAction.length > 0 || !action || !supportedAction || !hasCapability(capability)}
                       onClick={(event) => {
-                        handleRunbookAction(action, {}, event.currentTarget);
+                        handleRunbookAction(resolvedAction || action, {}, event.currentTarget);
                       }}
                     >
                       Execute

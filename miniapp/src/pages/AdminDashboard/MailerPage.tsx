@@ -62,7 +62,6 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
     invokeAction,
     loading,
   } = selectMailerPageVm(vm);
-  const mailerRequestState = buildMailerRequestState({ loading, busyAction });
   const mailerHasRecipients = mailerRecipientsParsed.length > 0;
   const mailerHasTemplate = mailerTemplateIdInput.trim().length > 0;
   const mailerHasSubject = mailerSubjectInput.trim().length > 0;
@@ -93,6 +92,13 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
     investigationError,
     runInvestigationAction,
   } = useInvestigationAction(invokeAction);
+  const mailerRequestState = buildMailerRequestState({
+    loading,
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = mailerRequestState.isBusy;
+  const activeActionLabel = mailerRequestState.activeActionLabel;
 
   return (
     <>
@@ -218,7 +224,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               </label>
               <UiButton
                 variant="primary"
-                disabled={mailerRequestState.isBusy || !mailerCanSubmit}
+                disabled={controlsBusy || !mailerCanSubmit}
                 onClick={() => { void sendMailerFromConsole(); }}
               >
                 Queue Mailer Job
@@ -338,7 +344,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               />
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0 || !messageIdInput.trim()}
+                disabled={controlsBusy || !messageIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
                     'email.message.status',
@@ -358,7 +364,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               />
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0 || !jobIdInput.trim()}
+                disabled={controlsBusy || !jobIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
                     'email.bulk.job',
@@ -371,7 +377,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
               </UiButton>
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0}
+                disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
                     'email.bulk.history',
@@ -390,6 +396,14 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 title="Email investigation failed"
                 description={investigationError}
                 tone="error"
+                compact
+              />
+            ) : null}
+            {mailerRequestState.status === 'busy' ? (
+              <UiStatePanel
+                title="Email request in progress"
+                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
+                tone="info"
                 compact
               />
             ) : null}

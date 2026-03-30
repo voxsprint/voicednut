@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
 
@@ -55,10 +57,8 @@ function toLifecycleBadgeVariant(value: unknown): 'meta' | 'info' | 'success' | 
 export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansionPageProps) {
   if (!visible) return null;
 
-  const { toText, invokeAction } = selectScriptStudioPageVm(vm);
+  const { toText, invokeAction, runAction, busyAction } = selectScriptStudioPageVm(vm);
 
-  const [busy, setBusy] = useState<string>('');
-  const [error, setError] = useState<string>('');
   const [smsScripts, setSmsScripts] = useState<SmsScriptRow[]>([]);
   const [selectedSmsScriptName, setSelectedSmsScriptName] = useState<string>('');
   const [smsScriptDescriptionInput, setSmsScriptDescriptionInput] = useState<string>('');
@@ -71,7 +71,17 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
   const [emailTemplateHtmlInput, setEmailTemplateHtmlInput] = useState<string>('');
   const [emailTemplateTextInput, setEmailTemplateTextInput] = useState<string>('');
   const [emailTemplateCreateId, setEmailTemplateCreateId] = useState<string>('');
-  const controlsBusy = busy.length > 0;
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
+  const activeAction = requestState.activeActionLabel;
 
   const selectedSmsScript = useMemo(() => (
     smsScripts.find((script) => toText(script.name, '') === selectedSmsScriptName) || null
@@ -94,44 +104,41 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
     setEmailTemplateTextInput(toText(selectedEmailTemplate.text, ''));
   }, [selectedEmailTemplate, toText]);
 
-  const executeAction = async (
-    action: string,
-    payload: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> => {
-    setBusy(action);
-    setError('');
-    try {
-      const result = await invokeAction(action, payload);
-      return asRecord(result);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-      return {};
-    } finally {
-      setBusy('');
-    }
-  };
-
   const loadSmsScripts = async (): Promise<void> => {
-    const data = await executeAction('smsscript.list', {
-      include_builtins: true,
-      detailed: true,
-    });
-    const customRows = toRows(data.scripts);
-    const builtinRows = toRows(data.builtin);
-    const merged = [...customRows, ...builtinRows] as SmsScriptRow[];
-    setSmsScripts(merged);
-    if (!selectedSmsScriptName && merged.length > 0) {
-      setSelectedSmsScriptName(toText(merged[0].name, ''));
-    }
+    await runInvestigationAction(
+      'smsscript.list',
+      {
+        include_builtins: true,
+        detailed: true,
+      },
+      (data) => {
+        const customRows = toRows(data.scripts);
+        const builtinRows = toRows(data.builtin);
+        const merged = [...customRows, ...builtinRows] as SmsScriptRow[];
+        setSmsScripts(merged);
+        setSelectedSmsScriptName((current) => {
+          if (merged.length === 0) return '';
+          const currentExists = merged.some((script) => toText(script.name, '') === current);
+          return currentExists ? current : toText(merged[0].name, '');
+        });
+      },
+    );
   };
 
   const loadEmailTemplates = async (): Promise<void> => {
-    const data = await executeAction('emailtemplate.list', { limit: 120 });
-    const rows = toRows(data.templates) as EmailTemplateRow[];
-    setEmailTemplates(rows);
-    if (!selectedEmailTemplateId && rows.length > 0) {
-      setSelectedEmailTemplateId(toText(rows[0].template_id, ''));
-    }
+    await runInvestigationAction(
+      'emailtemplate.list',
+      { limit: 120 },
+      (data) => {
+        const rows = toRows(data.templates) as EmailTemplateRow[];
+        setEmailTemplates(rows);
+        setSelectedEmailTemplateId((current) => {
+          if (rows.length === 0) return '';
+          const currentExists = rows.some((template) => toText(template.template_id, '') === current);
+          return currentExists ? current : toText(rows[0].template_id, '');
+        });
+      },
+    );
   };
 
   useEffect(() => {
@@ -182,14 +189,21 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
               variant="primary"
               disabled={controlsBusy || !smsScriptCreateName.trim() || !smsScriptCreateContent.trim()}
               onClick={() => {
-                void executeAction('smsscript.create', {
-                  name: smsScriptCreateName.trim(),
-                  content: smsScriptCreateContent,
-                }).then(() => {
-                  setSmsScriptCreateName('');
-                  setSmsScriptCreateContent('');
-                  void loadSmsScripts();
-                });
+                void runAction(
+                  'smsscript.create',
+                  {
+                    name: smsScriptCreateName.trim(),
+                    content: smsScriptCreateContent,
+                  },
+                  {
+                    successMessage: `Created SMS script "${smsScriptCreateName.trim()}"`,
+                    onSuccess: () => {
+                      setSmsScriptCreateName('');
+                      setSmsScriptCreateContent('');
+                      void loadSmsScripts();
+                    },
+                  },
+                );
               }}
             >
               Create SMS Script
@@ -263,11 +277,20 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   variant="primary"
                   disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
                   onClick={() => {
-                    void executeAction('smsscript.update', {
-                      script_name: selectedSmsScriptName,
-                      description: smsScriptDescriptionInput,
-                      content: smsScriptContentInput,
-                    }).then(() => { void loadSmsScripts(); });
+                    void runAction(
+                      'smsscript.update',
+                      {
+                        script_name: selectedSmsScriptName,
+                        description: smsScriptDescriptionInput,
+                        content: smsScriptContentInput,
+                      },
+                      {
+                        successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
+                        onSuccess: () => {
+                          void loadSmsScripts();
+                        },
+                      },
+                    );
                   }}
                 >
                   Save SMS Script
@@ -276,15 +299,17 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   variant="secondary"
                   disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
                   onClick={() => {
-                    if (typeof window !== 'undefined' && !window.confirm(`Delete SMS script "${selectedSmsScriptName}"?`)) {
-                      return;
-                    }
-                    void executeAction('smsscript.delete', {
-                      script_name: selectedSmsScriptName,
-                    }).then(() => {
-                      setSelectedSmsScriptName('');
-                      void loadSmsScripts();
-                    });
+                    void runAction(
+                      'smsscript.delete',
+                      { script_name: selectedSmsScriptName },
+                      {
+                        confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
+                        successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
+                        onSuccess: () => {
+                          void loadSmsScripts();
+                        },
+                      },
+                    );
                   }}
                 >
                   Delete SMS Script
@@ -310,14 +335,21 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
               variant="primary"
               disabled={controlsBusy || !emailTemplateCreateId.trim()}
               onClick={() => {
-                void executeAction('emailtemplate.create', {
-                  template_id: emailTemplateCreateId.trim(),
-                  subject: 'New template subject',
-                  text: 'Template body',
-                }).then(() => {
-                  setEmailTemplateCreateId('');
-                  void loadEmailTemplates();
-                });
+                void runAction(
+                  'emailtemplate.create',
+                  {
+                    template_id: emailTemplateCreateId.trim(),
+                    subject: 'New template subject',
+                    text: 'Template body',
+                  },
+                  {
+                    successMessage: `Created template "${emailTemplateCreateId.trim()}"`,
+                    onSuccess: () => {
+                      setEmailTemplateCreateId('');
+                      void loadEmailTemplates();
+                    },
+                  },
+                );
               }}
             >
               Create Template
@@ -380,12 +412,21 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   variant="primary"
                   disabled={controlsBusy || !selectedEmailTemplateId}
                   onClick={() => {
-                    void executeAction('emailtemplate.update', {
-                      template_id: selectedEmailTemplateId,
-                      subject: emailTemplateSubjectInput,
-                      html: emailTemplateHtmlInput,
-                      text: emailTemplateTextInput,
-                    }).then(() => { void loadEmailTemplates(); });
+                    void runAction(
+                      'emailtemplate.update',
+                      {
+                        template_id: selectedEmailTemplateId,
+                        subject: emailTemplateSubjectInput,
+                        html: emailTemplateHtmlInput,
+                        text: emailTemplateTextInput,
+                      },
+                      {
+                        successMessage: `Updated template "${selectedEmailTemplateId}"`,
+                        onSuccess: () => {
+                          void loadEmailTemplates();
+                        },
+                      },
+                    );
                   }}
                 >
                   Save Template
@@ -394,15 +435,17 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   variant="secondary"
                   disabled={controlsBusy || !selectedEmailTemplateId}
                   onClick={() => {
-                    if (typeof window !== 'undefined' && !window.confirm(`Delete template "${selectedEmailTemplateId}"?`)) {
-                      return;
-                    }
-                    void executeAction('emailtemplate.delete', {
-                      template_id: selectedEmailTemplateId,
-                    }).then(() => {
-                      setSelectedEmailTemplateId('');
-                      void loadEmailTemplates();
-                    });
+                    void runAction(
+                      'emailtemplate.delete',
+                      { template_id: selectedEmailTemplateId },
+                      {
+                        confirmText: `Delete template "${selectedEmailTemplateId}"?`,
+                        successMessage: `Deleted template "${selectedEmailTemplateId}"`,
+                        onSuccess: () => {
+                          void loadEmailTemplates();
+                        },
+                      },
+                    );
                   }}
                 >
                   Delete Template
@@ -419,18 +462,18 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
             <UiStatePanel
               compact
               title="Request in progress"
-              description={`Running ${busy}...`}
+              description={`Running ${activeAction || 'request'}...`}
             />
           </UiCard>
         </section>
       ) : null}
 
-      {error ? (
+      {investigationError ? (
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
               title="Scripts parity action failed"
-              description={error}
+              description={investigationError}
               tone="error"
             />
           </UiCard>

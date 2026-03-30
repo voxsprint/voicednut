@@ -47,7 +47,6 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     invokeAction,
     loading,
   } = selectSmsPageVm(vm);
-  const smsRequestState = buildSmsRequestState({ loading, busyAction });
   const smsHasRecipients = smsRecipientsParsed.length > 0;
   const smsHasMessage = smsMessageInput.trim().length > 0;
   const smsRecipientsInvalid = !smsHasRecipients;
@@ -69,6 +68,13 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
     investigationError,
     runInvestigationAction,
   } = useInvestigationAction(invokeAction);
+  const smsRequestState = buildSmsRequestState({
+    loading,
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = smsRequestState.isBusy;
+  const activeActionLabel = smsRequestState.activeActionLabel;
 
   return (
     <>
@@ -183,7 +189,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               </label>
               <UiButton
                 variant="primary"
-                disabled={smsRequestState.isBusy || !smsCanSubmit}
+                disabled={controlsBusy || !smsCanSubmit}
                 onClick={() => { void sendSmsFromConsole(); }}
               >
                 {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
@@ -275,7 +281,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               />
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0 || !statusSidInput.trim()}
+                disabled={controlsBusy || !statusSidInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
                     'sms.message.status',
@@ -295,7 +301,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               />
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0 || !conversationPhoneInput.trim()}
+                disabled={controlsBusy || !conversationPhoneInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
                     'sms.messages.conversation',
@@ -310,7 +316,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               </UiButton>
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0}
+                disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
                     'sms.messages.recent',
@@ -325,7 +331,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               </UiButton>
               <UiButton
                 variant="secondary"
-                disabled={investigationBusy.length > 0}
+                disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
                     'sms.stats',
@@ -342,6 +348,14 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 title="SMS investigation failed"
                 description={investigationError}
                 tone="error"
+                compact
+              />
+            ) : null}
+            {smsRequestState.status === 'busy' ? (
+              <UiStatePanel
+                title="SMS request in progress"
+                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
+                tone="info"
                 compact
               />
             ) : null}

@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react';
 
 import { asRecord, type JsonMap } from '@/services/admin-dashboard/dashboardPrimitives';
+import {
+  isDashboardActionSupported,
+  resolveDashboardActionId,
+} from '@/services/admin-dashboard/dashboardActionGuards';
 
 type InvokeAction = (action: string, payload: Record<string, unknown>) => Promise<unknown>;
 
@@ -16,6 +20,15 @@ type UseInvestigationActionResult = {
   runInvestigationAction: RunInvestigationAction;
 };
 
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return String(error);
+  }
+  return 'Request failed';
+}
+
 export function useInvestigationAction(invokeAction: InvokeAction): UseInvestigationActionResult {
   const [investigationBusy, setInvestigationBusy] = useState<string>('');
   const [investigationError, setInvestigationError] = useState<string>('');
@@ -25,13 +38,24 @@ export function useInvestigationAction(invokeAction: InvokeAction): UseInvestiga
     payload,
     onSuccess,
   ) => {
-    setInvestigationBusy(action);
+    const normalizedAction = action.trim();
+    const resolvedAction = resolveDashboardActionId(normalizedAction);
+    const actionToInvoke = resolvedAction || normalizedAction.toLowerCase();
+    if (!actionToInvoke) {
+      setInvestigationError('Unsupported miniapp action.');
+      return;
+    }
+    if (!isDashboardActionSupported(actionToInvoke)) {
+      setInvestigationError(`Unsupported miniapp action: ${actionToInvoke}`);
+      return;
+    }
+    setInvestigationBusy(actionToInvoke);
     setInvestigationError('');
     try {
-      const data = await invokeAction(action, payload);
+      const data = await invokeAction(actionToInvoke, payload);
       onSuccess(asRecord(data));
     } catch (error) {
-      setInvestigationError(error instanceof Error ? error.message : String(error));
+      setInvestigationError(extractErrorMessage(error));
     } finally {
       setInvestigationBusy('');
     }

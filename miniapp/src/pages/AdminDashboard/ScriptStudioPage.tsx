@@ -76,6 +76,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
     setScriptSimulationVariablesInput,
     simulateCallScript,
     scriptSimulationResult,
+    runAction,
     invokeAction,
   } = selectScriptStudioPageVm(vm);
 
@@ -147,18 +148,22 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
     const builtinRows = toRows(data.builtin);
     const merged = [...customRows, ...builtinRows] as SmsScriptRow[];
     setSmsScripts(merged);
-    if (merged.length > 0 && !selectedSmsScriptName) {
-      setSelectedSmsScriptName(toText(merged[0].name, ''));
-    }
+    setSelectedSmsScriptName((current) => {
+      if (merged.length === 0) return '';
+      const currentExists = merged.some((script) => toText(script.name, '') === current);
+      return currentExists ? current : toText(merged[0].name, '');
+    });
   };
 
   const loadEmailTemplates = async (): Promise<void> => {
     const data = await executeStudioAction('emailtemplate.list', { limit: 120 });
     const rows = toRows(data.templates) as EmailTemplateRow[];
     setEmailTemplates(rows);
-    if (rows.length > 0 && !selectedEmailTemplateId) {
-      setSelectedEmailTemplateId(toText(rows[0].template_id, ''));
-    }
+    setSelectedEmailTemplateId((current) => {
+      if (rows.length === 0) return '';
+      const currentExists = rows.some((template) => toText(template.template_id, '') === current);
+      return currentExists ? current : toText(rows[0].template_id, '');
+    });
   };
 
   const loadCallerFlags = async (): Promise<void> => {
@@ -389,16 +394,28 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
         <div className="va-inline-tools">
           <button
             type="button"
-            disabled={studioBusy.length > 0 || !smsScriptCreateName.trim() || !smsScriptCreateContent.trim()}
+            disabled={
+              studioBusy.length > 0
+              || busyAction.length > 0
+              || !smsScriptCreateName.trim()
+              || !smsScriptCreateContent.trim()
+            }
             onClick={() => {
-              void executeStudioAction('smsscript.create', {
-                name: smsScriptCreateName.trim(),
-                content: smsScriptCreateContent,
-              }).then(() => {
-                setSmsScriptCreateName('');
-                setSmsScriptCreateContent('');
-                void loadSmsScripts();
-              });
+              void runAction(
+                'smsscript.create',
+                {
+                  name: smsScriptCreateName.trim(),
+                  content: smsScriptCreateContent,
+                },
+                {
+                  successMessage: `Created SMS script "${smsScriptCreateName.trim()}"`,
+                  onSuccess: () => {
+                    setSmsScriptCreateName('');
+                    setSmsScriptCreateContent('');
+                    void loadSmsScripts();
+                  },
+                },
+              );
             }}
           >
             Create SMS Script
@@ -455,34 +472,49 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
                 type="button"
                 disabled={
                   studioBusy.length > 0
+                  || busyAction.length > 0
                   || selectedSmsScript.is_builtin === true
                   || !selectedSmsScriptName
                 }
                 onClick={() => {
-                  void executeStudioAction('smsscript.update', {
-                    script_name: selectedSmsScriptName,
-                    description: smsScriptDescriptionInput,
-                    content: smsScriptContentInput,
-                  }).then(() => {
-                    void loadSmsScripts();
-                  });
+                  void runAction(
+                    'smsscript.update',
+                    {
+                      script_name: selectedSmsScriptName,
+                      description: smsScriptDescriptionInput,
+                      content: smsScriptContentInput,
+                    },
+                    {
+                      successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
+                      onSuccess: () => {
+                        void loadSmsScripts();
+                      },
+                    },
+                  );
                 }}
               >
                 Save SMS Script
               </button>
               <button
                 type="button"
-                disabled={studioBusy.length > 0 || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
+                disabled={
+                  studioBusy.length > 0
+                  || busyAction.length > 0
+                  || selectedSmsScript.is_builtin === true
+                  || !selectedSmsScriptName
+                }
                 onClick={() => {
-                  if (typeof window !== 'undefined' && !window.confirm(`Delete SMS script "${selectedSmsScriptName}"?`)) {
-                    return;
-                  }
-                  void executeStudioAction('smsscript.delete', {
-                    script_name: selectedSmsScriptName,
-                  }).then(() => {
-                    setSelectedSmsScriptName('');
-                    void loadSmsScripts();
-                  });
+                  void runAction(
+                    'smsscript.delete',
+                    { script_name: selectedSmsScriptName },
+                    {
+                      confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
+                      successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
+                      onSuccess: () => {
+                        void loadSmsScripts();
+                      },
+                    },
+                  );
                 }}
               >
                 Delete SMS Script
@@ -511,16 +543,23 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
           />
           <button
             type="button"
-            disabled={studioBusy.length > 0 || !emailTemplateCreateId.trim()}
+            disabled={studioBusy.length > 0 || busyAction.length > 0 || !emailTemplateCreateId.trim()}
             onClick={() => {
-              void executeStudioAction('emailtemplate.create', {
-                template_id: emailTemplateCreateId.trim(),
-                subject: 'New template subject',
-                text: 'Template body',
-              }).then(() => {
-                setEmailTemplateCreateId('');
-                void loadEmailTemplates();
-              });
+              void runAction(
+                'emailtemplate.create',
+                {
+                  template_id: emailTemplateCreateId.trim(),
+                  subject: 'New template subject',
+                  text: 'Template body',
+                },
+                {
+                  successMessage: `Created template "${emailTemplateCreateId.trim()}"`,
+                  onSuccess: () => {
+                    setEmailTemplateCreateId('');
+                    void loadEmailTemplates();
+                  },
+                },
+              );
             }}
           >
             Create Template
@@ -576,33 +615,42 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             <div className="va-inline-tools">
               <button
                 type="button"
-                disabled={studioBusy.length > 0 || !selectedEmailTemplateId}
+                disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
                 onClick={() => {
-                  void executeStudioAction('emailtemplate.update', {
-                    template_id: selectedEmailTemplateId,
-                    subject: emailTemplateSubjectInput,
-                    html: emailTemplateHtmlInput,
-                    text: emailTemplateTextInput,
-                  }).then(() => {
-                    void loadEmailTemplates();
-                  });
+                  void runAction(
+                    'emailtemplate.update',
+                    {
+                      template_id: selectedEmailTemplateId,
+                      subject: emailTemplateSubjectInput,
+                      html: emailTemplateHtmlInput,
+                      text: emailTemplateTextInput,
+                    },
+                    {
+                      successMessage: `Updated template "${selectedEmailTemplateId}"`,
+                      onSuccess: () => {
+                        void loadEmailTemplates();
+                      },
+                    },
+                  );
                 }}
               >
                 Save Template
               </button>
               <button
                 type="button"
-                disabled={studioBusy.length > 0 || !selectedEmailTemplateId}
+                disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
                 onClick={() => {
-                  if (typeof window !== 'undefined' && !window.confirm(`Delete template "${selectedEmailTemplateId}"?`)) {
-                    return;
-                  }
-                  void executeStudioAction('emailtemplate.delete', {
-                    template_id: selectedEmailTemplateId,
-                  }).then(() => {
-                    setSelectedEmailTemplateId('');
-                    void loadEmailTemplates();
-                  });
+                  void runAction(
+                    'emailtemplate.delete',
+                    { template_id: selectedEmailTemplateId },
+                    {
+                      confirmText: `Delete template "${selectedEmailTemplateId}"?`,
+                      successMessage: `Deleted template "${selectedEmailTemplateId}"`,
+                      onSuccess: () => {
+                        void loadEmailTemplates();
+                      },
+                    },
+                  );
                 }}
               >
                 Delete Template
@@ -656,17 +704,24 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
           />
           <button
             type="button"
-            disabled={studioBusy.length > 0 || !callerFlagPhoneInput.trim()}
+            disabled={studioBusy.length > 0 || busyAction.length > 0 || !callerFlagPhoneInput.trim()}
             onClick={() => {
-              void executeStudioAction('callerflags.upsert', {
-                phone_number: callerFlagPhoneInput.trim(),
-                status: callerFlagStatusInput,
-                note: callerFlagNoteInput.trim() || undefined,
-              }).then(() => {
-                setCallerFlagPhoneInput('');
-                setCallerFlagNoteInput('');
-                void loadCallerFlags();
-              });
+              void runAction(
+                'callerflags.upsert',
+                {
+                  phone_number: callerFlagPhoneInput.trim(),
+                  status: callerFlagStatusInput,
+                  note: callerFlagNoteInput.trim() || undefined,
+                },
+                {
+                  successMessage: `Updated caller flag for ${callerFlagPhoneInput.trim()}`,
+                  onSuccess: () => {
+                    setCallerFlagPhoneInput('');
+                    setCallerFlagNoteInput('');
+                    void loadCallerFlags();
+                  },
+                },
+              );
             }}
           >
             Upsert Flag

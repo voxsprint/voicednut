@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { buildModuleRequestState } from './moduleRequestState';
 import type {
   ActivityEntry,
   CallLogRow,
@@ -8,6 +9,7 @@ import type {
   DlqEmailRow,
   EmailJob,
 } from './types';
+import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
@@ -26,6 +28,12 @@ function buildAsciiSparkline(values: number[]): string {
       return levels[index] || levels[0];
     })
     .join('');
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
@@ -111,87 +119,75 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
   const [callExplorerRows, setCallExplorerRows] = useState<CallLogRow[]>([]);
   const [callExplorerDetails, setCallExplorerDetails] = useState<Record<string, unknown> | null>(null);
   const [callExplorerEvents, setCallExplorerEvents] = useState<Array<Record<string, unknown>>>([]);
-  const [callExplorerError, setCallExplorerError] = useState<string>('');
-  const [callExplorerBusy, setCallExplorerBusy] = useState<string>('');
+  const [callExplorerValidationError, setCallExplorerValidationError] = useState<string>('');
+  const {
+    investigationBusy,
+    investigationError,
+    runInvestigationAction,
+  } = useInvestigationAction(invokeAction);
+  const requestState = buildModuleRequestState({
+    busyAction,
+    secondaryBusyAction: investigationBusy,
+  });
+  const controlsBusy = requestState.isBusy;
+  const activeActionLabel = requestState.activeActionLabel;
+  const callExplorerError = callExplorerValidationError || investigationError;
   const callExplorerRecentStates = useMemo(() => {
     if (!Array.isArray(callExplorerEvents)) return [];
     return callExplorerEvents.slice(0, 12);
   }, [callExplorerEvents]);
 
   const loadCallExplorerRows = async (): Promise<void> => {
-    setCallExplorerBusy('rows');
-    setCallExplorerError('');
-    try {
-      const query = callExplorerQuery.trim();
-      const data = query.length >= 2
-        ? await invokeAction('calls.search', { query, limit: 12 })
-        : await invokeAction('calls.list', { limit: 20, offset: 0 });
-      const payload = (data && typeof data === 'object' && !Array.isArray(data))
-        ? (data as Record<string, unknown>)
-        : {};
-      const rows = Array.isArray(payload.results)
-        ? payload.results as CallLogRow[]
-        : Array.isArray(payload.rows)
-          ? payload.rows as CallLogRow[]
+    setCallExplorerValidationError('');
+    const query = callExplorerQuery.trim();
+    const action = query.length >= 2 ? 'calls.search' : 'calls.list';
+    const payload = query.length >= 2
+      ? { query, limit: 12 }
+      : { limit: 20, offset: 0 };
+    await runInvestigationAction(action, payload, (data) => {
+      const rows = Array.isArray(data.results)
+        ? data.results as CallLogRow[]
+        : Array.isArray(data.rows)
+          ? data.rows as CallLogRow[]
           : [];
       setCallExplorerRows(rows);
       if (rows.length > 0) {
         const firstSid = toText(rows[0]?.call_sid, '');
         if (firstSid) setCallExplorerCallSid(firstSid);
       }
-    } catch (error) {
-      setCallExplorerError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setCallExplorerBusy('');
-    }
+    });
   };
 
   const loadCallExplorerDetails = async (): Promise<void> => {
     const callSid = callExplorerCallSid.trim();
     if (!callSid) {
-      setCallExplorerError('Provide a call SID before loading details.');
+      setCallExplorerValidationError('Provide a call SID before loading details.');
       return;
     }
-    setCallExplorerBusy('details');
-    setCallExplorerError('');
-    try {
-      const data = await invokeAction('calls.get', { call_sid: callSid });
-      const payload = (data && typeof data === 'object' && !Array.isArray(data))
-        ? (data as Record<string, unknown>)
-        : {};
-      const callDetails = (payload.call && typeof payload.call === 'object' && !Array.isArray(payload.call))
+    setCallExplorerValidationError('');
+    await runInvestigationAction('calls.get', { call_sid: callSid }, (data) => {
+      const payload = asRecord(data);
+      const callDetails = payload.call && typeof payload.call === 'object' && !Array.isArray(payload.call)
         ? payload.call as Record<string, unknown>
         : payload;
       setCallExplorerDetails(callDetails);
-    } catch (error) {
-      setCallExplorerError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setCallExplorerBusy('');
-    }
+    });
   };
 
   const loadCallExplorerEvents = async (): Promise<void> => {
     const callSid = callExplorerCallSid.trim();
     if (!callSid) {
-      setCallExplorerError('Provide a call SID before loading events.');
+      setCallExplorerValidationError('Provide a call SID before loading events.');
       return;
     }
-    setCallExplorerBusy('events');
-    setCallExplorerError('');
-    try {
-      const data = await invokeAction('calls.events', { call_sid: callSid });
-      const payload = (data && typeof data === 'object' && !Array.isArray(data))
-        ? (data as Record<string, unknown>)
-        : {};
+    setCallExplorerValidationError('');
+    await runInvestigationAction('calls.events', { call_sid: callSid }, (data) => {
+      const payload = asRecord(data);
       const states = Array.isArray(payload.recent_states)
         ? payload.recent_states as Array<Record<string, unknown>>
         : [];
       setCallExplorerEvents(states);
-    } catch (error) {
-      setCallExplorerError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setCallExplorerBusy('');
-    }
+    });
   };
 
   return (
@@ -571,7 +567,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
             <UiButton
               type="button"
               variant="secondary"
-              disabled={busyAction.length > 0 || callExplorerBusy.length > 0}
+              disabled={controlsBusy}
               onClick={() => { void loadCallExplorerRows(); }}
             >
               {callExplorerQuery.trim().length >= 2 ? 'Search' : 'Load Recent'}
@@ -586,7 +582,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
             <UiButton
               type="button"
               variant="secondary"
-              disabled={busyAction.length > 0 || callExplorerBusy.length > 0 || !callExplorerCallSid.trim()}
+              disabled={controlsBusy || !callExplorerCallSid.trim()}
               onClick={() => { void loadCallExplorerDetails(); }}
             >
               Details
@@ -594,12 +590,19 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
             <UiButton
               type="button"
               variant="secondary"
-              disabled={busyAction.length > 0 || callExplorerBusy.length > 0 || !callExplorerCallSid.trim()}
+              disabled={controlsBusy || !callExplorerCallSid.trim()}
               onClick={() => { void loadCallExplorerEvents(); }}
             >
               Events
             </UiButton>
           </div>
+          {controlsBusy ? (
+            <UiStatePanel
+              compact
+              title="Call explorer request in progress"
+              description={`Running ${activeActionLabel || 'request'}...`}
+            />
+          ) : null}
           {callExplorerError ? (
             <UiStatePanel
               title="Call explorer request failed"

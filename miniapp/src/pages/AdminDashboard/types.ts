@@ -77,6 +77,7 @@ export interface SmsSegmentEstimate {
 export interface RunActionOptions {
   confirmText?: string;
   successMessage?: string;
+  onSuccess?: () => void | Promise<void>;
 }
 
 export interface InvokeActionOptions {

@@ -321,7 +321,9 @@
 .va-profile-avatar-img {
   width: 100%;
   height: 100%;
+  border-radius: 50%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 
@@ -338,7 +340,7 @@
 }
 
 .va-btn,
-.va-header button,
+.va-header button:not(.va-profile-trigger),
 .va-card button,
 .va-chip {
   appearance: none;
@@ -362,7 +364,7 @@
 }
 
 .va-btn:hover,
-.va-header button:hover,
+.va-header button:not(.va-profile-trigger):hover,
 .va-card button:hover,
 .va-chip:hover {
   border-color: color-mix(in srgb, var(--app-color-primary) 50%, var(--app-color-border));
@@ -370,7 +372,7 @@
 }
 
 .va-btn:disabled,
-.va-header button:disabled,
+.va-header button:not(.va-profile-trigger):disabled,
 .va-card button:disabled,
 .va-chip:disabled {
   cursor: not-allowed;
@@ -473,6 +475,40 @@
   text-transform: uppercase;
   color: var(--tg-theme-hint-color, var(--va-muted));
   font-weight: 700;
+}
+
+.va-status-diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.va-status-diagnostics-copy {
+  min-height: 24px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.va-status-diagnostics-copy.is-copied {
+  border-color: color-mix(in srgb, var(--va-success) 58%, var(--app-color-border));
+  color: color-mix(in srgb, var(--va-success) 78%, white 22%);
+}
+
+.va-status-diagnostics-copy.is-error {
+  border-color: color-mix(in srgb, #ff7f9f 62%, var(--app-color-border));
+  color: color-mix(in srgb, #ff94ad 78%, white 22%);
+}
+
+.va-status-diagnostics-copy-feedback {
+  margin: 0;
+  font-size: 11px;
+  color: var(--tg-theme-hint-color, var(--va-muted));
+}
+
+.va-status-diagnostics-copy-feedback.is-error {
+  color: color-mix(in srgb, #ff96b0 86%, white 14%);
 }
 
 .va-status-diagnostics-grid {
@@ -1257,6 +1293,82 @@
   scroll-margin-top: calc(var(--va-safe-top) + 84px);
 }
 
+.va-view-stage-dashboard {
+  position: relative;
+  overflow-x: clip;
+}
+
+.va-view-stage-content {
+  transform: translate3d(0, 0, 0);
+  transition: transform var(--app-motion-base) var(--app-ease-standard);
+}
+
+.va-view-stage-content.is-pulling {
+  transition: none;
+}
+
+.va-pull-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-height: 0;
+  margin: 0 auto;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--app-color-primary) 34%, var(--app-color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-color-card-telegram) 90%, transparent);
+  color: var(--va-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    max-height var(--app-motion-fast) var(--app-ease-standard),
+    padding var(--app-motion-fast) var(--app-ease-standard),
+    margin-bottom var(--app-motion-fast) var(--app-ease-standard);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.va-pull-indicator.is-visible {
+  max-height: 32px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.va-pull-indicator.is-ready {
+  color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+}
+
+.va-pull-indicator-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid color-mix(in srgb, var(--app-color-primary) 58%, var(--app-color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-color-primary) 20%, transparent);
+  flex: 0 0 auto;
+}
+
+.va-pull-indicator.is-ready .va-pull-indicator-dot {
+  background: color-mix(in srgb, var(--app-color-primary) 76%, white);
+}
+
+.va-pull-indicator.is-refreshing .va-pull-indicator-dot {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--app-color-primary) 78%, white);
+  border-top-color: transparent;
+  animation: va-pull-refresh-spin 0.8s linear infinite;
+}
+
+.va-pull-indicator-text {
+  white-space: nowrap;
+}
+
 @keyframes va-view-enter {
   from {
     opacity: 0;
@@ -1285,6 +1397,12 @@
   }
   100% {
     box-shadow: 0 0 0 8px rgba(69, 150, 255, 0);
+  }
+}
+
+@keyframes va-pull-refresh-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -2097,13 +2215,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .va-view-stage,
+  .va-view-stage-content,
   .va-page-intro,
   .va-section-block,
   .va-grid > .va-card,
   .va-status-rail .va-status-card,
   .va-settings-group,
   .va-bottom-nav-item,
-  .va-settings-row-btn {
+  .va-settings-row-btn,
+  .va-pull-indicator,
+  .va-pull-indicator-dot {
     animation: none;
     transition: none;
   }

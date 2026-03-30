@@ -5,6 +5,13 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { DashboardDialogState } from '@/hooks/admin-dashboard/useDashboardDialog';
 import type { DashboardModule } from '@/pages/AdminDashboard/dashboardShellConfig';
 
+type TelegramButtonLifecycleControl = {
+  mount?: { ifAvailable?: () => void };
+  unmount?: { ifAvailable?: () => void };
+  show?: { ifAvailable?: () => void };
+  hide?: { ifAvailable?: () => void };
+};
+
 type UseDashboardTelegramButtonsOptions = {
   settingsButtonSupported: boolean;
   toggleSettings: (next?: boolean, options?: { fallbackModule?: DashboardModule }) => void;
@@ -21,6 +28,9 @@ type UseDashboardTelegramButtonsOptions = {
   navigate: NavigateFunction;
 };
 
+const settingsLifecycleControl = settingsButton as unknown as TelegramButtonLifecycleControl;
+const backButtonLifecycleControl = backButton as unknown as TelegramButtonLifecycleControl;
+
 export function useDashboardTelegramButtons({
   settingsButtonSupported,
   toggleSettings,
@@ -35,12 +45,21 @@ export function useDashboardTelegramButtons({
 }: UseDashboardTelegramButtonsOptions): void {
   useEffect(() => {
     if (!settingsButtonSupported) return undefined;
-    settingsButton.mount.ifAvailable();
-    settingsButton.show.ifAvailable();
+    settingsLifecycleControl.mount?.ifAvailable?.();
+    settingsLifecycleControl.show?.ifAvailable?.();
     return () => {
-      settingsButton.hide.ifAvailable();
+      settingsLifecycleControl.hide?.ifAvailable?.();
+      settingsLifecycleControl.unmount?.ifAvailable?.();
     };
   }, [settingsButtonSupported]);
+
+  useEffect(() => {
+    backButtonLifecycleControl.mount?.ifAvailable?.();
+    return () => {
+      backButtonLifecycleControl.hide?.ifAvailable?.();
+      backButtonLifecycleControl.unmount?.ifAvailable?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!settingsButton.onClick.isAvailable()) {
@@ -58,17 +77,11 @@ export function useDashboardTelegramButtons({
       || focusedWorkspaceMode
       || activeModule !== 'ops'
     ) {
-      backButton.show.ifAvailable();
+      backButtonLifecycleControl.show?.ifAvailable?.();
       return;
     }
-    backButton.hide.ifAvailable();
+    backButtonLifecycleControl.hide?.ifAvailable?.();
   }, [activeModule, dialogState, focusedWorkspaceMode, settingsOpen]);
-
-  useEffect(() => (
-    () => {
-      backButton.hide.ifAvailable();
-    }
-  ), []);
 
   useEffect(() => {
     if (!backButton.onClick.isAvailable()) {

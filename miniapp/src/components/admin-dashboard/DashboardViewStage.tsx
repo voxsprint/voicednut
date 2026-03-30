@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, type CSSProperties, type TouchEventHandler } from 'react';
 
 import { DashboardFocusedModulePane } from '@/components/admin-dashboard/DashboardFocusedModulePane';
 import { DashboardOverviewMetrics } from '@/components/admin-dashboard/DashboardOverviewMetrics';
@@ -42,6 +42,16 @@ type DashboardViewStageProps = {
   moduleErrorBoundariesEnabled: boolean;
   moduleBoundaryKeySuffix: string;
   onReload: () => void;
+  pullOffset?: number;
+  pullIndicatorVisible?: boolean;
+  pullReady?: boolean;
+  pullRefreshing?: boolean;
+  pullLabel?: string;
+  isPulling?: boolean;
+  onTouchStart?: TouchEventHandler<HTMLElement>;
+  onTouchMove?: TouchEventHandler<HTMLElement>;
+  onTouchEnd?: TouchEventHandler<HTMLElement>;
+  onTouchCancel?: TouchEventHandler<HTMLElement>;
 };
 
 export function DashboardViewStage({
@@ -72,76 +82,116 @@ export function DashboardViewStage({
   moduleErrorBoundariesEnabled,
   moduleBoundaryKeySuffix,
   onReload,
+  pullOffset = 0,
+  pullIndicatorVisible = false,
+  pullReady = false,
+  pullRefreshing = false,
+  pullLabel = 'Pull to refresh',
+  isPulling = false,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+  onTouchCancel,
 }: DashboardViewStageProps): JSX.Element | null {
   if (settingsOpen) {
     return null;
   }
 
+  const pullIndicatorClasses = [
+    'va-pull-indicator',
+    pullIndicatorVisible ? 'is-visible' : '',
+    pullReady ? 'is-ready' : '',
+    pullRefreshing ? 'is-refreshing' : '',
+  ].filter(Boolean).join(' ');
+  const pullContentClasses = `va-view-stage-content${isPulling ? ' is-pulling' : ''}`;
+  const pullContentStyle: CSSProperties | undefined = pullOffset > 0
+    ? { transform: `translate3d(0, ${Math.round(pullOffset)}px, 0)` }
+    : undefined;
+
   return (
-    <section id="va-view-stage-root" className="va-view-stage va-view-stage-dashboard" tabIndex={-1}>
-      {sessionBlocked ? (
-        <SessionBlockedCard
-          errorCode={errorCode}
-          onRetrySession={onRetrySession}
-          retryDisabled={loading || busy}
-          onCloseMiniApp={onCloseMiniApp}
-          closeDisabled={closeDisabled}
-        />
-      ) : null}
-
-      {!sessionBlocked && showOverviewMode ? (
-        <>
-          <DashboardOverviewMetrics
-            isDashboardDegraded={isDashboardDegraded}
-            syncModeLabel={syncModeLabel}
-            openIncidentCount={openIncidentCount}
-            queueBacklogTotal={queueBacklogTotal}
-            lastSuccessfulPollLabel={lastSuccessfulPollLabel}
+    <section
+      id="va-view-stage-root"
+      className="va-view-stage va-view-stage-dashboard"
+      tabIndex={-1}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
+    >
+      <div
+        className={pullIndicatorClasses}
+        role="status"
+        aria-live="polite"
+        aria-hidden={!pullIndicatorVisible}
+      >
+        <span className="va-pull-indicator-dot" aria-hidden="true" />
+        <span className="va-pull-indicator-text">{pullLabel}</span>
+      </div>
+      <div className={pullContentClasses} style={pullContentStyle}>
+        {sessionBlocked ? (
+          <SessionBlockedCard
+            errorCode={errorCode}
+            onRetrySession={onRetrySession}
+            retryDisabled={loading || busy}
+            onCloseMiniApp={onCloseMiniApp}
+            closeDisabled={closeDisabled}
           />
-          {visibleModulesCount === 0 ? (
-            <EmptyModulesCard
-              onRefreshAccess={onRefreshAccess}
-              refreshDisabled={loading || busy}
-            />
-          ) : null}
-          {showModuleSkeleton ? (
-            <ModuleSkeletonGrid />
-          ) : visibleModulesCount > 0 ? (
-            <DashboardWorkspaceLauncher
-              groupedVisibleModules={groupedVisibleModules}
-              moduleShortcutIndexById={moduleShortcutIndexById}
-              activeModule={activeModule}
-              onSelectModule={onSelectModule}
-            />
-          ) : null}
-        </>
-      ) : null}
+        ) : null}
 
-      {!sessionBlocked && showFocusedModuleMode ? (
-        <>
-          {visibleModulesCount === 0 ? (
-            <EmptyModulesCard
-              onRefreshAccess={onRefreshAccess}
-              refreshDisabled={loading || busy}
+        {!sessionBlocked && showOverviewMode ? (
+          <>
+            <DashboardOverviewMetrics
+              isDashboardDegraded={isDashboardDegraded}
+              syncModeLabel={syncModeLabel}
+              openIncidentCount={openIncidentCount}
+              queueBacklogTotal={queueBacklogTotal}
+              lastSuccessfulPollLabel={lastSuccessfulPollLabel}
             />
-          ) : null}
-          {showModuleSkeleton ? (
-            <ModuleSkeletonGrid />
-          ) : (
-            <Suspense fallback={<ModuleSkeletonGrid />}>
-              <DashboardFocusedModulePane
-                activeModule={activeModule}
-                moduleVm={moduleVm}
-                hasCapability={hasCapability}
-                moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
-                moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
-                onReload={onReload}
-                reloadDisabled={loading || busy}
+            {visibleModulesCount === 0 ? (
+              <EmptyModulesCard
+                onRefreshAccess={onRefreshAccess}
+                refreshDisabled={loading || busy}
               />
-            </Suspense>
-          )}
-        </>
-      ) : null}
+            ) : null}
+            {showModuleSkeleton ? (
+              <ModuleSkeletonGrid />
+            ) : visibleModulesCount > 0 ? (
+              <DashboardWorkspaceLauncher
+                groupedVisibleModules={groupedVisibleModules}
+                moduleShortcutIndexById={moduleShortcutIndexById}
+                activeModule={activeModule}
+                onSelectModule={onSelectModule}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {!sessionBlocked && showFocusedModuleMode ? (
+          <>
+            {visibleModulesCount === 0 ? (
+              <EmptyModulesCard
+                onRefreshAccess={onRefreshAccess}
+                refreshDisabled={loading || busy}
+              />
+            ) : null}
+            {showModuleSkeleton ? (
+              <ModuleSkeletonGrid />
+            ) : (
+              <Suspense fallback={<ModuleSkeletonGrid />}>
+                <DashboardFocusedModulePane
+                  activeModule={activeModule}
+                  moduleVm={moduleVm}
+                  hasCapability={hasCapability}
+                  moduleErrorBoundariesEnabled={moduleErrorBoundariesEnabled}
+                  moduleBoundaryKeySuffix={moduleBoundaryKeySuffix}
+                  onReload={onReload}
+                  reloadDisabled={loading || busy}
+                />
+              </Suspense>
+            )}
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }

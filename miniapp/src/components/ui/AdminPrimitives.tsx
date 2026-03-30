@@ -144,6 +144,25 @@ export function UiBadge({
   );
 }
 
+type UiMetricTileProps = HTMLAttributes<HTMLElement> & {
+  label: ReactNode;
+  value: ReactNode;
+};
+
+export function UiMetricTile({
+  label,
+  value,
+  className,
+  ...rest
+}: UiMetricTileProps) {
+  return (
+    <article className={classNames('va-overview-metric-card', className)} {...rest}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
 type UiSkeletonLineProps = HTMLAttributes<HTMLDivElement> & {
   short?: boolean;
 };

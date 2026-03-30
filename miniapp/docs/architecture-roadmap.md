@@ -201,7 +201,7 @@ Already completed foundation work (kept as baseline):
 ## Execution Status Snapshot
 
 Current implementation status for active workstream:
-- Track 1 (Reliability-first data + auth layer): In Progress.
+- Track 1 (Reliability-first data + auth layer): Completed.
 - Track 2 (Operator-safe action framework): In Progress.
 - Track 3 (Professional UI system v1): In Progress.
 - Track 4 (Telegram-native interaction polish): In Progress.
@@ -212,8 +212,6 @@ Track 1 completed slices:
 - Bootstrap and poll loaders suppress generic fatal copy for recognized session-blocking error classes.
 - Expired cached session token path now attempts secure `/miniapp/session/refresh` before fallback session bootstrap.
 - Session cache reader supports stale-token recovery mode to avoid dropping refresh candidates too early.
-
-Track 1 next slices:
 - Add bounded retry/backoff utility for idempotent reads (`bootstrap`, `poll`) with jitter.
 - Add structured diagnostics payload (correlation id, failure class, endpoint) in status rail.
 - Add regression smoke checks for `miniapp_init_data_expired` and `miniapp_token_expired` recovery paths.
@@ -223,6 +221,16 @@ Track 2 completed slices:
 - Duplicate submit attempts are surfaced as operator-visible activity events without invoking backend writes.
 - Action lifecycle events now emit started/cancelled/succeeded/failed entries with trace and idempotency hints for operator-side correlation.
 - Low-risk runtime canary actions now apply optimistic UI updates and rollback deterministically on action failure.
+
+Track 3 completed slices:
+- Shared `UiMetricTile` primitive now backs dashboard overview metrics to eliminate per-page ad-hoc metric-card markup.
+- Overview metric rendering keeps card spacing, typography, and responsive behavior consistent via shared primitive usage.
+
+Track 4 completed slices:
+- Telegram `SettingsButton` lifecycle now mounts and unmounts explicitly with guarded cleanup to prevent stale controls.
+- Telegram `BackButton` lifecycle now mounts on entry and unmounts on cleanup to keep route transitions deterministic.
+- Pull-to-refresh now uses a local trigger lock to prevent duplicate refresh dispatches before async loading state settles.
+- Pull-threshold and release callbacks are now wired to Telegram haptics for native gesture feedback without double-triggering refresh actions.
 
 ## Product Quality Bar (Top-Grade Standard)
 

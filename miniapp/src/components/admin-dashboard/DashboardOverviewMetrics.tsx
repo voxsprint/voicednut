@@ -1,3 +1,5 @@
+import { UiMetricTile } from '@/components/ui/AdminPrimitives';
+
 type DashboardOverviewMetricsProps = {
   isDashboardDegraded: boolean;
   syncModeLabel: string;
@@ -18,22 +20,10 @@ export function DashboardOverviewMetrics({
       className={`va-overview-metrics ${isDashboardDegraded ? 'is-degraded' : 'is-healthy'}`}
       aria-label="Overview status"
     >
-      <article className="va-overview-metric-card">
-        <span>Sync mode</span>
-        <strong>{syncModeLabel}</strong>
-      </article>
-      <article className="va-overview-metric-card">
-        <span>Incidents</span>
-        <strong>{openIncidentCount}</strong>
-      </article>
-      <article className="va-overview-metric-card">
-        <span>Queue backlog</span>
-        <strong>{queueBacklogTotal}</strong>
-      </article>
-      <article className="va-overview-metric-card">
-        <span>Last healthy sync</span>
-        <strong>{lastSuccessfulPollLabel}</strong>
-      </article>
+      <UiMetricTile label="Sync mode" value={syncModeLabel} />
+      <UiMetricTile label="Incidents" value={openIncidentCount} />
+      <UiMetricTile label="Queue backlog" value={queueBacklogTotal} />
+      <UiMetricTile label="Last healthy sync" value={lastSuccessfulPollLabel} />
     </section>
   );
 }

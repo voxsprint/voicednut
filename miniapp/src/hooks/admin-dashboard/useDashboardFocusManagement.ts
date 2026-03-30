@@ -77,7 +77,8 @@ export function useDashboardFocusManagement({
     if (typeof document === 'undefined') return;
     const activeElement = document.activeElement;
     dialogReturnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
-    if (dialogState.kind === 'prompt') return;
+    const requiresTextMatch = dialogState.kind === 'confirm' && Boolean(dialogState.requireMatchText);
+    if (dialogState.kind === 'prompt' || requiresTextMatch) return;
     requestAnimationFrame(() => {
       dialogCancelButtonRef.current?.focus({ preventScroll: true });
     });

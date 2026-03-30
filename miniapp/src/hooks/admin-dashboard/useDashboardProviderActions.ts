@@ -50,13 +50,6 @@ type UseDashboardProviderActionsOptions = {
   providersByChannel: Partial<Record<ProviderChannel, ProviderChannelData>>;
   providerCurrentByChannel: Record<ProviderChannel, string>;
   providerSwitchPlanByChannel: ProviderSwitchPlanStateMap;
-  requestConfirmation?: (options: {
-    title: string;
-    message: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
-    tone?: 'default' | 'warning' | 'danger';
-  }) => Promise<boolean>;
 };
 
 type UseDashboardProviderActionsResult = {
@@ -91,7 +84,6 @@ export function useDashboardProviderActions({
   providersByChannel,
   providerCurrentByChannel,
   providerSwitchPlanByChannel,
-  requestConfirmation,
 }: UseDashboardProviderActionsOptions): UseDashboardProviderActionsResult {
   const runProviderPreflight = useCallback(async (channel: ProviderChannel, provider: string): Promise<void> => {
     const normalizedProvider = toText(provider, '').trim().toLowerCase();
@@ -185,24 +177,6 @@ export function useDashboardProviderActions({
   ): Promise<void> => {
     const normalizedTarget = targetProvider.trim().toLowerCase();
     if (!normalizedTarget) return;
-    const proceed = requestConfirmation
-      ? await requestConfirmation({
-        title: 'Switch Provider',
-        message: `Run preflight and switch ${channel.toUpperCase()} provider to "${normalizedTarget}"?`,
-        confirmLabel: 'Switch',
-        cancelLabel: 'Cancel',
-        tone: 'warning',
-      })
-      : (typeof window !== 'undefined'
-        ? window.confirm(
-          `Run preflight and switch ${channel.toUpperCase()} provider to "${normalizedTarget}"?`,
-        )
-        : true);
-    if (!proceed) {
-      triggerHaptic('warning');
-      pushActivity('info', 'Provider switch cancelled', `${channel.toUpperCase()} switch was cancelled.`);
-      return;
-    }
     triggerHaptic('impact', 'medium');
     const key = `${channel}:${normalizedTarget}`;
     setProviderPreflightBusy(key);
@@ -252,7 +226,6 @@ export function useDashboardProviderActions({
     setProviderPreflightRows,
     setProviderRollbackByChannel,
     triggerHaptic,
-    requestConfirmation,
   ]);
 
   const setProviderSwitchTarget = useCallback((channel: ProviderChannel, target: string): void => {
@@ -347,21 +320,6 @@ export function useDashboardProviderActions({
       setError(`Simulate and confirm ${channel.toUpperCase()} plan before apply.`);
       return;
     }
-    const approved = requestConfirmation
-      ? await requestConfirmation({
-        title: 'Apply Provider Switch',
-        message: `Apply ${channel.toUpperCase()} provider switch to "${target}" now?`,
-        confirmLabel: 'Apply',
-        cancelLabel: 'Cancel',
-        tone: 'danger',
-      })
-      : (typeof window !== 'undefined'
-        ? window.confirm(`Apply ${channel.toUpperCase()} provider switch to "${target}" now?`)
-        : true);
-    if (!approved) {
-      pushActivity('info', 'Provider switch cancelled', `${channel.toUpperCase()} switch apply was cancelled.`);
-      return;
-    }
     const previousProvider = providerCurrentByChannel[channel];
     await runAction(
       'provider.set',
@@ -418,7 +376,6 @@ export function useDashboardProviderActions({
     setError,
     setNotice,
     setProviderSwitchPlanByChannel,
-    requestConfirmation,
   ]);
 
   const resetProviderSwitchPlan = useCallback((channel: ProviderChannel): void => {
