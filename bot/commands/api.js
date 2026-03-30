@@ -1,8 +1,7 @@
 const config = require('../config');
 const httpClient = require('../utils/httpClient');
-const { getUser, isAdmin } = require('../db/db');
 const { escapeMarkdown, buildLine, sendEphemeral, buildMainMenuReplyMarkup } = require('../utils/ui');
-const { getDeniedAuditSummary } = require('../utils/capabilities');
+const { getAccessProfile, getDeniedAuditSummary } = require('../utils/capabilities');
 
 async function replyApiError(ctx, error, fallback, options = {}) {
     const message = httpClient.getUserMessage(error, fallback);
@@ -11,10 +10,8 @@ async function replyApiError(ctx, error, fallback, options = {}) {
 
 async function handleStatusCommand(ctx) {
     try {
-        const user = await new Promise(r => getUser(ctx.from.id, r));
-        const adminStatus = await new Promise(r => isAdmin(ctx.from.id, r));
-
-        if (!user || !adminStatus) {
+        const access = await getAccessProfile(ctx);
+        if (!access?.isAdmin) {
             return ctx.reply('❌ Access denied. This action is available to administrators only.');
         }
 
@@ -138,8 +135,8 @@ async function handleStatusCommand(ctx) {
 
 async function handleHealthCommand(ctx) {
     try {
-        const user = await new Promise(r => getUser(ctx.from.id, r));
-        if (!user) {
+        const access = await getAccessProfile(ctx);
+        if (!access?.isAuthorized) {
             return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
         }
 

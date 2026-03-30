@@ -4,10 +4,6 @@ const config = require('../config');
 const httpClient = require('../utils/httpClient');
 const { withRetry } = require('../utils/httpClient');
 const {
-  getUser,
-  isAdmin
-} = require('../db/db');
-const {
   getBusinessOptions,
   findBusinessOption,
   MOOD_OPTIONS,
@@ -38,6 +34,7 @@ const {
 } = require('../utils/ui');
 const { buildCallbackData, matchesCallbackPrefix, parseCallbackData } = require('../utils/actions');
 const { attachHmacAuth } = require('../utils/apiAuth');
+const { getAccessProfile } = require('../utils/capabilities');
 const {
   RELATIONSHIP_FLOW_TYPES,
 } = require('../../api/functions/Dating');
@@ -3313,14 +3310,14 @@ async function scriptsFlow(conversation, ctx) {
   const ensureActive = () => ensureOperationActive(ctx, opId);
 
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user) {
+    if (!access.isAuthorized) {
       await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       return;
     }
 
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+    const adminStatus = Boolean(access.isAdmin);
     ensureActive();
     if (!adminStatus) {
       await ctx.reply('❌ Access denied. This action is available to administrators only.');
@@ -3387,13 +3384,12 @@ async function scriptsFlow(conversation, ctx) {
 
 function registerScriptsCommand(bot) {
   bot.command('scripts', async (ctx) => {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    if (!user) {
+    const access = await getAccessProfile(ctx);
+    if (!access.isAuthorized) {
       return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
     }
 
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-    if (!adminStatus) {
+    if (!access.isAdmin) {
       return ctx.reply('❌ Access denied. This action is available to administrators only.');
     }
 

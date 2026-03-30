@@ -80,69 +80,334 @@ Reliability posture:
 - Polling remains fallback-safe when streaming is degraded.
 - Action calls remain capability-gated by backend.
 
-## Implementation Sequence (Practical)
+## Strategic Enhancement Backlog (Corrected)
 
-### Phase A: Foundation Hardening (in progress)
-- Extract pure utilities from page-level components to `services/*`.
-- Normalize parsing and coercion helpers for consistent API payload handling.
-- Keep types explicit at page boundaries.
+This section replaces the previous Phase A-D priority order and is the canonical execution plan.
 
-Done:
-- `dashboardPrimitives.ts` created and wired into `AdminDashboardPage.tsx`.
-- Polling lifecycle extracted to `hooks/useDashboardPollingLoop.ts`.
-- Event stream lifecycle extracted to `hooks/useDashboardEventStream.ts`.
-- Action orchestration extracted to `src/hooks/admin-dashboard/useDashboardActions.ts`.
-- Feature flag resolution extracted to `src/hooks/admin-dashboard/useDashboardFeatureFlags.ts`.
-- Module visibility/layout resolution extracted to `src/hooks/admin-dashboard/useDashboardModuleLayout.ts`.
-- Ops and sync metric derivation extracted to `src/hooks/admin-dashboard/useDashboardOpsMetrics.ts`.
-- Provider matrix/readiness/current-provider derivation extracted to `src/hooks/admin-dashboard/useDashboardProviderMetrics.ts`.
-- Messaging metrics/validation/preview derivation extracted to `src/hooks/admin-dashboard/useDashboardMessagingMetrics.ts`.
-- Users/audit refresh orchestration extracted to `src/hooks/admin-dashboard/useDashboardGovernanceData.ts`.
-- Governance write actions extracted to `src/hooks/admin-dashboard/useDashboardGovernanceActions.ts`.
-- Runtime control actions extracted to `src/hooks/admin-dashboard/useDashboardRuntimeControls.ts`.
-- Call script lifecycle actions extracted to `src/hooks/admin-dashboard/useDashboardCallScriptActions.ts`.
-- Messaging send/schedule orchestration extracted to `src/hooks/admin-dashboard/useDashboardMessagingActions.ts`.
-- Provider preflight/switch orchestration extracted to `src/hooks/admin-dashboard/useDashboardProviderActions.ts`.
-- Provider section rendering extracted to `src/components/admin-dashboard/ProviderChannelCard.tsx`.
-- Dashboard blocked/empty/skeleton/fallback state cards extracted to `src/components/admin-dashboard/DashboardStateCards.tsx`.
-- Header/module-navigation chrome extracted to `src/components/admin-dashboard/DashboardChrome.tsx`.
-- Unified request-state and observability rail extracted to `src/components/admin-dashboard/DashboardStatusRail.tsx`.
-- Focused module rendering (lazy registry, capability guard, boundary fallback) extracted to `src/components/admin-dashboard/DashboardFocusedModulePane.tsx`.
-- Action payload guard layer added in `src/services/admin-dashboard/dashboardActionGuards.ts`.
-- Bootstrap/poll/stream response contract validation added in `src/services/admin-dashboard/dashboardApiContracts.ts`.
-- Dashboard VM composition entrypoint added in `src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts`.
-- Dashboard VM per-module builders added in `src/services/admin-dashboard/dashboardVm/build{Ops,Sms,Mailer,Provider,Governance}VmSection.ts`.
-- Per-module builder typing tightened with explicit `Pick<DashboardVm, ...>` section contracts in `src/services/admin-dashboard/dashboardVm/types.ts`.
-- Per-page VM selectors extracted to `src/pages/AdminDashboard/vmSelectors.ts` and wired across module pages.
-- Module-level request-state primitives extracted to `src/pages/AdminDashboard/moduleRequestState.ts` and wired into `SmsSenderPage`, `MailerPage`, and `ProviderControlPage`.
-- Investigation side-effect helper extracted to `src/pages/AdminDashboard/useInvestigationAction.ts` and wired into messaging module pages.
-- Shell-level memoized selectors for script lookup and SMS route simulation extracted to `src/pages/AdminDashboard/shellSelectors.ts`.
-- Production smoke gate added in `scripts/smoke-admin-dashboard.mjs` and wired to `npm run validate:prod`.
-- Module layout parsing extracted to `src/services/admin-dashboard/dashboardLayout.ts`.
-- Session/cache/url transport helpers extracted to `src/services/admin-dashboard/dashboardTransport.ts`.
-- Settings stage rendering extracted to `src/components/admin-dashboard/DashboardSettingsStage.tsx`.
-- Action dialog rendering extracted to `src/components/admin-dashboard/DashboardActionDialog.tsx`.
-- View-stage branching (session blocked, overview, focused module) extracted to `src/components/admin-dashboard/DashboardViewStage.tsx`.
-- Top-shell orchestration (overview/focused header + status rail) extracted to `src/components/admin-dashboard/DashboardTopShell.tsx`.
-- Shell frame wrapper (`<main>`, skip-link, and live-region) extracted to `src/components/admin-dashboard/DashboardShellFrame.tsx`.
+Already completed foundation work (kept as baseline):
+- Dashboard shell/component extraction, VM builders, transport helpers, request-state primitives, and smoke gating remain in place.
+- Existing backend API contracts remain unchanged unless explicitly approved.
 
-Next:
-- Continue Phase B composition cleanup by shrinking `AdminDashboardPage.tsx` orchestration surface.
+### Must-Fix Before Production
 
-### Phase B: Page Composition Cleanup
-- Ensure each feature module has a dedicated page component under `src/pages/AdminDashboard/`.
-- Keep `AdminDashboardPage.tsx` as orchestration shell only.
-- Push repeated UI sections into reusable components (stat tiles, panels, empty states).
+1. Reliability-first data + auth layer
+- What changes: centralized mini app session manager, Telegram `initData` refresh and re-auth flow, retry policy, stale-while-revalidate cache behavior, and unified error normalization.
+- What stays: existing endpoint contracts and capability gating model.
+- Effort: M
+- Impact: Very High
+- Risk: Low-Med
+- Likely files affected: `src/services/miniappAuth.ts`, `src/services/admin-dashboard/dashboardTransport.ts`, `src/services/admin-dashboard/dashboardApiContracts.ts`, `src/hooks/admin-dashboard/*`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
 
-### Phase C: Resilience and Observability
-- Standardize request states: idle, loading, success, empty, error.
-- Add trace-friendly activity metadata around write actions.
-- Maintain deterministic fallback behavior if stream endpoint fails.
+2. Operator-safe action framework
+- What changes: destructive-action confirmation layer, idempotency keys for writes, optimistic updates with rollback, and audit trail entries for all admin actions.
+- What stays: existing action endpoint shape (`POST /miniapp/action`) and module permissions model.
+- Effort: M-L
+- Impact: Very High
+- Risk: Med
+- Likely files affected: `src/hooks/admin-dashboard/useDashboardActions.ts`, `src/services/admin-dashboard/dashboardActionGuards.ts`, `src/components/admin-dashboard/DashboardActionDialog.tsx`, `src/pages/AdminDashboard/*`.
 
-### Phase D: UX and Governance Maturity
-- Role-aware navigation and module gating polish.
-- Better admin copy for blocked/empty states.
-- Audit and incident surfaces with filterable, production-grade views.
+3. Professional UI system v1 (non-cosmetic)
+- What changes: strict design tokens (spacing/type/radius/shadows), reusable `status card`, `metric tile`, `incident row`, and `action bar` primitives, and consistent empty/loading/error state surfaces.
+- What stays: current dark brand direction and Telegram-first layout constraints.
+- Effort: M
+- Impact: High
+- Risk: Low
+- Likely files affected: `src/components/ui/AdminPrimitives.tsx`, `src/components/admin-dashboard/*`, `src/pages/AdminDashboard/AdminDashboardPage.css`, `src/styles/*`.
+
+4. Telegram-native interaction polish
+- What changes: hardened Back/Settings lifecycle handling, reliable theme sync, haptic feedback on key actions, viewport/safe-area resilience, and pull-to-refresh semantics.
+- What stays: existing routing topology and dashboard module boundaries.
+- Effort: M
+- Impact: High
+- Risk: Low-Med
+- Likely files affected: `src/components/Root.tsx`, `src/components/App.tsx`, `src/hooks/*telegram*`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
+
+5. Observability + incident UX
+- What changes: frontend telemetry for load/failure/auth-expiry classes, correlation IDs surfaced in operator UI, diagnostics panel, and grouped runtime errors.
+- What stays: current status rail and incident summary surface direction.
+- Effort: M
+- Impact: High
+- Risk: Low
+- Likely files affected: `src/components/admin-dashboard/DashboardStatusRail.tsx`, `src/services/admin-dashboard/*`, `src/pages/AdminDashboard/*`, `scripts/smoke-admin-dashboard.mjs`.
+
+6. Production access model hardening
+- What changes: strict server-side RBAC enforcement per operation, feature flags by role/workspace, and sensitive-value redaction in UI-visible logs.
+- What stays: existing role labels and workspace selection UX.
+- Effort: M
+- Impact: High
+- Risk: Med
+- Likely files affected: `api/functions/*miniapp*`, `api/services/miniappAuth.js`, `src/services/admin-dashboard/dashboardApiContracts.ts`, `src/pages/AdminDashboard/*`.
+
+### Premium Polish Improvements
+
+7. Task-centric navigation model
+- What changes: workflow-first IA (`Monitor`, `Incidents`, `Queues`, `Providers`, `Runbooks`) with clear primary and secondary actions.
+- What stays: module capability gating and focused-module concept.
+- Effort: M
+- Impact: High
+- Risk: Low
+- Likely files affected: `src/navigation/routes.tsx`, `src/components/admin-dashboard/DashboardChrome.tsx`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
+
+8. Command surface for power users
+- What changes: searchable command palette, role-aware command visibility, and keyboard shortcuts where supported.
+- What stays: current module actions and guardrails.
+- Effort: M
+- Impact: Med-High
+- Risk: Med
+- Likely files affected: `src/components/admin-dashboard/*`, `src/hooks/admin-dashboard/*`, `src/pages/AdminDashboard/*`.
+
+9. Data density modes
+- What changes: compact and comfortable modes, list/table mode switching for dense workflows, sticky filters, and saved views.
+- What stays: default mobile-first ergonomics.
+- Effort: M
+- Impact: Med
+- Risk: Low
+- Likely files affected: `src/components/admin-dashboard/*`, `src/pages/AdminDashboard/*`, `src/services/admin-dashboard/dashboardLayout.ts`.
+
+### Architecture and Maintainability Improvements
+
+10. Performance budgets + runtime safeguards
+- What changes: bundle-size budgets, route-level splitting, abortable requests, and render-cost profiling for dashboard modules.
+- What stays: current framework/toolchain stack.
+- Effort: M
+- Impact: Med-High
+- Risk: Low
+- Likely files affected: `vite.config.*`, `src/navigation/routes.tsx`, `src/hooks/admin-dashboard/*`, `package.json`.
+
+11. Test strategy for confidence
+- What changes: API adapter contract tests, critical-flow smoke tests, auth-expiry regression coverage, and CI validation gates.
+- What stays: existing local smoke gate entrypoints.
+- Effort: M-L
+- Impact: High
+- Risk: Low
+- Likely files affected: `miniapp/tests/*`, `scripts/smoke-admin-dashboard.mjs`, CI workflow files under `.github/workflows/*`.
+
+12. Module boundary cleanup
+- What changes: explicit frontend architecture boundaries (app shell, domain modules, shared UI, infra adapters), typed API client boundaries, and removal of cross-feature coupling.
+- What stays: endpoint contracts and dashboard module intent.
+- Effort: L
+- Impact: High (long-term)
+- Risk: Med
+- Likely files affected: `src/pages/AdminDashboard/*`, `src/services/admin-dashboard/*`, `src/components/admin-dashboard/*`, `src/navigation/*`.
+
+## Best Top 5 Next Enhancements (Execution Order)
+
+1. Reliability-first data + auth layer.
+2. Operator-safe action framework.
+3. Professional UI system v1 primitives and state consistency.
+4. Telegram-native interaction polish.
+5. Observability and incident UX.
+
+## Execution Status Snapshot
+
+Current implementation status for active workstream:
+- Track 1 (Reliability-first data + auth layer): In Progress.
+- Track 2 (Operator-safe action framework): In Progress.
+- Track 3 (Professional UI system v1): In Progress.
+- Track 4 (Telegram-native interaction polish): In Progress.
+- Track 5 (Observability + incident UX): In Progress.
+
+Track 1 completed slices:
+- Session and refresh error-code normalization extracted into shared `dashboardSessionErrors` helpers.
+- Bootstrap and poll loaders suppress generic fatal copy for recognized session-blocking error classes.
+- Expired cached session token path now attempts secure `/miniapp/session/refresh` before fallback session bootstrap.
+- Session cache reader supports stale-token recovery mode to avoid dropping refresh candidates too early.
+
+Track 1 next slices:
+- Add bounded retry/backoff utility for idempotent reads (`bootstrap`, `poll`) with jitter.
+- Add structured diagnostics payload (correlation id, failure class, endpoint) in status rail.
+- Add regression smoke checks for `miniapp_init_data_expired` and `miniapp_token_expired` recovery paths.
+
+Track 2 completed slices:
+- Action execution now enforces in-flight dedupe by action plus stable payload fingerprint to block accidental double submissions.
+- Duplicate submit attempts are surfaced as operator-visible activity events without invoking backend writes.
+- Action lifecycle events now emit started/cancelled/succeeded/failed entries with trace and idempotency hints for operator-side correlation.
+- Low-risk runtime canary actions now apply optimistic UI updates and rollback deterministically on action failure.
+
+## Product Quality Bar (Top-Grade Standard)
+
+The mini app is considered production-grade only when all criteria below are met:
+- Reliability: no unactionable fatal states in primary operator flows; every failure path provides a recover action.
+- UX consistency: all dashboard modules use standardized loading, empty, success, warning, and error states.
+- Telegram-native compliance: Back/Settings/theme/viewport/haptics are deterministic across supported Telegram clients.
+- Operator safety: destructive actions require confirmation and produce immutable audit events.
+- Security and access: RBAC enforcement is server-authoritative, never UI-only.
+- Observability: every critical request path emits traceable telemetry with correlation identifiers.
+- Performance: first meaningful dashboard content under agreed budget and no avoidable blocking work on app boot.
+- Testability: critical flows are covered by smoke checks and regression tests with CI gating.
+
+## North-Star Metrics and SLO Targets
+
+Use these targets to measure readiness and catch regressions early:
+- Session bootstrap success rate: >= 99.5%.
+- Auth-expiry recovery success rate (no manual reload): >= 99.0%.
+- Dashboard load p95 (Telegram webview): <= 2.5s.
+- Action success confirmation latency p95: <= 1.5s (excluding long-running jobs).
+- Client-side fatal error rate: < 0.5% of sessions.
+- Stream-to-poll fallback recovery: < 5s to stable degraded mode.
+- Incident acknowledgement interaction success: >= 99%.
+
+## Implementation Blueprint for Top 5 (Detailed)
+
+### Track 1: Reliability-First Data and Auth Layer
+
+Scope:
+- Introduce a single session lifecycle controller for token/bootstrap state.
+- Add request middleware for retryable failures with bounded backoff and jitter.
+- Add stale-while-revalidate caching for bootstrap and derived view-model slices.
+- Normalize API error shapes into deterministic domain error categories.
+
+Definition of done:
+- Expired init data no longer leaves dashboard in terminal error state.
+- Any 401/403/auth-expired class triggers controlled re-auth attempt or clear blocked state.
+- Polling and stream paths use unified error categorization and consistent UI messaging.
+- Retry policy excludes unsafe writes and is limited to idempotent read paths.
+
+Likely implementation files:
+- `src/services/miniappAuth.ts`
+- `src/services/admin-dashboard/dashboardTransport.ts`
+- `src/services/admin-dashboard/dashboardApiContracts.ts`
+- `src/services/admin-dashboard/dashboardVm/*`
+- `src/hooks/admin-dashboard/useDashboardPollingLoop.ts`
+- `src/hooks/admin-dashboard/useDashboardEventStream.ts`
+
+### Track 2: Operator-Safe Action Framework
+
+Scope:
+- Enforce confirm-before-execute for destructive and high-impact actions.
+- Generate idempotency keys for write actions and attach to transport layer.
+- Support optimistic UI for low-risk actions with rollback on failure.
+- Surface action timeline entries in UI with status, actor, and correlation id.
+
+Definition of done:
+- No destructive action executes from a single accidental tap.
+- Duplicate action submissions do not trigger double execution.
+- Action failures rollback UI state and show deterministic remediation guidance.
+- Action records are inspectable from operator surfaces.
+
+Likely implementation files:
+- `src/hooks/admin-dashboard/useDashboardActions.ts`
+- `src/hooks/admin-dashboard/useDashboardRuntimeControls.ts`
+- `src/components/admin-dashboard/DashboardActionDialog.tsx`
+- `src/components/admin-dashboard/DashboardStatusRail.tsx`
+- `src/services/admin-dashboard/dashboardActionGuards.ts`
+
+### Track 3: Professional UI System v1
+
+Scope:
+- Formalize token system for color, type, spacing, radius, elevation, motion, and interaction states.
+- Build canonical primitives for metric tiles, status cards, incident rows, and action bars.
+- Consolidate all transient UI states (loading/empty/error/blocked/degraded) to shared components.
+- Enforce role and capability badge consistency with semantic status colors.
+
+Definition of done:
+- No module uses ad-hoc state visuals outside shared primitives.
+- Card layout, spacing rhythm, and typography scale are consistent on mobile and desktop.
+- Critical operator surfaces can be scanned in < 5s for current sync status and incidents.
+- Accessibility baseline: clear focus ring, contrast-compliant text, and screen-reader labels on controls.
+
+Likely implementation files:
+- `src/components/ui/AdminPrimitives.tsx`
+- `src/components/admin-dashboard/DashboardStateCards.tsx`
+- `src/components/admin-dashboard/DashboardChrome.tsx`
+- `src/components/admin-dashboard/DashboardTopShell.tsx`
+- `src/pages/AdminDashboard/AdminDashboardPage.css`
+
+### Track 4: Telegram-Native Interaction Polish
+
+Scope:
+- Harden Back/Settings button subscription lifecycle and route transitions.
+- Keep theme and viewport in sync with Telegram runtime updates.
+- Add haptic feedback for confirm/success/error states where appropriate.
+- Add safe-area handling and pull-to-refresh semantics for top-level dashboard refresh.
+
+Definition of done:
+- Telegram controls never remain stale after route/module transitions.
+- No clipped UI in notched devices or dynamic viewport changes.
+- Pull-to-refresh invokes deterministic data refresh without duplicate in-flight requests.
+- Haptics are present only for key interactions and never spammy.
+
+Likely implementation files:
+- `src/components/Root.tsx`
+- `src/components/App.tsx`
+- `src/hooks/admin-dashboard/useDashboardModuleRoute.ts`
+- `src/pages/AdminDashboard/AdminDashboardPage.tsx`
+- `src/services/admin-dashboard/dashboardTransport.ts`
+
+### Track 5: Observability and Incident UX
+
+Scope:
+- Emit client telemetry events for bootstrap latency, auth failures, and action outcomes.
+- Surface request and action correlation ids in status/error panels.
+- Add diagnostics panel with environment, last sync health, and recent failure classes.
+- Group errors by normalized type to reduce alert noise and speed triage.
+
+Definition of done:
+- Operator can identify failing subsystem and correlation id without browser devtools.
+- Recurring client failures are grouped and trendable.
+- Diagnostics panel is accessible from dashboard shell and safe for production usage.
+- Smoke script validates key telemetry and diagnostics rendering paths.
+
+Likely implementation files:
+- `src/components/admin-dashboard/DashboardStatusRail.tsx`
+- `src/components/admin-dashboard/DashboardShellFrame.tsx`
+- `src/services/admin-dashboard/dashboardApiContracts.ts`
+- `src/services/admin-dashboard/dashboardTransport.ts`
+- `scripts/smoke-admin-dashboard.mjs`
+
+## Extended Enhancements for Top-Notch Version (Post-Top 12)
+
+13. Runbook and guided recovery engine
+- Add inline runbooks for each critical failure class with one-tap safe remediation actions.
+
+14. Incident timeline intelligence
+- Add timeline of events, retries, provider switches, and operator interventions for every incident.
+
+15. Provider health confidence scoring
+- Add composite provider score from latency, error classes, queue depth, and fallback rate.
+
+16. Workspace governance center
+- Add environment-level policy controls, approval tiers, and action windows by role.
+
+17. Adaptive dashboard summaries
+- Add role-aware executive summary cards and per-workspace watchlists.
+
+18. Offline and poor-network resilience
+- Add explicit offline mode, queued refresh attempts, and reconnection guidance.
+
+19. Internationalization and localization readiness
+- Add UI copy strategy, message key boundaries, and locale-safe formatting.
+
+20. Change intelligence and release notes feed
+- Add in-app release highlights and migration notices for operators.
+
+## Execution Structure and Delivery Cadence
+
+Suggested execution model:
+- Wave 1 (Production hardening): tracks 1, 2, and 4.
+- Wave 2 (Professional UX): track 3 and high-impact parts of track 5.
+- Wave 3 (Scale and maintainability): remaining observability plus items 10-12 and selected extended enhancements.
+
+PR sizing guideline:
+- Keep each PR focused to one track slice with <= 8 files where possible.
+- Each PR must include a rollback note and explicit risk surface.
+- Each PR must include before/after operator behavior notes.
+
+## Security and Compliance Readiness Checklist
+
+- Enforce server-side permission checks for all write actions.
+- Ensure sensitive values are redacted in logs, telemetry, and diagnostics.
+- Validate init data and auth timestamps strictly against accepted skew windows.
+- Guard against replay on write operations with idempotency and expiry windows.
+- Ensure all operator-facing errors avoid leaking implementation secrets.
+
+## Operator UX Principles (Non-Negotiable)
+
+- Every alert must answer: what happened, what is impacted, what to do next.
+- Every critical action must expose scope, consequence, and rollback path.
+- Every degraded state must preserve at least one safe operational path.
+- Every module must communicate freshness timestamp and data trust level.
+- Every empty state must provide meaningful next action, never dead ends.
 
 ## Verification Gate Per Change
 
@@ -172,6 +437,10 @@ Rollout checklist:
 - Confirm API URL targets correct environment.
 - Confirm bot `MINI_APP_URL` points to current Vercel deployment.
 - Smoke test with real Telegram launch, not standalone browser only.
+- Run deployment commands from `miniapp/` only.
+- Never create or keep `/workspaces/voicednut/.vercel` for this app.
+- If Vercel project root differs from `miniapp`, override with explicit deploy path command:
+  - `vercel deploy /workspaces/voicednut/miniapp --prod --yes`
 
 ## Non-Goals
 

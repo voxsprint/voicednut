@@ -456,6 +456,56 @@
   font-size: 12px;
 }
 
+.va-status-diagnostics {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border) 86%, rgba(168, 188, 232, 0.3));
+  border-radius: var(--app-radius-md);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--va-surface) 84%, transparent);
+}
+
+.va-status-diagnostics-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tg-theme-hint-color, var(--va-muted));
+  font-weight: 700;
+}
+
+.va-status-diagnostics-grid {
+  display: grid;
+  gap: 4px 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.va-status-diagnostics-item {
+  margin: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--tg-theme-hint-color, var(--va-muted));
+}
+
+.va-status-diagnostics-item strong {
+  color: var(--va-text);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .va-status-diagnostics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .va-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

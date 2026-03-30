@@ -69,6 +69,7 @@ function main() {
     'src/hooks/admin-dashboard/useDashboardWorkspaceRouteSync.ts',
     'src/hooks/admin-dashboard/providerSwitchPlanState.ts',
     'src/services/admin-dashboard/dashboardApiContracts.ts',
+    'src/services/admin-dashboard/dashboardSessionErrors.ts',
     'src/services/admin-dashboard/dashboardActionGuards.ts',
     'src/services/admin-dashboard/dashboardVm/buildDashboardVm.ts',
     'src/services/admin-dashboard/dashboardVm/buildOpsVmSection.ts',
@@ -160,6 +161,24 @@ function main() {
   expectContains('src/components/admin-dashboard/DashboardViewStage.tsx', '<DashboardWorkspaceLauncher');
   expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', '<DashboardFocusedHeader');
   expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', 'MODULE_DETAIL_DEFAULT');
+  expectContains('src/components/admin-dashboard/DashboardTopShell.tsx', 'refreshFailureDiagnostics={refreshFailureDiagnostics}');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Operator diagnostics');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Failure class');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Correlation ID');
+  expectContains('src/components/admin-dashboard/DashboardStatusRail.tsx', 'Trace hint');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'resolveErrorCorrelationId');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'classifyRefreshFailureCode');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'miniapp_init_data_expired');
+  expectContains('src/hooks/admin-dashboard/useDashboardSyncLoaders.ts', 'miniapp_token_expired');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'resolveResponseCorrelationId');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'resolveResponseRequestId');
+  expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'miniapp_init_data_expired');
+  expectContains('src/services/admin-dashboard/dashboardTransport.ts', 'miniapp_token_expired');
+  expectContains('src/services/admin-dashboard/dashboardSessionErrors.ts', 'describeDashboardRefreshFailure');
+  expectContains('src/services/admin-dashboard/dashboardApiClient.ts', 'resolveResponseTraceHint');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', 'refreshFailureDiagnostics={refreshFailureDiagnostics}');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-status-diagnostics');
+  expectContains('src/pages/AdminDashboard/AdminDashboardPage.css', '.va-status-diagnostics-grid');
   expectContains('src/pages/AdminDashboard/AdminDashboardPage.tsx', "if (!visibleModules.some((module) => module.id === moduleId)) return;");
   expectContains('src/hooks/admin-dashboard/useDashboardModuleRouteGuards.ts', "navigate(fallbackPath, { replace: true });");
   expectContains('src/hooks/admin-dashboard/useDashboardKeyboardShortcuts.ts', "toggleSettings(false, { fallbackModule: nextModule.id });");

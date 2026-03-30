@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { RunActionOptions } from '@/hooks/admin-dashboard/useDashboardActions';
 
 type ActivityStatus = 'info' | 'success' | 'error';
 
@@ -11,7 +12,7 @@ type InvokeAction = (
 type RunAction = (
   action: string,
   payload: Record<string, unknown>,
-  options?: { confirmText?: string; successMessage?: string },
+  options?: RunActionOptions,
 ) => Promise<void>;
 
 type VoiceRuntimePayload = {
@@ -28,6 +29,7 @@ type UseDashboardRuntimeControlsOptions = {
   setError: (message: string) => void;
   setRuntimeCanaryInput: (value: string) => void;
   runtimeCanaryInput: string;
+  runtimeStatusSnapshot: VoiceRuntimePayload;
   onRuntimeStatusLoaded: (payload: VoiceRuntimePayload) => void;
 };
 
@@ -45,6 +47,35 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function clampCanaryPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function resolveRuntimeCanaryOverrideLabel(payload: VoiceRuntimePayload): string {
+  const runtime = asRecord(asRecord(payload).runtime);
+  const override = Number(runtime.canary_percent_override);
+  return Number.isFinite(override) ? String(clampCanaryPercent(override)) : '';
+}
+
+function buildRuntimeCanarySnapshot(
+  payload: VoiceRuntimePayload,
+  override: number | null,
+): VoiceRuntimePayload {
+  const nextPayload = asRecord(payload);
+  const runtime = asRecord(nextPayload.runtime);
+  const nextRuntime: Record<string, unknown> = {
+    ...runtime,
+    canary_percent_override: override,
+  };
+  if (typeof override === 'number') {
+    nextRuntime.effective_canary_percent = clampCanaryPercent(override);
+  }
+  return {
+    ...nextPayload,
+    runtime: nextRuntime,
+  };
+}
+
 export function useDashboardRuntimeControls({
   invokeAction,
   runAction,
@@ -52,6 +83,7 @@ export function useDashboardRuntimeControls({
   setError,
   setRuntimeCanaryInput,
   runtimeCanaryInput,
+  runtimeStatusSnapshot,
   onRuntimeStatusLoaded,
 }: UseDashboardRuntimeControlsOptions): UseDashboardRuntimeControlsResult {
   const refreshRuntimeStatus = useCallback(async (): Promise<void> => {
@@ -98,15 +130,32 @@ export function useDashboardRuntimeControls({
       setError('Canary override must be a number between 0 and 100.');
       return;
     }
+    const canaryPercent = clampCanaryPercent(parsed);
     await runAction(
       'runtime.canary.set',
-      { canary_percent: Math.round(parsed) },
+      { canary_percent: canaryPercent },
       {
-        confirmText: `Set runtime canary override to ${Math.round(parsed)}%?`,
-        successMessage: `Runtime canary override set to ${Math.round(parsed)}%.`,
+        confirmText: `Set runtime canary override to ${canaryPercent}%?`,
+        successMessage: `Runtime canary override set to ${canaryPercent}%.`,
+        optimisticUpdate: () => {
+          const previousSnapshot = runtimeStatusSnapshot;
+          onRuntimeStatusLoaded(buildRuntimeCanarySnapshot(previousSnapshot, canaryPercent));
+          setRuntimeCanaryInput(String(canaryPercent));
+          return () => {
+            onRuntimeStatusLoaded(previousSnapshot);
+            setRuntimeCanaryInput(resolveRuntimeCanaryOverrideLabel(previousSnapshot));
+          };
+        },
       },
     );
-  }, [runAction, runtimeCanaryInput, setError]);
+  }, [
+    onRuntimeStatusLoaded,
+    runAction,
+    runtimeCanaryInput,
+    runtimeStatusSnapshot,
+    setError,
+    setRuntimeCanaryInput,
+  ]);
 
   const clearRuntimeCanary = useCallback(async (): Promise<void> => {
     await runAction(
@@ -115,10 +164,18 @@ export function useDashboardRuntimeControls({
       {
         confirmText: 'Clear runtime canary override and return to configured value?',
         successMessage: 'Runtime canary override cleared.',
+        optimisticUpdate: () => {
+          const previousSnapshot = runtimeStatusSnapshot;
+          onRuntimeStatusLoaded(buildRuntimeCanarySnapshot(previousSnapshot, null));
+          setRuntimeCanaryInput('');
+          return () => {
+            onRuntimeStatusLoaded(previousSnapshot);
+            setRuntimeCanaryInput(resolveRuntimeCanaryOverrideLabel(previousSnapshot));
+          };
+        },
       },
     );
-    setRuntimeCanaryInput('');
-  }, [runAction, setRuntimeCanaryInput]);
+  }, [onRuntimeStatusLoaded, runAction, runtimeStatusSnapshot, setRuntimeCanaryInput]);
 
   return {
     refreshRuntimeStatus,

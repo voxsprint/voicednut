@@ -32,16 +32,17 @@ async function handleMenu(ctx) {
         resetSession(ctx);
 
         const access = await getAccessProfile(ctx);
+        const isAuthorized = Boolean(access.isAuthorized);
         const isOwner = access.isAdmin;
 
         const kb = new InlineKeyboard()
-            .text(access.user ? '📞 Call' : '🔒 Call', buildCallbackData(ctx, 'CALL'))
-            .text(access.user ? '💬 SMS' : '🔒 SMS', buildCallbackData(ctx, 'SMS'))
+            .text(isAuthorized ? '📞 Call' : '🔒 Call', buildCallbackData(ctx, 'CALL'))
+            .text(isAuthorized ? '💬 SMS' : '🔒 SMS', buildCallbackData(ctx, 'SMS'))
             .row()
-            .text(access.user ? '📧 Email' : '🔒 Email', buildCallbackData(ctx, 'EMAIL'))
-            .text(access.user ? '📜 Call Log' : '🔒 Call Log', buildCallbackData(ctx, 'CALLLOG'));
+            .text(isAuthorized ? '📧 Email' : '🔒 Email', buildCallbackData(ctx, 'EMAIL'))
+            .text(isAuthorized ? '📜 Call Log' : '🔒 Call Log', buildCallbackData(ctx, 'CALLLOG'));
 
-        if (access.user) {
+        if (isAuthorized) {
             kb.row()
                 .text('📚 Guide', buildCallbackData(ctx, 'GUIDE'))
                 .text('ℹ️ Help', buildCallbackData(ctx, 'HELP'));
@@ -69,7 +70,7 @@ async function handleMenu(ctx) {
                 .text('📤 SMS Sender', buildCallbackData(ctx, 'BULK_SMS'))
                 .text('📧 Mailer', buildCallbackData(ctx, 'BULK_EMAIL'));
             appendMiniAppLaunchButton(kb);
-        } else if (!access.user) {
+        } else if (!isAuthorized) {
             const adminUsername = (config.admin.username || '').replace(/^@/, '');
             if (adminUsername) {
                 kb.row().url('📱 Request Access', `https://t.me/${adminUsername}`);
@@ -77,7 +78,7 @@ async function handleMenu(ctx) {
         }
 
         const commonHint = 'SMS and Email actions are grouped under /sms and /email.';
-        const accessHint = access.user
+        const accessHint = isAuthorized
             ? 'Authorized access enabled.'
             : 'Limited access: request approval to run actions.';
         const menuText = isOwner

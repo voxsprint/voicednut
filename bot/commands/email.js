@@ -2,10 +2,6 @@ const httpClient = require('../utils/httpClient');
 const { InlineKeyboard } = require('grammy');
 const config = require('../config');
 const {
-  getUser,
-  isAdmin
-} = require('../db/db');
-const {
   startOperation,
   ensureOperationActive,
   registerAbortController,
@@ -1075,8 +1071,8 @@ async function emailTemplatesFlow(conversation, ctx, options = {}) {
     ? options.ensureActive
     : () => ensureOperationActive(ctx, opId);
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    if (!user) {
+    const access = await getAccessProfile(ctx);
+    if (!access.isAuthorized) {
       await safeReplyMarkdown(ctx, section('❌ Authorization', ['Access denied. Your account is not authorized for this action.']));
       return;
     }
@@ -1141,13 +1137,14 @@ function buildEmailMenuKeyboard(ctx) {
 
 async function renderEmailMenu(ctx) {
   const access = await getAccessProfile(ctx);
+  const isAuthorized = Boolean(access.isAuthorized);
   startOperation(ctx, 'email-menu');
   const keyboard = buildEmailMenuKeyboard(ctx);
-  const title = access.user ? '📧 *Email Center*' : '🔒 *Email Center (Access limited)*';
+  const title = isAuthorized ? '📧 *Email Center*' : '🔒 *Email Center (Access limited)*';
   const lines = [
     'Choose an email action below.',
-    access.user ? 'Authorized access enabled.' : 'Limited access: request approval to send emails.',
-    access.user ? '' : '🔒 Actions are locked without approval.'
+    isAuthorized ? 'Authorized access enabled.' : 'Limited access: request approval to send emails.',
+    isAuthorized ? '' : '🔒 Actions are locked without approval.'
   ].filter(Boolean);
   await renderMenu(ctx, `${title}\n${lines.join('\n')}`, keyboard, { parseMode: 'Markdown' });
 }
@@ -1156,9 +1153,9 @@ async function emailStatusFlow(conversation, ctx) {
   const opId = startOperation(ctx, 'email-status');
   const ensureActive = () => ensureOperationActive(ctx, opId);
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user) {
+    if (!access.isAuthorized) {
       await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       return;
     }
@@ -1197,9 +1194,8 @@ function buildBulkEmailMenuKeyboard(ctx) {
 }
 
 async function renderBulkEmailMenu(ctx) {
-  const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-  const admin = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-  if (!user || !admin) {
+  const access = await getAccessProfile(ctx);
+  if (!access.isAuthorized || !access.isAdmin) {
     return ctx.reply('❌ Access denied. This action is available to administrators only.');
   }
   startOperation(ctx, 'bulk-email-menu');
@@ -1332,10 +1328,9 @@ async function bulkEmailHistoryFlow(conversation, ctx) {
   const opId = startOperation(ctx, 'bulk-email-history');
   const ensureActive = () => ensureOperationActive(ctx, opId);
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    const admin = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user || !admin) {
+    if (!access.isAuthorized || !access.isAdmin) {
       await ctx.reply('❌ Access denied. This action is available to administrators only.');
       return;
     }
@@ -1413,10 +1408,9 @@ async function bulkEmailStatsFlow(conversation, ctx) {
   const opId = startOperation(ctx, 'bulk-email-stats');
   const ensureActive = () => ensureOperationActive(ctx, opId);
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    const admin = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user || !admin) {
+    if (!access.isAuthorized || !access.isAdmin) {
       await ctx.reply('❌ Access denied. This action is available to administrators only.');
       return;
     }
@@ -1434,10 +1428,9 @@ async function bulkEmailStatusFlow(conversation, ctx) {
   const opId = startOperation(ctx, 'bulk-email-status');
   const ensureActive = () => ensureOperationActive(ctx, opId);
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    const admin = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user || !admin) {
+    if (!access.isAuthorized || !access.isAdmin) {
       await ctx.reply('❌ Access denied. This action is available to administrators only.');
       return;
     }
@@ -1740,8 +1733,8 @@ async function emailFlow(conversation, ctx) {
 
   try {
     ensureActive();
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    if (!user) {
+    const access = await getAccessProfile(ctx);
+    if (!access.isAuthorized) {
       await ctx.reply(section('❌ Authorization', ['Access denied. Your account is not authorized for this action.']), { parse_mode: 'Markdown' });
       return;
     }
@@ -1913,9 +1906,8 @@ async function bulkEmailFlow(conversation, ctx) {
 
   try {
     ensureActive();
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    const admin = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-    if (!user || !admin) {
+    const access = await getAccessProfile(ctx);
+    if (!access.isAuthorized || !access.isAdmin) {
       await ctx.reply(section('❌ Authorization', ['Access denied. This action is available to administrators only.']), { parse_mode: 'Markdown' });
       return;
     }
@@ -2075,8 +2067,8 @@ function registerEmailCommands(bot) {
 
   bot.command('emailstatus', async (ctx) => {
     try {
-      const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-      if (!user) {
+      const access = await getAccessProfile(ctx);
+      if (!access.isAuthorized) {
         return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       }
       const args = ctx.message?.text?.split(' ') || [];

@@ -1,7 +1,6 @@
 const config = require('../config');
 const httpClient = require('../utils/httpClient');
 const { InlineKeyboard } = require('grammy');
-const { getUser } = require('../db/db');
 const { startOperation, ensureOperationActive, registerAbortController } = require('../utils/sessionState');
 const {
     renderMenu,
@@ -123,15 +122,16 @@ async function replyCalllogUnauthorized(ctx) {
 
 async function renderCalllogMenu(ctx) {
     const access = await getAccessProfile(ctx);
+    const isAuthorized = Boolean(access.isAuthorized);
     startOperation(ctx, 'calllog-menu');
-    const keyboard = access.user
+    const keyboard = isAuthorized
         ? buildCalllogMenuKeyboard(ctx)
         : buildCalllogLimitedKeyboard(ctx);
-    const title = access.user ? '📜 *Call Log*' : '🔒 *Call Log (Access limited)*';
+    const title = isAuthorized ? '📜 *Call Log*' : '🔒 *Call Log (Access limited)*';
     const lines = [
-        access.user ? 'Choose an action to explore call history.' : 'Call log actions require approved account access.',
-        access.user ? 'Search by phone, call ID, status, or date.' : 'Use the Request Access button to unlock call history tools.',
-        access.user ? 'Authorized access enabled.' : 'Limited access mode is active.'
+        isAuthorized ? 'Choose an action to explore call history.' : 'Call log actions require approved account access.',
+        isAuthorized ? 'Search by phone, call ID, status, or date.' : 'Use the Request Access button to unlock call history tools.',
+        isAuthorized ? 'Authorized access enabled.' : 'Limited access mode is active.'
     ].filter(Boolean);
     await renderMenu(ctx, `${title}\n${lines.join('\n')}`, keyboard, { parseMode: 'Markdown' });
 }
@@ -140,9 +140,9 @@ async function calllogRecentFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'calllog-recent');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const access = await getAccessProfile(ctx);
         ensureActive();
-        if (!user) {
+        if (!access.isAuthorized) {
             await replyCalllogUnauthorized(ctx);
             return;
         }
@@ -208,9 +208,9 @@ async function calllogSearchFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'calllog-search');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const access = await getAccessProfile(ctx);
         ensureActive();
-        if (!user) {
+        if (!access.isAuthorized) {
             await replyCalllogUnauthorized(ctx);
             return;
         }
@@ -268,9 +268,9 @@ async function calllogDetailsFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'calllog-details');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const access = await getAccessProfile(ctx);
         ensureActive();
-        if (!user) {
+        if (!access.isAuthorized) {
             await replyCalllogUnauthorized(ctx);
             return;
         }
@@ -330,9 +330,9 @@ async function calllogEventsFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'calllog-events');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const access = await getAccessProfile(ctx);
         ensureActive();
-        if (!user) {
+        if (!access.isAuthorized) {
             await replyCalllogUnauthorized(ctx);
             return;
         }

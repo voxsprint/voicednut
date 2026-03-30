@@ -1,4 +1,5 @@
 import { UiButton, UiCard, UiSkeletonLine, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { describeSessionBlockedReason } from '@/services/admin-dashboard/dashboardSessionErrors';
 
 type ModuleErrorFallbackCardProps = {
   moduleLabel: string;
@@ -30,44 +31,6 @@ type LoadingTelemetryCardProps = {
 };
 
 const DEFAULT_SKELETON_LABELS = ['Loading module', 'Preparing data', 'Syncing controls'];
-
-function describeSessionBlockedReason(errorCode: string): string {
-  const code = String(errorCode || '').trim();
-  if (code === 'miniapp_init_data_expired') {
-    return 'Telegram launch credentials expired. Reopen this Mini App from the bot menu, then retry.';
-  }
-  if (code === 'miniapp_missing_init_data') {
-    return 'Telegram launch credentials are missing. Open this Mini App from Telegram and retry.';
-  }
-  if (code === 'miniapp_invalid_signature') {
-    return 'Telegram launch credentials are invalid for this backend bot token. Reopen the Mini App from the correct bot.';
-  }
-  if (
-    code === 'miniapp_auth_required' ||
-    code === 'miniapp_auth_invalid' ||
-    code === 'miniapp_invalid_token'
-  ) {
-    return 'Session token is missing or invalid. Reopen this Mini App from the bot menu and retry.';
-  }
-  if (
-    code === 'miniapp_malformed_token' ||
-    code === 'miniapp_invalid_token_payload' ||
-    code === 'miniapp_invalid_token_signature'
-  ) {
-    return 'Session token format/signature is invalid. Reopen this Mini App from Telegram to get a fresh session.';
-  }
-  if (code === 'miniapp_token_not_active') {
-    return 'Session token is not active yet. Wait a few seconds, then retry.';
-  }
-  if (
-    code === 'miniapp_token_missing_exp' ||
-    code === 'miniapp_token_expired' ||
-    code === 'miniapp_token_revoked'
-  ) {
-    return 'Session token expired or was revoked. Reopen this Mini App from Telegram and retry.';
-  }
-  return 'Open this Mini App from the Telegram bot menu, then retry the session.';
-}
 
 export function ModuleErrorFallbackCard({
   moduleLabel,

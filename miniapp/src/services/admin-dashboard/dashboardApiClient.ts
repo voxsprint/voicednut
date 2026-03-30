@@ -11,6 +11,7 @@ import {
   type SessionCacheEntry,
   writeSessionCache,
 } from '@/services/admin-dashboard/dashboardTransport';
+import { inferMiniAppErrorCodeFromMessage } from '@/services/admin-dashboard/dashboardSessionErrors';
 
 export type DashboardActivityStatus = 'info' | 'success' | 'error';
 
@@ -53,6 +54,9 @@ type DashboardApiClient = {
 export type DashboardApiError = Error & {
   code?: string;
   httpStatus?: number;
+  traceHint?: string;
+  correlationId?: string;
+  requestId?: string;
 };
 
 function createDashboardApiError(
@@ -60,6 +64,9 @@ function createDashboardApiError(
   options: {
     code?: string;
     httpStatus?: number;
+    traceHint?: string;
+    correlationId?: string;
+    requestId?: string;
   } = {},
 ): DashboardApiError {
   const error = new Error(message) as DashboardApiError;
@@ -69,7 +76,46 @@ function createDashboardApiError(
   if (Number.isFinite(options.httpStatus)) {
     error.httpStatus = options.httpStatus;
   }
+  if (options.traceHint) {
+    error.traceHint = options.traceHint;
+  }
+  if (options.correlationId) {
+    error.correlationId = options.correlationId;
+  }
+  if (options.requestId) {
+    error.requestId = options.requestId;
+  }
   return error;
+}
+
+function normalizeResponseHeaderValue(value: string): string {
+  const trimmed = String(value || '').trim();
+  return trimmed ? trimmed.slice(-24) : '';
+}
+
+function resolveResponseCorrelationId(response: Response): string {
+  const directCorrelationId = normalizeResponseHeaderValue(response.headers.get('x-correlation-id') || '');
+  if (directCorrelationId) return directCorrelationId;
+  return normalizeResponseHeaderValue(response.headers.get('x-trace-id') || '');
+}
+
+function resolveResponseRequestId(response: Response): string {
+  const headerCandidates = [
+    'x-request-id',
+    'x-amzn-requestid',
+    'cf-ray',
+  ];
+  for (const header of headerCandidates) {
+    const value = normalizeResponseHeaderValue(response.headers.get(header) || '');
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
+function resolveResponseTraceHint(response: Response): string {
+  return resolveResponseCorrelationId(response) || resolveResponseRequestId(response);
 }
 
 function buildSessionHeaders(initDataRaw: string, config: DashboardApiClientConfig): Headers {
@@ -102,21 +148,10 @@ function buildRequestHeaders(
   return headers;
 }
 
-function inferMiniAppCodeFromMessage(message: string): string {
-  const text = String(message || '').trim().toLowerCase();
-  if (!text) return '';
-  if (text.includes('init data is expired')) return 'miniapp_init_data_expired';
-  if (text.includes('missing telegram mini app init data')) return 'miniapp_missing_init_data';
-  if (text.includes('session token required')) return 'miniapp_auth_required';
-  if (text.includes('session token was revoked')) return 'miniapp_token_revoked';
-  if (text.includes('session token is expired')) return 'miniapp_token_expired';
-  return '';
-}
-
 function resolveApiErrorCode(payload: unknown, fallbackMessage = ''): string {
   const directCode = parseApiErrorCode(payload);
   if (directCode) return directCode;
-  return inferMiniAppCodeFromMessage(fallbackMessage);
+  return inferMiniAppErrorCodeFromMessage(fallbackMessage);
 }
 
 export function createDashboardApiClient(
@@ -135,12 +170,28 @@ export function createDashboardApiClient(
   };
 
   const createSession = async (): Promise<string> => {
-    const cached = readSessionCache(config.sessionStorageKey);
+    const cached = readSessionCache(config.sessionStorageKey, {
+      allowExpired: true,
+      evictExpired: false,
+    });
     if (cached?.token) {
       sessionExpiryEpochSeconds = cached.exp;
       callbacks.setToken(cached.token);
       callbacks.setSessionBlocked(false);
-      return cached.token;
+      if (!isSessionCacheEntryExpired(cached)) {
+        return cached.token;
+      }
+      callbacks.pushActivity('info', 'Session refresh', 'Cached session token expired, attempting secure refresh.');
+      try {
+        return await refreshSession(cached.token);
+      } catch {
+        clearSession();
+        callbacks.pushActivity(
+          'info',
+          'Session refresh',
+          'Cached session refresh failed, requesting a new Telegram session.',
+        );
+      }
     }
 
     if (sessionRequest) {
@@ -168,10 +219,19 @@ export function createDashboardApiClient(
         headers: buildSessionHeaders(initDataRaw, config),
         body: JSON.stringify({ init_data_raw: initDataRaw }),
       });
+      const traceHint = resolveResponseTraceHint(response);
+      const correlationId = resolveResponseCorrelationId(response);
+      const requestId = resolveResponseRequestId(response);
       const payload = (await parseJsonResponse(response)) as SessionResponse | null;
       if (response.ok && !payload) {
-        throw new Error(
+        throw createDashboardApiError(
           'Session endpoint returned an empty/non-JSON response. Verify VITE_API_BASE_URL points to the API origin.',
+          {
+            httpStatus: response.status,
+            traceHint,
+            correlationId,
+            requestId,
+          },
         );
       }
 
@@ -187,6 +247,9 @@ export function createDashboardApiClient(
         throw createDashboardApiError(message, {
           code,
           httpStatus: response.status,
+          traceHint,
+          correlationId,
+          requestId,
         });
       }
 
@@ -236,10 +299,19 @@ export function createDashboardApiClient(
         method: 'POST',
         headers: buildRequestHeaders(authToken, {}, config),
       });
+      const traceHint = resolveResponseTraceHint(response);
+      const correlationId = resolveResponseCorrelationId(response);
+      const requestId = resolveResponseRequestId(response);
       const payload = (await parseJsonResponse(response)) as SessionResponse | null;
       if (response.ok && !payload) {
-        throw new Error(
+        throw createDashboardApiError(
           'Session refresh endpoint returned an empty/non-JSON response. Verify VITE_API_BASE_URL points to the API origin.',
+          {
+            httpStatus: response.status,
+            traceHint,
+            correlationId,
+            requestId,
+          },
         );
       }
 
@@ -255,6 +327,9 @@ export function createDashboardApiClient(
         throw createDashboardApiError(message, {
           code,
           httpStatus: response.status,
+          traceHint,
+          correlationId,
+          requestId,
         });
       }
 
@@ -317,11 +392,20 @@ export function createDashboardApiClient(
       ...options,
       headers: buildRequestHeaders(activeToken, options, config),
     });
+    const traceHint = resolveResponseTraceHint(response);
+    const correlationId = resolveResponseCorrelationId(response);
+    const requestId = resolveResponseRequestId(response);
 
     const payload = await parseJsonResponse(response);
     if (response.ok && !payload) {
-      throw new Error(
+      throw createDashboardApiError(
         `API returned an empty/non-JSON response for ${path}. Verify VITE_API_BASE_URL is configured to your backend.`,
+        {
+          httpStatus: response.status,
+          traceHint,
+          correlationId,
+          requestId,
+        },
       );
     }
 
@@ -348,6 +432,9 @@ export function createDashboardApiClient(
       throw createDashboardApiError(message, {
         code,
         httpStatus: response.status,
+        traceHint,
+        correlationId,
+        requestId,
       });
     }
 

@@ -4,6 +4,10 @@ export interface SessionCacheEntry {
 }
 
 const SESSION_EXPIRY_SKEW_SECONDS = 20;
+type ReadSessionCacheOptions = {
+  allowExpired?: boolean;
+  evictExpired?: boolean;
+};
 
 export type DashboardRealtimeTransportContract = {
   enabled: boolean;
@@ -60,7 +64,12 @@ export function isSessionCacheEntryExpired(
   return entry.exp <= (nowSeconds + Math.max(0, skewSeconds));
 }
 
-export function readSessionCache(storageKey: string): SessionCacheEntry | null {
+export function readSessionCache(
+  storageKey: string,
+  options: ReadSessionCacheOptions = {},
+): SessionCacheEntry | null {
+  const allowExpired = options.allowExpired === true;
+  const evictExpired = options.evictExpired !== false;
   try {
     const raw = sessionStorage.getItem(storageKey);
     if (!raw) return null;
@@ -72,8 +81,10 @@ export function readSessionCache(storageKey: string): SessionCacheEntry | null {
       exp: Number.isFinite(exp) ? exp : null,
     };
     if (isSessionCacheEntryExpired(entry)) {
-      sessionStorage.removeItem(storageKey);
-      return null;
+      if (evictExpired) {
+        sessionStorage.removeItem(storageKey);
+      }
+      return allowExpired ? entry : null;
     }
     return entry;
   } catch {

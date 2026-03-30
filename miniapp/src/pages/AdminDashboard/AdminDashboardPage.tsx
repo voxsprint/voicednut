@@ -107,7 +107,10 @@ import { useDashboardPollingLoop } from '@/hooks/admin-dashboard/useDashboardPol
 import { useDashboardRecipientsImport } from '@/hooks/admin-dashboard/useDashboardRecipientsImport';
 import { useDashboardSessionControls } from '@/hooks/admin-dashboard/useDashboardSessionControls';
 import { useDashboardKeyboardShortcuts } from '@/hooks/admin-dashboard/useDashboardKeyboardShortcuts';
-import { useDashboardSyncLoaders } from '@/hooks/admin-dashboard/useDashboardSyncLoaders';
+import {
+  type DashboardSyncFailureDiagnostics,
+  useDashboardSyncLoaders,
+} from '@/hooks/admin-dashboard/useDashboardSyncLoaders';
 import {
   createDefaultProviderSwitchPlanByChannel,
 } from '@/hooks/admin-dashboard/providerSwitchPlanState';
@@ -220,6 +223,7 @@ export function AdminDashboardPage() {
   const [lastPollAt, setLastPollAt] = useState<number | null>(null);
   const [lastSuccessfulPollAt, setLastSuccessfulPollAt] = useState<number | null>(null);
   const [nextPollAt, setNextPollAt] = useState<number | null>(null);
+  const [refreshFailureDiagnostics, setRefreshFailureDiagnostics] = useState<DashboardSyncFailureDiagnostics | null>(null);
   const [sessionBlocked, setSessionBlocked] = useState<boolean>(false);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [actionLatencyMsSamples, setActionLatencyMsSamples] = useState<number[]>([]);
@@ -459,6 +463,7 @@ export function AdminDashboardPage() {
     setLoading,
     setError,
     setPollFailureCount,
+    setRefreshFailureDiagnostics,
     setBootstrap,
     setPollPayload,
     setLastPollAt,
@@ -953,6 +958,7 @@ export function AdminDashboardPage() {
     setError,
     setRuntimeCanaryInput,
     runtimeCanaryInput,
+    runtimeStatusSnapshot: voiceRuntimePayload,
     onRuntimeStatusLoaded: (data) => {
       setPollPayload((prev) => ({
         ...(prev || {}),
@@ -1341,6 +1347,8 @@ export function AdminDashboardPage() {
           onBackToDashboard={() => navigate('/')}
           onOpenSettings={() => toggleSettings(true)}
           error={error}
+          errorCode={errorCode}
+          refreshFailureDiagnostics={refreshFailureDiagnostics}
           notice={notice}
           noticeTone={noticeTone}
           busyAction={busyAction}
@@ -1348,10 +1356,17 @@ export function AdminDashboardPage() {
           syncHealthState={syncHealthState}
           syncModeLabel={syncModeLabel}
           syncHealthMessage={syncHealthMessage}
+          streamModeLabel={streamModeLabel}
+          streamLastEventLabel={streamLastEventLabel}
+          lastPollLabel={lastPollLabel}
+          lastSuccessfulPollLabel={lastSuccessfulPollLabel}
+          nextPollLabel={nextPollLabel}
+          pollFreshnessLabel={pollFreshnessLabel}
           pollFailureCount={pollFailureCount}
           streamFailureCount={streamFailureCount}
           bridgeHardFailures={bridgeHardFailures}
           bridgeSoftFailures={bridgeSoftFailures}
+          degradedCauses={degradedCauses}
           actionTelemetry={actionTelemetry}
         />
       <DashboardSettingsStage

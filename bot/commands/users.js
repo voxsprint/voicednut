@@ -1,7 +1,8 @@
 const { InlineKeyboard } = require('grammy');
-const { getUser, getUserList, addUser, promoteUser, removeUser, isAdmin } = require('../db/db');
+const { getUserList, addUser, promoteUser, removeUser } = require('../db/db');
 const { buildCallbackData } = require('../utils/actions');
 const { guardAgainstCommandInterrupt, OperationCancelledError } = require('../utils/sessionState');
+const { getAccessProfile } = require('../utils/capabilities');
 const {
   renderMenu,
   buildBackToMenuKeyboard,
@@ -20,14 +21,13 @@ function isCancelInput(value) {
 }
 
 async function ensureAdminAccess(ctx) {
-  const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-  if (!user) {
+  const access = await getAccessProfile(ctx);
+  if (!access?.isAuthorized) {
     await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
     return false;
   }
 
-  const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-  if (!adminStatus) {
+  if (!access.isAdmin) {
     await ctx.reply('❌ Access denied. This action is available to administrators only.');
     return false;
   }

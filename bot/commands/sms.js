@@ -1,7 +1,6 @@
 const config = require('../config');
 const httpClient = require('../utils/httpClient');
 const { InlineKeyboard } = require('grammy');
-const { getUser, isAdmin } = require('../db/db');
 const {
     startOperation,
     ensureOperationActive,
@@ -58,8 +57,8 @@ function buildBackToMenuKeyboard(ctx, action = 'SMS', label = '⬅️ Back to SM
 }
 
 async function ensureAuthorizedUser(ctx) {
-    const user = await new Promise((resolve) => getUser(ctx.from?.id, resolve));
-    if (!user) {
+    const access = await getAccessProfile(ctx);
+    if (!access?.isAuthorized) {
         await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
         return false;
     }
@@ -67,12 +66,12 @@ async function ensureAuthorizedUser(ctx) {
 }
 
 async function ensureAuthorizedAdmin(ctx) {
-    const userAllowed = await ensureAuthorizedUser(ctx);
-    if (!userAllowed) {
+    const access = await getAccessProfile(ctx);
+    if (!access?.isAuthorized) {
+        await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
         return false;
     }
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from?.id, resolve));
-    if (!adminStatus) {
+    if (!access.isAdmin) {
         await ctx.reply('❌ Access denied. This action is available to administrators only.');
         return false;
     }
@@ -131,15 +130,16 @@ function buildSmsMenuKeyboard(ctx, isAdminUser) {
 
 async function renderSmsMenu(ctx) {
     const access = await getAccessProfile(ctx);
+    const isAuthorized = Boolean(access.isAuthorized);
     const isAdminUser = access.isAdmin;
     startOperation(ctx, 'sms-menu');
     const keyboard = buildSmsMenuKeyboard(ctx, isAdminUser);
-    const title = access.user ? '💬 *SMS Center*' : '🔒 *SMS Center (Access limited)*';
+    const title = isAuthorized ? '💬 *SMS Center*' : '🔒 *SMS Center (Access limited)*';
     const lines = [
         'Choose an SMS action below.',
         isAdminUser ? 'Admin tools are included.' : 'Admin-only tools are hidden.',
-        access.user ? 'Authorized access enabled.' : 'Limited access: request approval to send messages.',
-        access.user ? '' : '🔒 Actions are locked without approval.'
+        isAuthorized ? 'Authorized access enabled.' : 'Limited access: request approval to send messages.',
+        isAuthorized ? '' : '🔒 Actions are locked without approval.'
     ].filter(Boolean);
     await renderMenu(ctx, `${title}\n${lines.join('\n')}`, keyboard, { parseMode: 'Markdown' });
 }
@@ -169,10 +169,9 @@ async function smsStatusFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'sms-status');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const allowed = await ensureAuthorizedUser(ctx);
         ensureActive();
-        if (!user) {
-            await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
+        if (!allowed) {
             return;
         }
         await ctx.reply(setupStepMessage('SMS delivery status', [
@@ -196,11 +195,9 @@ async function smsConversationFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'sms-conversation');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-        const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+        const allowed = await ensureAuthorizedAdmin(ctx);
         ensureActive();
-        if (!user || !adminStatus) {
-            await ctx.reply('❌ Access denied. This action is available to administrators only.');
+        if (!allowed) {
             return;
         }
         await ctx.reply('📱 Enter the phone number (E.164 format):');
@@ -318,11 +315,9 @@ async function recentSmsFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'sms-recent');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-        const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+        const allowed = await ensureAuthorizedAdmin(ctx);
         ensureActive();
-        if (!user || !adminStatus) {
-            await ctx.reply('❌ Access denied. This action is available to administrators only.');
+        if (!allowed) {
             return;
         }
         await ctx.reply('🕒 Enter number of messages to fetch (max 20).');
@@ -345,11 +340,9 @@ async function smsStatsFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'sms-stats');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-        const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+        const allowed = await ensureAuthorizedAdmin(ctx);
         ensureActive();
-        if (!user || !adminStatus) {
-            await ctx.reply('❌ Access denied. This action is available to administrators only.');
+        if (!allowed) {
             return;
         }
         await sendEphemeral(ctx, '📊 Fetching SMS statistics...');
@@ -512,11 +505,9 @@ async function bulkSmsStatusFlow(conversation, ctx) {
     const opId = startOperation(ctx, 'bulk-sms-status');
     const ensureActive = () => ensureOperationActive(ctx, opId);
     try {
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-        const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+        const allowed = await ensureAuthorizedAdmin(ctx);
         ensureActive();
-        if (!user || !adminStatus) {
-            await ctx.reply('❌ Access denied. This action is available to administrators only.');
+        if (!allowed) {
             return;
         }
         await ctx.reply('🆔 Enter the bulk SMS job ID:');
@@ -557,13 +548,9 @@ function buildBulkSmsMenuKeyboard(ctx) {
 }
 
 async function renderBulkSmsMenu(ctx) {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-    if (!user) {
-        return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
-    }
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-    if (!adminStatus) {
-        return ctx.reply('❌ Access denied. This action is available to administrators only.');
+    const allowed = await ensureAuthorizedAdmin(ctx);
+    if (!allowed) {
+        return;
     }
     startOperation(ctx, 'bulk-sms-menu');
     const keyboard = buildBulkSmsMenuKeyboard(ctx);
@@ -669,10 +656,9 @@ async function smsFlow(conversation, ctx) {
 
     try {
         ensureActive();
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const userAllowed = await ensureAuthorizedUser(ctx);
         ensureActive();
-        if (!user) {
-            await ctx.reply(formatSection('❌ Authorization', ['Access denied. Your account is not authorized for this action.']));
+        if (!userAllowed) {
             return;
         }
 
@@ -1094,17 +1080,9 @@ async function bulkSmsFlow(conversation, ctx) {
 
     try {
         ensureActive();
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const adminAllowed = await ensureAuthorizedAdmin(ctx);
         ensureActive();
-        if (!user) {
-            await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
-            return;
-        }
-
-        const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-        ensureActive();
-        if (!adminStatus) {
-            await ctx.reply('❌ Access denied. This action is available to administrators only.');
+        if (!adminAllowed) {
             return;
         }
 
@@ -1293,10 +1271,9 @@ async function scheduleSmsFlow(conversation, ctx) {
 
     try {
         ensureActive();
-        const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+        const userAllowed = await ensureAuthorizedUser(ctx);
         ensureActive();
-        if (!user) {
-            await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
+        if (!userAllowed) {
             return;
         }
 

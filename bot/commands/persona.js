@@ -1,7 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 const { withRetry } = require('../utils/httpClient');
-const { getUser, isAdmin } = require('../db/db');
+const { getAccessProfile } = require('../utils/capabilities');
 const { attachHmacAuth } = require('../utils/apiAuth');
 const {
   startOperation,
@@ -540,14 +540,14 @@ async function personaFlow(conversation, ctx) {
   const ensureActive = () => ensureOperationActive(ctx, opId);
 
   try {
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user) {
+    if (!access.isAuthorized) {
       await styledAlert(ctx, 'Access denied. Your account is not authorized for this action.');
       return;
     }
 
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
+    const adminStatus = Boolean(access.isAdmin);
     ensureActive();
     if (!adminStatus) {
       await styledAlert(ctx, 'Access denied. This action is available to administrators only.');
@@ -690,13 +690,12 @@ async function personaFlow(conversation, ctx) {
 function registerPersonaCommand(bot) {
   bot.command('persona', async (ctx) => {
     try {
-      const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-      if (!user) {
+      const access = await getAccessProfile(ctx);
+      if (!access.isAuthorized) {
         return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       }
 
-      const adminStatus = await new Promise((resolve) => isAdmin(ctx.from.id, resolve));
-      if (!adminStatus) {
+      if (!access.isAdmin) {
         return ctx.reply('❌ Access denied. This action is available to administrators only.');
       }
 

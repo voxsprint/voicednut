@@ -601,21 +601,25 @@ bot.command("start", async (ctx) => {
     expireInactiveUsers();
 
     const access = await getAccessProfile(ctx);
+    const isAuthorized = Boolean(access?.isAuthorized);
     const isOwner = access.isAdmin;
     await syncChatCommands(ctx, access);
 
-    const userStats = access.user
+    const joinedDate = access?.user?.timestamp
+      ? new Date(access.user.timestamp).toLocaleDateString()
+      : "unknown";
+    const userStats = isAuthorized
       ? `👤 *User Information*
 • ID: \`${ctx.from.id}\`
 • Username: @${ctx.from.username || "none"}
-• Role: ${access.user.role}
-• Joined: ${new Date(access.user.timestamp).toLocaleDateString()}`
+• Role: ${access.isAdmin ? "ADMIN" : "USER"}
+• Joined: ${joinedDate}`
       : `👤 *Guest Access*
 • ID: \`${ctx.from.id}\`
 • Username: @${ctx.from.username || "none"}
 • Role: Guest`;
 
-    const welcomeText = access.user
+    const welcomeText = isAuthorized
       ? isOwner
         ? "🛡️ *Welcome, Administrator!*\n\nYou have full access to all bot features."
         : "👋 *Welcome to Voicednut Bot!*\n\nYou can make voice calls using AI agents."
@@ -623,15 +627,15 @@ bot.command("start", async (ctx) => {
 
     const kb = new InlineKeyboard()
       // PRIMARY: Call, SMS, Email, Call Log (2x2 grid)
-      .text(access.user ? "📞 Call" : "🔒 Call", buildCallbackData(ctx, "CALL"))
-      .text(access.user ? "💬 SMS" : "🔒 SMS", buildCallbackData(ctx, "SMS"))
+      .text(isAuthorized ? "📞 Call" : "🔒 Call", buildCallbackData(ctx, "CALL"))
+      .text(isAuthorized ? "💬 SMS" : "🔒 SMS", buildCallbackData(ctx, "SMS"))
       .row()
       .text(
-        access.user ? "📧 Email" : "🔒 Email",
+        isAuthorized ? "📧 Email" : "🔒 Email",
         buildCallbackData(ctx, "EMAIL"),
       )
       .text(
-        access.user ? "📜 Call Log" : "🔒 Call Log",
+        isAuthorized ? "📜 Call Log" : "🔒 Call Log",
         buildCallbackData(ctx, "CALLLOG"),
       )
       .row()
@@ -641,7 +645,7 @@ bot.command("start", async (ctx) => {
       .row()
       .text("📋 Menu", buildCallbackData(ctx, "MENU"));
 
-    if (access.user) {
+    if (isAuthorized) {
       kb.text("🏥 Health", buildCallbackData(ctx, "HEALTH"));
     }
 
@@ -664,7 +668,7 @@ bot.command("start", async (ctx) => {
     }
 
     // REQUEST ACCESS: For guests (admin-only)
-    if (!access.user) {
+    if (!isAuthorized) {
       const adminUsername = (config.admin.username || "").replace(/^@/, "");
       if (adminUsername) {
         kb.url("📱 Request Access", `https://t.me/${adminUsername}`);
@@ -1218,7 +1222,7 @@ async function syncChatCommands(ctx, access) {
   if (!ctx.chat || ctx.chat.type !== "private") {
     return;
   }
-  const commands = access.user
+  const commands = access?.isAuthorized
     ? access.isAdmin
       ? TELEGRAM_COMMANDS
       : TELEGRAM_COMMANDS_USER

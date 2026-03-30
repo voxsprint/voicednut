@@ -1,6 +1,6 @@
 const { InlineKeyboard } = require('grammy');
-const { isAdmin, getUser } = require('../db/db');
 const config = require('../config');
+const { getAccessProfile } = require('../utils/capabilities');
 const { escapeHtml, renderMenu } = require('../utils/ui');
 const { buildCallbackData } = require('../utils/actions');
 
@@ -27,9 +27,9 @@ function appendMiniAppLaunchButton(keyboard, label = '🧭 Admin Console') {
 
 async function handleHelp(ctx) {
     try {
-        const user = await new Promise(r => getUser(ctx.from.id, r));
-        const isAuthorized = Boolean(user);
-        const isOwner = isAuthorized ? await new Promise(r => isAdmin(ctx.from.id, r)) : false;
+        const access = await getAccessProfile(ctx);
+        const isAuthorized = Boolean(access?.isAuthorized);
+        const isOwner = Boolean(access?.isAdmin);
 
         const formatLines = (items) => items.map((item) => `• ${escapeHtml(item)}`).join('\n');
 

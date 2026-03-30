@@ -1,6 +1,7 @@
 import type { ActionRequestMeta } from '@/hooks/admin-dashboard/useDashboardActions';
 import type { DashboardApiError } from '@/services/admin-dashboard/dashboardApiClient';
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
+import { inferMiniAppErrorCodeFromMessage } from '@/services/admin-dashboard/dashboardSessionErrors';
 
 import type { DashboardModule } from '@/pages/AdminDashboard/dashboardShellConfig';
 import type {
@@ -39,18 +40,6 @@ type OpsQaLowScoreCall = {
 function asRecordList<T extends object>(value: unknown): T[] {
   if (!Array.isArray(value)) return [];
   return value.map((entry) => asRecord(entry) as T);
-}
-
-function inferMiniAppErrorCodeFromMessage(message: string): string {
-  const text = String(message || '').trim().toLowerCase();
-  if (!text) return '';
-  if (text.includes('init data is expired')) return 'miniapp_init_data_expired';
-  if (text.includes('missing telegram mini app init data')) return 'miniapp_missing_init_data';
-  if (text.includes('session token required')) return 'miniapp_auth_required';
-  if (text.includes('session token was revoked')) return 'miniapp_token_revoked';
-  if (text.includes('session token is expired')) return 'miniapp_token_expired';
-  if (text.includes('launch credentials expired')) return 'miniapp_init_data_expired';
-  return '';
 }
 
 export function createActionRequestMeta(action: string, moduleId: DashboardModule): ActionRequestMeta {

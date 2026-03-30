@@ -1,6 +1,6 @@
 const config = require('../config');
 const httpClient = require('../utils/httpClient');
-const { getUser } = require('../db/db');
+const { getAccessProfile } = require('../utils/capabilities');
 const {
   getBusinessOptions,
   findBusinessOption,
@@ -670,9 +670,9 @@ async function callFlow(conversation, ctx) {
 
   try {
     await sendEphemeral(ctx, 'Starting call process…');
-    const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
+    const access = await getAccessProfile(ctx);
     ensureActive();
-    if (!user) {
+    if (!access.isAuthorized) {
       await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       return;
     }
@@ -1061,8 +1061,8 @@ function registerCallCommand(bot) {
   bot.command('call', async (ctx) => {
     try {
       console.log(`Call command started by user ${ctx.from?.id || 'unknown'}`);
-      const user = await new Promise((resolve) => getUser(ctx.from.id, resolve));
-      if (!user) {
+      const access = await getAccessProfile(ctx);
+      if (!access.isAuthorized) {
         return ctx.reply('❌ Access denied. Your account is not authorized for this action.');
       }
       await ctx.conversation.enter('call-conversation');

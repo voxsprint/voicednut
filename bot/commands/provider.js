@@ -1,9 +1,9 @@
 const config = require('../config');
 const httpClient = require('../utils/httpClient');
 const { InlineKeyboard } = require('grammy');
-const { getUser, isAdmin } = require('../db/db');
 const { buildLine, section, escapeMarkdown, renderMenu } = require('../utils/ui');
 const { buildCallbackData } = require('../utils/actions');
+const { getAccessProfile } = require('../utils/capabilities');
 
 const ADMIN_HEADER_NAME = 'x-admin-token';
 const SUPPORTED_PROVIDERS = ['twilio', 'aws', 'vonage'];
@@ -253,20 +253,17 @@ async function ensureAuthorizedAdmin(ctx) {
         await ctx.reply('❌ Missing sender information.');
         return { user: null, isAdminUser: false };
     }
-
-    const user = await new Promise((resolve) => getUser(fromId, resolve));
-    if (!user) {
+    const access = await getAccessProfile(ctx);
+    if (!access?.isAuthorized) {
         await ctx.reply('❌ Access denied. Your account is not authorized for this action.');
         return { user: null, isAdminUser: false };
     }
-
-    const admin = await new Promise((resolve) => isAdmin(fromId, resolve));
-    if (!admin) {
+    if (!access.isAdmin) {
         await ctx.reply('❌ Access denied. This action is available to administrators only.');
-        return { user, isAdminUser: false };
+        return { user: access.user || null, isAdminUser: false };
     }
 
-    return { user, isAdminUser: true };
+    return { user: access.user || null, isAdminUser: true };
 }
 
 async function handleProviderSwitch(ctx, requestedProvider) {

@@ -6,6 +6,7 @@ const { getAccessProfile } = require('../utils/capabilities');
 
 async function handleGuide(ctx) {
     const access = await getAccessProfile(ctx);
+    const isAuthorized = Boolean(access.isAuthorized);
     const callSteps = [
         '1️⃣ Start a call via /call or the 📞 button',
         '2️⃣ Provide the number in E.164 format (+1234567890)',
@@ -56,7 +57,7 @@ async function handleGuide(ctx) {
         ])}`
     ];
 
-    if (!access.user) {
+    if (!isAuthorized) {
         guideSections.unshift(
             `<b>${escapeHtml('Limited Access')}</b>\n${formatLines([
                 'You can explore menus, but actions require approval.',
@@ -71,7 +72,7 @@ async function handleGuide(ctx) {
         .text('📋 Commands', buildCallbackData(ctx, 'HELP'))
         .text('🔄 Menu', buildCallbackData(ctx, 'MENU'));
 
-    if (access.user) {
+    if (isAuthorized) {
         kb.row()
             .text('📞 Call', buildCallbackData(ctx, 'CALL'))
             .text('💬 SMS', buildCallbackData(ctx, 'SMS'))

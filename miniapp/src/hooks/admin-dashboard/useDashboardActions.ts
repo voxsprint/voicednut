@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
 import { asRecord } from '@/services/admin-dashboard/dashboardPrimitives';
@@ -28,10 +28,12 @@ export type ActionTelemetry = {
 };
 
 type ActivityStatus = 'info' | 'success' | 'error';
+const RETRY_ACTION_META_TTL_MS = 2 * 60 * 1000;
 
-type RunActionOptions = {
+export type RunActionOptions = {
   confirmText?: string;
   successMessage?: string;
+  optimisticUpdate?: () => void | (() => void);
 };
 
 export type DashboardActionConfirmDialog = {
@@ -74,6 +76,46 @@ type UseDashboardActionsResult = {
   actionTelemetry: ActionTelemetry;
 };
 
+function toHint(value: unknown): string {
+  const normalized = typeof value === 'string'
+    ? value.trim()
+    : (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint')
+      ? String(value).trim()
+      : '';
+  if (!normalized) return 'n/a';
+  if (normalized.length <= 8) return normalized;
+  return normalized.slice(-8);
+}
+
+function toStablePayloadKey(value: unknown): string {
+  const seen = new WeakSet<object>();
+
+  const normalize = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map((entry) => normalize(entry));
+    }
+    if (input && typeof input === 'object') {
+      if (seen.has(input)) {
+        return '[circular]';
+      }
+      seen.add(input);
+      const source = input as Record<string, unknown>;
+      const ordered: Record<string, unknown> = {};
+      for (const key of Object.keys(source).sort()) {
+        ordered[key] = normalize(source[key]);
+      }
+      return ordered;
+    }
+    return input;
+  };
+
+  try {
+    return JSON.stringify(normalize(value));
+  } catch {
+    return String(value);
+  }
+}
+
 export function useDashboardActions({
   createActionMeta,
   request,
@@ -88,6 +130,8 @@ export function useDashboardActions({
   confirmAction,
   hasCapability,
 }: UseDashboardActionsOptions): UseDashboardActionsResult {
+  const inFlightRunActionKeysRef = useRef<Set<string>>(new Set());
+  const retryActionMetaCacheRef = useRef<Map<string, { meta: ActionRequestMeta; expiresAt: number }>>(new Map());
   const [actionTelemetry, setActionTelemetry] = useState<ActionTelemetry>({
     traceHint: '',
     action: '',
@@ -191,62 +235,106 @@ export function useDashboardActions({
       pushActivity('error', 'Action blocked', deniedDetail);
       return;
     }
-    const actionMeta = createActionMeta(action);
-    const traceHint = actionMeta.action_id.slice(-8);
-    const requiresPolicyConfirmation = actionPolicy.risk === 'danger';
-    const shouldConfirm = typeof window !== 'undefined' && (Boolean(options.confirmText) || requiresPolicyConfirmation);
-    if (shouldConfirm) {
-      const baseConfirmMessage = options.confirmText
-        || `Execute ${action}?`;
-      const consequenceLine = actionPolicy.confirmConsequence
-        || (actionPolicy.risk === 'danger'
-          ? 'This action impacts live operations.'
-          : '');
-      const irreversibleLine = actionPolicy.confirmIrreversible
-        ? 'This action may be irreversible.'
-        : '';
-      const confirmMessage = [
-        baseConfirmMessage,
-        consequenceLine,
-        irreversibleLine,
-      ].filter(Boolean).join('\n\n');
-      const allowed = confirmAction
-        ? await confirmAction({
-          title: actionPolicy.confirmTitle || 'Confirm action',
-          message: confirmMessage,
-          confirmLabel: actionPolicy.confirmLabel || (actionPolicy.risk === 'danger' ? 'Proceed' : 'Confirm'),
-          cancelLabel: 'Cancel',
-          tone: actionPolicy.confirmTone
-            || (actionPolicy.risk === 'danger' ? 'danger' : 'warning'),
-        })
-        : window.confirm(confirmMessage);
-      if (!allowed) {
-        triggerHaptic('warning');
-        pushActivity('info', 'Action cancelled', `Cancelled: ${action} (trace:${traceHint})`);
-        return;
-      }
+    const dedupeKey = `${action}:${toStablePayloadKey(payload)}`;
+    if (inFlightRunActionKeysRef.current.has(dedupeKey)) {
+      const duplicateDetail = `Duplicate submit ignored: ${action}`;
+      setNotice(duplicateDetail);
+      triggerHaptic('warning');
+      pushActivity('info', 'Duplicate action ignored', duplicateDetail);
+      return;
     }
+    inFlightRunActionKeysRef.current.add(dedupeKey);
 
-    setBusyAction(action);
-    setNotice('');
-    setError('');
-    const startedAt = Date.now();
     try {
-      await invokeAction(action, payload, actionMeta);
-      const successMessage = options.successMessage || `Action completed: ${action}`;
-      setNotice(`${successMessage} [${traceHint}]`);
-      triggerHaptic('success');
-      pushActivity('success', 'Action completed', `${successMessage} (trace:${traceHint})`);
-      await Promise.resolve(loadBootstrap());
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      setError(detail);
-      triggerHaptic('error');
-      pushActivity('error', `Action failed: ${action}`, `${detail} (trace:${traceHint})`);
+      const now = Date.now();
+      for (const [cacheKey, entry] of retryActionMetaCacheRef.current.entries()) {
+        if (entry.expiresAt <= now) {
+          retryActionMetaCacheRef.current.delete(cacheKey);
+        }
+      }
+      const cachedActionMeta = retryActionMetaCacheRef.current.get(dedupeKey);
+      const actionMeta = cachedActionMeta && cachedActionMeta.expiresAt > now
+        ? {
+          ...cachedActionMeta.meta,
+          requested_at: new Date().toISOString(),
+        }
+        : createActionMeta(action);
+      retryActionMetaCacheRef.current.set(dedupeKey, {
+        meta: actionMeta,
+        expiresAt: now + RETRY_ACTION_META_TTL_MS,
+      });
+      const traceHint = toHint(actionMeta.action_id);
+      const idempotencyHint = toHint(actionMeta.idempotency_key);
+      const actionAuditHint = `trace:${traceHint} idem:${idempotencyHint}`;
+      const requiresPolicyConfirmation = actionPolicy.risk === 'danger';
+      const shouldConfirm = typeof window !== 'undefined' && (Boolean(options.confirmText) || requiresPolicyConfirmation);
+      if (shouldConfirm) {
+        const baseConfirmMessage = options.confirmText
+          || `Execute ${action}?`;
+        const consequenceLine = actionPolicy.confirmConsequence
+          || (actionPolicy.risk === 'danger'
+            ? 'This action impacts live operations.'
+            : '');
+        const irreversibleLine = actionPolicy.confirmIrreversible
+          ? 'This action may be irreversible.'
+          : '';
+        const confirmMessage = [
+          baseConfirmMessage,
+          consequenceLine,
+          irreversibleLine,
+        ].filter(Boolean).join('\n\n');
+        const allowed = confirmAction
+          ? await confirmAction({
+            title: actionPolicy.confirmTitle || 'Confirm action',
+            message: confirmMessage,
+            confirmLabel: actionPolicy.confirmLabel || (actionPolicy.risk === 'danger' ? 'Proceed' : 'Confirm'),
+            cancelLabel: 'Cancel',
+            tone: actionPolicy.confirmTone
+              || (actionPolicy.risk === 'danger' ? 'danger' : 'warning'),
+          })
+          : window.confirm(confirmMessage);
+        if (!allowed) {
+          triggerHaptic('warning');
+          pushActivity('info', 'Action cancelled', `Cancelled: ${action} (${actionAuditHint})`);
+          return;
+        }
+      }
+
+      setBusyAction(action);
+      setNotice('');
+      setError('');
+      pushActivity('info', 'Action started', `Executing: ${action} (${actionAuditHint})`);
+      const startedAt = Date.now();
+      let rollbackOptimisticUpdate: (() => void) | null = null;
+      if (options.optimisticUpdate) {
+        const rollback = options.optimisticUpdate();
+        if (typeof rollback === 'function') {
+          rollbackOptimisticUpdate = rollback;
+        }
+      }
+      try {
+        await invokeAction(action, payload, actionMeta);
+        retryActionMetaCacheRef.current.delete(dedupeKey);
+        const successMessage = options.successMessage || `Action completed: ${action}`;
+        setNotice(`${successMessage} [${traceHint}|${idempotencyHint}]`);
+        triggerHaptic('success');
+        pushActivity('success', 'Action completed', `${successMessage} (${actionAuditHint})`);
+        await Promise.resolve(loadBootstrap());
+      } catch (err) {
+        if (rollbackOptimisticUpdate) {
+          rollbackOptimisticUpdate();
+        }
+        const detail = err instanceof Error ? err.message : String(err);
+        setError(detail);
+        triggerHaptic('error');
+        pushActivity('error', `Action failed: ${action}`, `${detail} (${actionAuditHint})`);
+      } finally {
+        const latencyMs = Math.max(0, Date.now() - startedAt);
+        setActionLatencyMsSamples((prev) => [...prev, latencyMs].slice(-actionLatencySampleLimit));
+        setBusyAction('');
+      }
     } finally {
-      const latencyMs = Math.max(0, Date.now() - startedAt);
-      setActionLatencyMsSamples((prev) => [...prev, latencyMs].slice(-actionLatencySampleLimit));
-      setBusyAction('');
+      inFlightRunActionKeysRef.current.delete(dedupeKey);
     }
   }, [
     actionLatencySampleLimit,

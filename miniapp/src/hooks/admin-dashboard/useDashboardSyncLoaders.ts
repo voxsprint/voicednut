@@ -27,6 +27,24 @@ import type {
 
 type PushActivity = (status: ActivityStatus, title: string, detail: string) => void;
 
+export type DashboardSyncFailureDiagnostics = {
+  failureClass: string;
+  endpoint: string;
+  code: string;
+  correlationId: string;
+  traceHint: string;
+  retries: number;
+};
+
+type RetryAnnotatedError = Error & {
+  dashboardRetriesUsed?: number;
+};
+
+const MAX_READ_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 300;
+const RETRY_JITTER_RATIO = 0.35;
+const RETRYABLE_HTTP_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
 type UseDashboardSyncLoadersOptions = {
   request: <T,>(path: string, options?: RequestInit) => Promise<T>;
   pushActivity: PushActivity;
@@ -39,6 +57,7 @@ type UseDashboardSyncLoadersOptions = {
   setLoading: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string>>;
   setPollFailureCount: Dispatch<SetStateAction<number>>;
+  setRefreshFailureDiagnostics: Dispatch<SetStateAction<DashboardSyncFailureDiagnostics | null>>;
   setBootstrap: Dispatch<SetStateAction<DashboardApiPayload | null>>;
   setPollPayload: Dispatch<SetStateAction<DashboardApiPayload | null>>;
   setLastPollAt: Dispatch<SetStateAction<number | null>>;
@@ -56,6 +75,160 @@ type UseDashboardSyncLoadersResult = {
   applyStreamPayload: (raw: unknown) => boolean;
 };
 
+function abortError(): DOMException {
+  return new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function getRetryableHttpStatus(error: unknown): number | null {
+  if (!(error instanceof Error)) return null;
+  const status = Number((error as { httpStatus?: unknown }).httpStatus);
+  return Number.isFinite(status) ? status : null;
+}
+
+function isNetworkLikeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const detail = String(error.message || '').toLowerCase();
+  if (!detail) return false;
+  return detail.includes('failed to fetch')
+    || detail.includes('networkerror')
+    || detail.includes('network error')
+    || detail.includes('timeout')
+    || detail.includes('temporarily unavailable');
+}
+
+function shouldRetryReadFailure(error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  const errorCode = getDashboardErrorCode(error);
+  if (isSessionBootstrapBlockingCode(errorCode)) return false;
+  const httpStatus = getRetryableHttpStatus(error);
+  if (httpStatus !== null) {
+    return RETRYABLE_HTTP_STATUSES.has(httpStatus);
+  }
+  return isNetworkLikeError(error);
+}
+
+function withRetryMetadata(error: unknown, retriesUsed: number): Error {
+  const fallbackMessage = typeof error === 'string' && error.trim().length > 0
+    ? error
+    : 'Request failed';
+  const normalized = (error instanceof Error ? error : new Error(fallbackMessage)) as RetryAnnotatedError;
+  normalized.dashboardRetriesUsed = retriesUsed;
+  return normalized;
+}
+
+function retriesUsedFromError(error: unknown): number {
+  if (!(error instanceof Error)) return 0;
+  const retriesUsed = Number((error as RetryAnnotatedError).dashboardRetriesUsed);
+  return Number.isFinite(retriesUsed) && retriesUsed > 0 ? retriesUsed : 0;
+}
+
+function withRetryDetail(detail: string, retriesUsed: number): string {
+  if (retriesUsed <= 0) return detail;
+  const label = retriesUsed === 1 ? 'retry' : 'retries';
+  return `${detail} (${retriesUsed} ${label} used)`;
+}
+
+function classifyRefreshFailureCode(code: string): string {
+  const normalizedCode = String(code || '').trim().toLowerCase();
+  if (!normalizedCode) return 'sync-runtime';
+  if (normalizedCode === 'miniapp_init_data_expired') return 'session-init-data';
+  if (normalizedCode === 'miniapp_token_expired') return 'session-token';
+  if (normalizedCode.startsWith('miniapp_')) return 'session-auth';
+  if (normalizedCode.startsWith('http_')) return 'http';
+  return 'sync-runtime';
+}
+
+function resolveErrorTraceHint(error: unknown, endpoint: string, requestSeq: number): string {
+  if (error instanceof Error) {
+    const traceHint = String((error as { traceHint?: unknown }).traceHint || '').trim();
+    if (traceHint) {
+      return traceHint;
+    }
+    const requestId = String((error as { requestId?: unknown }).requestId || '').trim();
+    if (requestId) {
+      return requestId.slice(-16);
+    }
+    const correlationId = String((error as { correlationId?: unknown }).correlationId || '').trim();
+    if (correlationId) {
+      return correlationId.slice(-16);
+    }
+  }
+  const endpointLabel = endpoint.replace('/miniapp/', '').replace(/\//g, '-');
+  return `${endpointLabel}:${requestSeq}`;
+}
+
+function resolveErrorCorrelationId(error: unknown): string {
+  if (!(error instanceof Error)) return 'n/a';
+  const correlationId = String((error as { correlationId?: unknown }).correlationId || '').trim();
+  if (correlationId) return correlationId.slice(-24);
+  const requestId = String((error as { requestId?: unknown }).requestId || '').trim();
+  if (requestId) return requestId.slice(-24);
+  const traceHint = String((error as { traceHint?: unknown }).traceHint || '').trim();
+  if (traceHint) return traceHint.slice(-24);
+  return 'n/a';
+}
+
+function buildRefreshFailureDiagnostics(options: {
+  endpoint: string;
+  requestSeq: number;
+  errorCode: string;
+  retriesUsed: number;
+  error: unknown;
+}): DashboardSyncFailureDiagnostics {
+  const normalizedCode = String(options.errorCode || '').trim().toLowerCase();
+  return {
+    failureClass: classifyRefreshFailureCode(normalizedCode),
+    endpoint: options.endpoint,
+    code: normalizedCode || 'unknown',
+    correlationId: resolveErrorCorrelationId(options.error),
+    traceHint: resolveErrorTraceHint(options.error, options.endpoint, options.requestSeq),
+    retries: Math.max(0, options.retriesUsed),
+  };
+}
+
+async function waitForRetryDelay(signal: AbortSignal, delayMs: number): Promise<void> {
+  if (delayMs <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = (): void => {
+      window.clearTimeout(timeout);
+      signal.removeEventListener('abort', onAbort);
+      reject(abortError());
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function requestWithBoundedReadRetry<T>(
+  execute: () => Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  let retriesUsed = 0;
+  for (;;) {
+    try {
+      return await execute();
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+      if (!shouldRetryReadFailure(error) || retriesUsed >= MAX_READ_RETRIES) {
+        throw withRetryMetadata(error, retriesUsed);
+      }
+      retriesUsed += 1;
+      const backoffMs = RETRY_BASE_DELAY_MS * (2 ** (retriesUsed - 1));
+      const jitterMs = Math.floor(Math.random() * Math.max(1, Math.round(backoffMs * RETRY_JITTER_RATIO)));
+      await waitForRetryDelay(signal, backoffMs + jitterMs);
+    }
+  }
+}
+
 export function useDashboardSyncLoaders({
   request,
   pushActivity,
@@ -68,6 +241,7 @@ export function useDashboardSyncLoaders({
   setLoading,
   setError,
   setPollFailureCount,
+  setRefreshFailureDiagnostics,
   setBootstrap,
   setPollPayload,
   setLastPollAt,
@@ -95,9 +269,12 @@ export function useDashboardSyncLoaders({
     setError('');
     try {
       const rawPayload = asRecord(
-        await request<DashboardApiPayload | null>('/miniapp/bootstrap', {
-          signal: controller.signal,
-        }),
+        await requestWithBoundedReadRetry(
+          () => request<DashboardApiPayload | null>('/miniapp/bootstrap', {
+            signal: controller.signal,
+          }),
+          controller.signal,
+        ),
       );
       const bootstrapValidation = validateBootstrapPayload(rawPayload);
       if (!bootstrapValidation.ok) {
@@ -116,6 +293,7 @@ export function useDashboardSyncLoaders({
       setLastPollAt(now);
       setLastSuccessfulPollAt(now);
       setPollFailureCount(0);
+      setRefreshFailureDiagnostics(null);
       setUsersSnapshot(payload.dashboard?.users || payload.users || null);
       setAuditSnapshot(payload.dashboard?.audit || payload.audit || null);
       setIncidentsSnapshot(payload.dashboard?.incidents || payload.incidents || null);
@@ -140,13 +318,23 @@ export function useDashboardSyncLoaders({
       setPollFailureCount((prev) => prev + 1);
       const errorCodeFromError = getDashboardErrorCode(err);
       const blockedBySession = isSessionBootstrapBlockingCode(errorCodeFromError);
+      const retriesUsed = retriesUsedFromError(err);
       const detail = err instanceof Error ? err.message : String(err);
+      const detailWithRetry = withRetryDetail(detail, retriesUsed);
       if (blockedBySession) {
+        setRefreshFailureDiagnostics(null);
         setError('');
         return;
       }
-      setError(detail);
-      pushActivity('error', 'Bootstrap failed', detail);
+      setRefreshFailureDiagnostics(buildRefreshFailureDiagnostics({
+        endpoint: '/miniapp/bootstrap',
+        requestSeq,
+        errorCode: errorCodeFromError,
+        retriesUsed,
+        error: err,
+      }));
+      setError(detailWithRetry);
+      pushActivity('error', 'Bootstrap failed', detailWithRetry);
     } finally {
       if (bootstrapAbortRef.current === controller) {
         bootstrapAbortRef.current = null;
@@ -174,6 +362,7 @@ export function useDashboardSyncLoaders({
     setLoading,
     setPollFailureCount,
     setPollPayload,
+    setRefreshFailureDiagnostics,
     setRuntimeCanaryInput,
     setUsersSnapshot,
     stateEpochRef,
@@ -192,9 +381,12 @@ export function useDashboardSyncLoaders({
     setLastPollAt(startedAt);
     try {
       const rawPayload = asRecord(
-        await request<DashboardApiPayload | null>('/miniapp/jobs/poll', {
-          signal: controller.signal,
-        }),
+        await requestWithBoundedReadRetry(
+          () => request<DashboardApiPayload | null>('/miniapp/jobs/poll', {
+            signal: controller.signal,
+          }),
+          controller.signal,
+        ),
       );
       const pollValidation = validatePollPayload(rawPayload);
       if (!pollValidation.ok) {
@@ -210,6 +402,7 @@ export function useDashboardSyncLoaders({
       setError('');
       setPollPayload(payload);
       setPollFailureCount(0);
+      setRefreshFailureDiagnostics(null);
       setLastSuccessfulPollAt(Date.now());
       if (payload.users) {
         setUsersSnapshot(payload.users);
@@ -238,15 +431,25 @@ export function useDashboardSyncLoaders({
       setPollFailureCount((prev) => prev + 1);
       const errorCodeFromError = getDashboardErrorCode(err);
       const blockedBySession = isSessionBootstrapBlockingCode(errorCodeFromError);
+      const retriesUsed = retriesUsedFromError(err);
       const detail = err instanceof Error ? err.message : String(err);
+      const detailWithRetry = withRetryDetail(detail, retriesUsed);
       if (blockedBySession) {
+        setRefreshFailureDiagnostics(null);
         setError('');
         pollFailureNotedRef.current = false;
         return false;
       }
-      setError(detail);
+      setRefreshFailureDiagnostics(buildRefreshFailureDiagnostics({
+        endpoint: '/miniapp/jobs/poll',
+        requestSeq,
+        errorCode: errorCodeFromError,
+        retriesUsed,
+        error: err,
+      }));
+      setError(detailWithRetry);
       if (!pollFailureNotedRef.current) {
-        pushActivity('error', 'Live sync degraded', detail);
+        pushActivity('error', 'Live sync degraded', detailWithRetry);
       }
       pollFailureNotedRef.current = true;
       return false;
@@ -268,6 +471,7 @@ export function useDashboardSyncLoaders({
     setLastSuccessfulPollAt,
     setPollFailureCount,
     setPollPayload,
+    setRefreshFailureDiagnostics,
     setUsersSnapshot,
     stateEpochRef,
   ]);
@@ -286,6 +490,7 @@ export function useDashboardSyncLoaders({
     }));
     setLastSuccessfulPollAt(Date.now());
     setPollFailureCount(0);
+    setRefreshFailureDiagnostics(null);
     setError('');
 
     const dashboardFromPayload = nextPayload.dashboard;
@@ -303,6 +508,7 @@ export function useDashboardSyncLoaders({
     setLastSuccessfulPollAt,
     setPollFailureCount,
     setPollPayload,
+    setRefreshFailureDiagnostics,
     setUsersSnapshot,
   ]);
 

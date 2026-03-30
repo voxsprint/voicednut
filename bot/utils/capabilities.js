@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-const { getUser, isAdmin } = require('../db/db');
+const { getUser, isAdmin, addUser, promoteUser } = require('../db/db');
 const { buildMainMenuKeyboard } = require('./ui');
 const { ensureSession } = require('./sessionState');
 
@@ -118,6 +118,59 @@ function resolveRole(user) {
   return user.role === 'ADMIN' ? 'admin' : 'user';
 }
 
+function normalizeTelegramId(value) {
+  if (value == null) return '';
+  const normalized = String(value).trim();
+  return normalized;
+}
+
+function normalizeTelegramUsername(value) {
+  if (value == null) return '';
+  return String(value)
+    .trim()
+    .replace(/^@/, '')
+    .replace(/^https?:\/\/t\.me\//i, '')
+    .replace(/^t\.me\//i, '')
+    .toLowerCase();
+}
+
+function resolveActorTelegramId(ctx) {
+  const fromId = ctx?.from?.id;
+  if (fromId != null && String(fromId).trim() !== '') {
+    return fromId;
+  }
+  const privateChatId = ctx?.chat?.type === 'private' ? ctx?.chat?.id : null;
+  if (privateChatId != null && String(privateChatId).trim() !== '') {
+    return privateChatId;
+  }
+  return null;
+}
+
+function resolveActorTelegramUsername(ctx) {
+  if (ctx?.from?.username) return ctx.from.username;
+  if (ctx?.chat?.type === 'private' && ctx?.chat?.username) return ctx.chat.username;
+  return '';
+}
+
+function parseConfiguredAdminIds(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return [];
+  const fragments = raw
+    .split(/[,\s;|]+/g)
+    .map((entry) => normalizeTelegramId(entry))
+    .filter(Boolean);
+  const expanded = [];
+  for (const fragment of fragments) {
+    const cleaned = fragment.replace(/^["'\[\](){}]+|["'\[\](){}]+$/g, '');
+    if (cleaned) expanded.push(cleaned);
+    const digitOnly = cleaned.match(/-?\d+/g);
+    if (digitOnly?.length) {
+      expanded.push(...digitOnly);
+    }
+  }
+  return Array.from(new Set(expanded.map((entry) => normalizeTelegramId(entry)).filter(Boolean)));
+}
+
 function isRoleAllowed(role, capability) {
   if (!capability) return true;
   const allowed = CAPABILITY_RULES[capability];
@@ -133,16 +186,85 @@ async function getAccessProfile(ctx) {
   if (cached && Date.now() - cached.checkedAt < ACCESS_CACHE_TTL_MS) {
     return cached;
   }
-  const user = await new Promise((resolve) => getUser(ctx.from?.id, resolve));
+  const actorTelegramId = resolveActorTelegramId(ctx);
+  const actorTelegramUsername = resolveActorTelegramUsername(ctx);
+  const currentTelegramId = normalizeTelegramId(actorTelegramId);
+  const currentUsername = normalizeTelegramUsername(actorTelegramUsername);
+  const configuredAdminIds = parseConfiguredAdminIds(config.admin?.userId);
+  const configuredAdminUsername = normalizeTelegramUsername(config.admin?.username);
+  const isConfiguredAdminById =
+    Boolean(currentTelegramId) &&
+    configuredAdminIds.includes(currentTelegramId);
+  const isConfiguredAdminByUsername =
+    Boolean(currentUsername) &&
+    Boolean(configuredAdminUsername) &&
+    currentUsername === configuredAdminUsername;
+  const isConfiguredAdmin = isConfiguredAdminById || isConfiguredAdminByUsername;
+
+  let user = await new Promise((resolve) => getUser(actorTelegramId, actorTelegramUsername, resolve));
   let role = resolveRole(user);
-  if (user && role !== 'admin') {
-    const adminStatus = await new Promise((resolve) => isAdmin(ctx.from?.id, resolve));
-    role = adminStatus ? 'admin' : 'user';
+
+  if (isConfiguredAdmin) {
+    role = 'admin';
+    if (!user) {
+      user = {
+        telegram_id: actorTelegramId || null,
+        username: actorTelegramUsername || null,
+        role: 'ADMIN',
+        timestamp: new Date().toISOString(),
+      };
+      addUser(actorTelegramId, actorTelegramUsername || null, 'ADMIN', () => {});
+    } else if (user.role !== 'ADMIN') {
+      user = { ...user, role: 'ADMIN' };
+      promoteUser(actorTelegramId, () => {});
+    }
+  } else if (role !== 'admin') {
+    const adminStatus = await new Promise((resolve) => isAdmin(actorTelegramId, actorTelegramUsername, resolve));
+    if (adminStatus) {
+      role = 'admin';
+      if (!user) {
+        user = {
+          telegram_id: actorTelegramId || null,
+          username: actorTelegramUsername || null,
+          role: 'ADMIN',
+          timestamp: new Date().toISOString(),
+        };
+      } else if (user.role !== 'ADMIN') {
+        user = { ...user, role: 'ADMIN' };
+      }
+    } else if (user) {
+      role = 'user';
+    }
+  }
+
+  if (role === 'admin' && actorTelegramId != null) {
+    const userTelegramId = normalizeTelegramId(user?.telegram_id);
+    const actorIdNormalized = normalizeTelegramId(actorTelegramId);
+    if (!userTelegramId || userTelegramId !== actorIdNormalized) {
+      addUser(actorTelegramId, actorTelegramUsername || null, 'ADMIN', () => {});
+      promoteUser(actorTelegramId, () => {});
+      user = {
+        ...(user || {}),
+        telegram_id: actorTelegramId,
+        username: actorTelegramUsername || user?.username || null,
+        role: 'ADMIN',
+        timestamp: user?.timestamp || new Date().toISOString(),
+      };
+    }
+  }
+
+  if (!user && role !== 'guest') {
+    user = {
+      telegram_id: actorTelegramId || null,
+      username: actorTelegramUsername || null,
+      role: role === 'admin' ? 'ADMIN' : 'USER',
+      timestamp: new Date().toISOString(),
+    };
   }
   const profile = {
     role,
     user,
-    isAuthorized: Boolean(user),
+    isAuthorized: role !== 'guest',
     isAdmin: role === 'admin',
     checkedAt: Date.now()
   };

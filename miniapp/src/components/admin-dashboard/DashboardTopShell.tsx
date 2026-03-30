@@ -3,7 +3,10 @@ import {
   DashboardFocusedHeader,
   DashboardMainHeader,
 } from '@/components/admin-dashboard/DashboardChrome';
-import { DashboardStatusRail } from '@/components/admin-dashboard/DashboardStatusRail';
+import {
+  DashboardStatusRail,
+  type RefreshFailureDiagnostics,
+} from '@/components/admin-dashboard/DashboardStatusRail';
 import type { DashboardReliabilityState } from '@/services/admin-dashboard/dashboardReliabilityState';
 
 type DashboardTopShellProps = {
@@ -23,6 +26,8 @@ type DashboardTopShellProps = {
   onBackToDashboard: () => void;
   onOpenSettings: () => void;
   error: string;
+  errorCode: string;
+  refreshFailureDiagnostics: RefreshFailureDiagnostics | null;
   notice: string;
   noticeTone: 'info' | 'success' | 'warning' | 'error';
   busyAction: string;
@@ -30,10 +35,17 @@ type DashboardTopShellProps = {
   syncHealthState: DashboardReliabilityState;
   syncModeLabel: string;
   syncHealthMessage: string;
+  streamModeLabel: string;
+  streamLastEventLabel: string;
+  lastPollLabel: string;
+  lastSuccessfulPollLabel: string;
+  nextPollLabel: string;
+  pollFreshnessLabel: string;
   pollFailureCount: number;
   streamFailureCount: number;
   bridgeHardFailures: number;
   bridgeSoftFailures: number;
+  degradedCauses: string[];
   actionTelemetry: ActionTelemetry;
 };
 
@@ -56,6 +68,8 @@ export function DashboardTopShell({
   onBackToDashboard,
   onOpenSettings,
   error,
+  errorCode,
+  refreshFailureDiagnostics,
   notice,
   noticeTone,
   busyAction,
@@ -63,10 +77,17 @@ export function DashboardTopShell({
   syncHealthState,
   syncModeLabel,
   syncHealthMessage,
+  streamModeLabel,
+  streamLastEventLabel,
+  lastPollLabel,
+  lastSuccessfulPollLabel,
+  nextPollLabel,
+  pollFreshnessLabel,
   pollFailureCount,
   streamFailureCount,
   bridgeHardFailures,
   bridgeSoftFailures,
+  degradedCauses,
   actionTelemetry,
 }: DashboardTopShellProps): JSX.Element | null {
   if (settingsOpen) {
@@ -112,16 +133,25 @@ export function DashboardTopShell({
         <DashboardStatusRail
           loading={loading}
           error={error}
+          errorCode={errorCode}
+          refreshFailureDiagnostics={refreshFailureDiagnostics}
           notice={notice}
           noticeTone={noticeTone}
           busyAction={busyAction}
           syncHealthState={syncHealthState}
           syncModeLabel={syncModeLabel}
           syncHealthMessage={syncHealthMessage}
+          streamModeLabel={streamModeLabel}
+          streamLastEventLabel={streamLastEventLabel}
+          lastPollLabel={lastPollLabel}
+          lastSuccessfulPollLabel={lastSuccessfulPollLabel}
+          nextPollLabel={nextPollLabel}
+          pollFreshnessLabel={pollFreshnessLabel}
           pollFailureCount={pollFailureCount}
           streamFailureCount={streamFailureCount}
           bridgeHardFailures={bridgeHardFailures}
           bridgeSoftFailures={bridgeSoftFailures}
+          degradedCauses={degradedCauses}
           actionTelemetry={actionTelemetry}
         />
       ) : null}
