@@ -2,7 +2,6 @@ import {
   parseApiError,
   parseApiErrorCode,
   parseJsonResponse,
-  toText,
 } from '@/services/admin-dashboard/dashboardPrimitives';
 import {
   buildApiUrl,
@@ -103,6 +102,23 @@ function buildRequestHeaders(
   return headers;
 }
 
+function inferMiniAppCodeFromMessage(message: string): string {
+  const text = String(message || '').trim().toLowerCase();
+  if (!text) return '';
+  if (text.includes('init data is expired')) return 'miniapp_init_data_expired';
+  if (text.includes('missing telegram mini app init data')) return 'miniapp_missing_init_data';
+  if (text.includes('session token required')) return 'miniapp_auth_required';
+  if (text.includes('session token was revoked')) return 'miniapp_token_revoked';
+  if (text.includes('session token is expired')) return 'miniapp_token_expired';
+  return '';
+}
+
+function resolveApiErrorCode(payload: unknown, fallbackMessage = ''): string {
+  const directCode = parseApiErrorCode(payload);
+  if (directCode) return directCode;
+  return inferMiniAppCodeFromMessage(fallbackMessage);
+}
+
 export function createDashboardApiClient(
   config: DashboardApiClientConfig,
   callbacks: DashboardApiClientCallbacks,
@@ -159,7 +175,8 @@ export function createDashboardApiClient(
         );
       }
 
-      const code = toText(payload?.code, '');
+      const message = payload?.error || `Session request failed (${response.status})`;
+      const code = resolveApiErrorCode(payload, message);
       if (!response.ok || !payload?.success || !payload?.token) {
         if (isSessionBootstrapBlockingCode(code)) {
           callbacks.setSessionBlocked(true);
@@ -167,13 +184,10 @@ export function createDashboardApiClient(
         if (code) {
           callbacks.setErrorCode(code);
         }
-        throw createDashboardApiError(
-          payload?.error || `Session request failed (${response.status})`,
-          {
-            code,
-            httpStatus: response.status,
-          },
-        );
+        throw createDashboardApiError(message, {
+          code,
+          httpStatus: response.status,
+        });
       }
 
       const nextToken = payload.token;
@@ -229,7 +243,8 @@ export function createDashboardApiClient(
         );
       }
 
-      const code = toText(payload?.code, '');
+      const message = payload?.error || `Session refresh failed (${response.status})`;
+      const code = resolveApiErrorCode(payload, message);
       if (!response.ok || !payload?.success || !payload?.token) {
         if (isSessionBootstrapBlockingCode(code)) {
           callbacks.setSessionBlocked(true);
@@ -237,13 +252,10 @@ export function createDashboardApiClient(
         if (code) {
           callbacks.setErrorCode(code);
         }
-        throw createDashboardApiError(
-          payload?.error || `Session refresh failed (${response.status})`,
-          {
-            code,
-            httpStatus: response.status,
-          },
-        );
+        throw createDashboardApiError(message, {
+          code,
+          httpStatus: response.status,
+        });
       }
 
       const nextToken = payload.token;
@@ -268,31 +280,39 @@ export function createDashboardApiClient(
     }
   };
 
-  const request = async <T,>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> => {
-    const tokenFromState = callbacks.getToken();
-    const tokenFromStateExpired = isSessionCacheEntryExpired(
-      tokenFromState
-        ? {
-          token: tokenFromState,
-          exp: sessionExpiryEpochSeconds,
-        }
-        : null,
-    );
-    let activeToken: string;
-    if (!tokenFromState) {
-      activeToken = await createSession();
-    } else if (tokenFromStateExpired) {
-      callbacks.pushActivity('info', 'Session refresh', 'Session token expired, refreshing.');
-      try {
-        activeToken = await refreshSession(tokenFromState);
-      } catch {
-        clearSession();
-        callbacks.pushActivity('info', 'Session refresh', 'Session refresh failed, requesting a new Telegram session.');
+  const request = async <T,>(
+    path: string,
+    options: RequestInit = {},
+    retryCount = 0,
+    preferredToken = '',
+  ): Promise<T> => {
+    let activeToken = String(preferredToken || '').trim();
+    if (!activeToken) {
+      const tokenFromState = callbacks.getToken();
+      const tokenFromStateExpired = isSessionCacheEntryExpired(
+        tokenFromState
+          ? {
+            token: tokenFromState,
+            exp: sessionExpiryEpochSeconds,
+          }
+          : null,
+      );
+      if (!tokenFromState) {
         activeToken = await createSession();
+      } else if (tokenFromStateExpired) {
+        callbacks.pushActivity('info', 'Session refresh', 'Session token expired, refreshing.');
+        try {
+          activeToken = await refreshSession(tokenFromState);
+        } catch {
+          clearSession();
+          callbacks.pushActivity('info', 'Session refresh', 'Session refresh failed, requesting a new Telegram session.');
+          activeToken = await createSession();
+        }
+      } else {
+        activeToken = tokenFromState;
       }
-    } else {
-      activeToken = tokenFromState;
     }
+
     const response = await fetch(buildApiUrl(path, config.apiBaseUrl), {
       ...options,
       headers: buildRequestHeaders(activeToken, options, config),
@@ -307,29 +327,28 @@ export function createDashboardApiClient(
 
     if (response.status === 401 && retryCount < config.sessionRefreshRetryCount) {
       callbacks.pushActivity('info', 'Session refresh', 'Received 401, attempting secure session refresh.');
+      let refreshedToken = '';
       try {
-        await refreshSession(activeToken);
+        refreshedToken = await refreshSession(activeToken);
       } catch {
         clearSession();
       }
-      return request<T>(path, options, retryCount + 1);
+      return request<T>(path, options, retryCount + 1, refreshedToken);
     }
 
     if (!response.ok) {
-      const code = parseApiErrorCode(payload);
+      const message = parseApiError(payload, response.status);
+      const code = resolveApiErrorCode(payload, message);
       if (code) {
         callbacks.setErrorCode(code);
       }
       if (isSessionBootstrapBlockingCode(code)) {
         callbacks.setSessionBlocked(true);
       }
-      throw createDashboardApiError(
-        parseApiError(payload, response.status),
-        {
-          code,
-          httpStatus: response.status,
-        },
-      );
+      throw createDashboardApiError(message, {
+        code,
+        httpStatus: response.status,
+      });
     }
 
     callbacks.setErrorCode('');

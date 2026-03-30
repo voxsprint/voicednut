@@ -217,5 +217,14 @@ export function parseApiError(payload: unknown, status: number): string {
 
 export function parseApiErrorCode(payload: unknown): string {
   const body = asRecord(payload);
-  return toText(body.code, '');
+  const nestedError = asRecord(body.error);
+  return toText(
+    body.code
+      ?? body.error_code
+      ?? body.errorCode
+      ?? nestedError.code
+      ?? nestedError.error_code
+      ?? nestedError.errorCode,
+    '',
+  ).trim();
 }

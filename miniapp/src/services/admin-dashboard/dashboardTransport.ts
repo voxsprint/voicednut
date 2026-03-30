@@ -37,6 +37,16 @@ export function isSessionBootstrapBlockingCode(code: string): boolean {
     'miniapp_auth_date_future',
     'miniapp_replay_detected',
     'miniapp_admin_required',
+    'miniapp_auth_required',
+    'miniapp_auth_invalid',
+    'miniapp_invalid_token',
+    'miniapp_malformed_token',
+    'miniapp_invalid_token_signature',
+    'miniapp_invalid_token_payload',
+    'miniapp_token_not_active',
+    'miniapp_token_missing_exp',
+    'miniapp_token_expired',
+    'miniapp_token_revoked',
   ].includes(String(code || '').trim());
 }
 

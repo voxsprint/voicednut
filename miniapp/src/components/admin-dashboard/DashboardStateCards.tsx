@@ -42,6 +42,30 @@ function describeSessionBlockedReason(errorCode: string): string {
   if (code === 'miniapp_invalid_signature') {
     return 'Telegram launch credentials are invalid for this backend bot token. Reopen the Mini App from the correct bot.';
   }
+  if (
+    code === 'miniapp_auth_required' ||
+    code === 'miniapp_auth_invalid' ||
+    code === 'miniapp_invalid_token'
+  ) {
+    return 'Session token is missing or invalid. Reopen this Mini App from the bot menu and retry.';
+  }
+  if (
+    code === 'miniapp_malformed_token' ||
+    code === 'miniapp_invalid_token_payload' ||
+    code === 'miniapp_invalid_token_signature'
+  ) {
+    return 'Session token format/signature is invalid. Reopen this Mini App from Telegram to get a fresh session.';
+  }
+  if (code === 'miniapp_token_not_active') {
+    return 'Session token is not active yet. Wait a few seconds, then retry.';
+  }
+  if (
+    code === 'miniapp_token_missing_exp' ||
+    code === 'miniapp_token_expired' ||
+    code === 'miniapp_token_revoked'
+  ) {
+    return 'Session token expired or was revoked. Reopen this Mini App from Telegram and retry.';
+  }
   return 'Open this Mini App from the Telegram bot menu, then retry the session.';
 }
 

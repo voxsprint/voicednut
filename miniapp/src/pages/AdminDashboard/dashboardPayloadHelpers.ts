@@ -41,6 +41,18 @@ function asRecordList<T extends object>(value: unknown): T[] {
   return value.map((entry) => asRecord(entry) as T);
 }
 
+function inferMiniAppErrorCodeFromMessage(message: string): string {
+  const text = String(message || '').trim().toLowerCase();
+  if (!text) return '';
+  if (text.includes('init data is expired')) return 'miniapp_init_data_expired';
+  if (text.includes('missing telegram mini app init data')) return 'miniapp_missing_init_data';
+  if (text.includes('session token required')) return 'miniapp_auth_required';
+  if (text.includes('session token was revoked')) return 'miniapp_token_revoked';
+  if (text.includes('session token is expired')) return 'miniapp_token_expired';
+  if (text.includes('launch credentials expired')) return 'miniapp_init_data_expired';
+  return '';
+}
+
 export function createActionRequestMeta(action: string, moduleId: DashboardModule): ActionRequestMeta {
   const nonce = Math.random().toString(36).slice(2, 10);
   const ts = Date.now();
@@ -111,7 +123,9 @@ export function isAbortError(error: unknown): boolean {
 
 export function getDashboardErrorCode(error: unknown): string {
   if (!(error instanceof Error)) return '';
-  return toText((error as DashboardApiError).code, '').trim();
+  const directCode = toText((error as DashboardApiError).code, '').trim();
+  if (directCode) return directCode;
+  return inferMiniAppErrorCodeFromMessage(error.message || '');
 }
 
 export function asOpsQaSummary(value: unknown): OpsQaSummary | null {
