@@ -20,12 +20,18 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
           script: |
+            set -euo pipefail
+
             # Ensure PM2 is available in non-interactive SSH shell
             export PATH=$PATH:/home/ubuntu/.nvm/versions/node/v20.20.0/bin
 
             # Navigate to project root
             cd /home/ubuntu/voxly
+
+            # Enforce the canonical repository on EC2 before pulling.
+            git remote set-url origin https://github.com/voxsprint/voicednut.git
 
             # Keep only api + bot checked out on EC2.
             # The Telegram Mini App is deployed on Vercel and must not consume EC2 memory.
