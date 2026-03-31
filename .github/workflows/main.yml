@@ -28,38 +28,57 @@ jobs:
             # Ensure PM2 is available in non-interactive SSH shell
             export PATH=$PATH:/home/ubuntu/.nvm/versions/node/v20.20.0/bin
 
-            # Navigate to project root
-            cd /home/ubuntu/voxly
+            DEPLOY_ROOT=/home/ubuntu/voxly
+            RELEASES_ROOT=/home/ubuntu/voxly-releases
+            RELEASE_DIR="$RELEASES_ROOT/${{ github.sha }}"
+            REPO_URL=https://github.com/voxsprint/voicednut.git
 
-            # Enforce the canonical repository on EC2 before pulling.
-            git remote set-url origin https://github.com/voxsprint/voicednut.git
+            mkdir -p "$RELEASES_ROOT" "$DEPLOY_ROOT/api" "$DEPLOY_ROOT/bot"
+            rm -rf "$RELEASE_DIR"
 
-            # Keep only api + bot checked out on EC2.
-            # The Telegram Mini App is deployed on Vercel and must not consume EC2 memory.
-            git fetch origin main
+            # Build a clean sparse checkout for this exact revision so deploys do not depend
+            # on any drift or local edits inside the long-lived EC2 checkout.
+            git clone --filter=blob:none --no-checkout "$REPO_URL" "$RELEASE_DIR"
+            cd "$RELEASE_DIR"
             git sparse-checkout init --cone
             git sparse-checkout set api bot
-            git checkout main
-            git pull --ff-only origin main
-            git sparse-checkout reapply
+            git checkout --force "${{ github.sha }}"
+
+            # Sync only the deployable server code into the live path while preserving
+            # server-managed env files, logs, and installed dependencies until reinstall.
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='.env.*' \
+              --exclude='node_modules' \
+              --exclude='logs' \
+              "$RELEASE_DIR/api/" "$DEPLOY_ROOT/api/"
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='.env.*' \
+              --exclude='node_modules' \
+              --exclude='logs' \
+              "$RELEASE_DIR/bot/" "$DEPLOY_ROOT/bot/"
 
             # Remove any stale Mini App files left over from older full-repo deployments.
-            rm -rf miniapp
+            rm -rf "$DEPLOY_ROOT/miniapp"
 
             # Kill PM2 daemon and delete all processes
             pm2 kill
             pm2 delete all
 
             # Deploy API
-            cd api
+            cd "$DEPLOY_ROOT/api"
             npm install
             npm run parity:providers
             pm2 startOrRestart ecosystem.config.js --env production
 
             # Deploy Bot
-            cd ../bot
+            cd "$DEPLOY_ROOT/bot"
             npm install
             pm2 startOrRestart ecosystem.config.js --env production
 
             # Save PM2 process list
             pm2 save
+
+            # Keep only the most recent release snapshots.
+            ls -1dt "$RELEASES_ROOT"/* 2>/dev/null | tail -n +4 | xargs -r rm -rf
