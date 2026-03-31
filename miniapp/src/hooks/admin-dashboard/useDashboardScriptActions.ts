@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type ActivityStatus = 'info' | 'success' | 'error';
 
@@ -79,7 +80,7 @@ export function useDashboardCallScriptActions({
 }: UseDashboardCallScriptActionsOptions): UseDashboardCallScriptActionsResult {
   const refreshCallScriptsModule = useCallback(async (): Promise<void> => {
     try {
-      const data = await invokeAction('callscript.list', {
+      const data = await invokeAction(DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_LIST, {
         limit: 120,
         flow_type: scriptFlowFilter || undefined,
       }) as CallScriptsPayload;
@@ -107,7 +108,7 @@ export function useDashboardCallScriptActions({
       objective_tags: scriptObjectiveTagsInput,
     };
     await runAction(
-      'callscript.update',
+      DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_UPDATE,
       payload,
       {
         confirmText: `Save draft changes to script #${selectedCallScriptId}?`,
@@ -134,7 +135,7 @@ export function useDashboardCallScriptActions({
       return;
     }
     await runAction(
-      'callscript.submit_review',
+      DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SUBMIT_REVIEW,
       { id: selectedCallScriptId },
       {
         confirmText: `Submit script #${selectedCallScriptId} for review?`,
@@ -150,7 +151,7 @@ export function useDashboardCallScriptActions({
       return;
     }
     await runAction(
-      'callscript.review',
+      DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_REVIEW,
       {
         id: selectedCallScriptId,
         decision,
@@ -170,7 +171,7 @@ export function useDashboardCallScriptActions({
       return;
     }
     await runAction(
-      'callscript.promote_live',
+      DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_PROMOTE_LIVE,
       { id: selectedCallScriptId },
       {
         confirmText: `Promote script #${selectedCallScriptId} to live?`,
@@ -197,7 +198,7 @@ export function useDashboardCallScriptActions({
     }
     setError('');
     try {
-      const data = await invokeAction('callscript.simulate', {
+      const data = await invokeAction(DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SIMULATE, {
         id: selectedCallScriptId,
         variables,
       }) as CallScriptSimulationPayload;

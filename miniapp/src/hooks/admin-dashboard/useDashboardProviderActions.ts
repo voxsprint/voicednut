@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
 import { createEmptyProviderSwitchPlan } from '@/hooks/admin-dashboard/providerSwitchPlanState';
 import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
@@ -95,7 +96,7 @@ export function useDashboardProviderActions({
     setProviderPreflightBusy(key);
     setError('');
     try {
-      const result = await invokeAction('provider.preflight', {
+      const result = await invokeAction(DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT, {
         channel,
         provider: normalizedProvider,
         network: 1,
@@ -136,7 +137,7 @@ export function useDashboardProviderActions({
     try {
       for (const target of targets) {
         const key = `${target.channel}:${target.provider}`;
-        const result = await invokeAction('provider.preflight', {
+        const result = await invokeAction(DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT, {
           channel: target.channel,
           provider: target.provider,
           network: 1,
@@ -183,7 +184,7 @@ export function useDashboardProviderActions({
     setError('');
     setNotice('');
     try {
-      await invokeAction('provider.preflight', {
+      await invokeAction(DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT, {
         channel,
         provider: normalizedTarget,
         network: 1,
@@ -201,7 +202,7 @@ export function useDashboardProviderActions({
         }));
       }
       await runAction(
-        'provider.set',
+        DASHBOARD_ACTION_CONTRACTS.PROVIDER_SET,
         { channel, provider: normalizedTarget },
         { successMessage: `${channel.toUpperCase()} provider switched to ${normalizedTarget}.` },
       );
@@ -251,7 +252,7 @@ export function useDashboardProviderActions({
     setProviderPreflightBusy(preflightKey);
     setError('');
     try {
-      const result = await invokeAction('provider.preflight', {
+      const result = await invokeAction(DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT, {
         channel,
         provider: target,
         network: 1,
@@ -322,14 +323,14 @@ export function useDashboardProviderActions({
     }
     const previousProvider = providerCurrentByChannel[channel];
     await runAction(
-      'provider.set',
+      DASHBOARD_ACTION_CONTRACTS.PROVIDER_SET,
       { channel, provider: target },
       {
         successMessage: `${channel.toUpperCase()} provider switched to ${target}.`,
       },
     );
     try {
-      const postCheck = await invokeAction('provider.preflight', {
+      const postCheck = await invokeAction(DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT, {
         channel,
         provider: target,
         network: 1,

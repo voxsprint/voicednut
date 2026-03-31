@@ -99,6 +99,7 @@ const OPS_VM_KEYS = [
 ] as const satisfies readonly (keyof DashboardVm)[];
 
 const SMS_VM_KEYS = [
+  'hasCapability',
   'smsRecipientsInput',
   'setSmsRecipientsInput',
   'handleRecipientsFile',

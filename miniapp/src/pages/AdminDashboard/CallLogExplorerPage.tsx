@@ -4,6 +4,7 @@ import { buildModuleRequestState } from './moduleRequestState';
 import type { CallLogRow, DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 
 type CallLogExplorerPageProps = {
@@ -61,7 +62,9 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
   const loadRows = async (): Promise<void> => {
     setValidationError('');
     const trimmed = query.trim();
-    const action = trimmed.length >= 2 ? 'calls.search' : 'calls.list';
+    const action = trimmed.length >= 2
+      ? DASHBOARD_ACTION_CONTRACTS.CALLS_SEARCH
+      : DASHBOARD_ACTION_CONTRACTS.CALLS_LIST;
     const payload = trimmed.length >= 2
       ? { query: trimmed, limit: 20 }
       : { limit: 20, offset: 0 };
@@ -86,7 +89,7 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
       return;
     }
     setValidationError('');
-    await runInvestigationAction('calls.get', { call_sid: targetSid }, (data) => {
+    await runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.CALLS_GET, { call_sid: targetSid }, (data) => {
       const nextDetails = data.call && typeof data.call === 'object' && !Array.isArray(data.call)
         ? data.call as Record<string, unknown>
         : data;
@@ -102,7 +105,7 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
       return;
     }
     setValidationError('');
-    await runInvestigationAction('calls.events', { call_sid: targetSid }, (data) => {
+    await runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.CALLS_EVENTS, { call_sid: targetSid }, (data) => {
       setEvents(Array.isArray(data.recent_states) ? data.recent_states.map(asRecord) : []);
       setEventsSid(targetSid);
     });

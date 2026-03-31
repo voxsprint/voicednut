@@ -1,4 +1,5 @@
 import { UiButton, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type SettingsModule = {
   id: string;
@@ -246,30 +247,21 @@ export function SettingsPage({
       <section className="va-settings-cluster">
         <p className="va-settings-section-label">Support tools</p>
         <div className="va-settings-group">
-          <SettingsRow
-            icon="⚑"
-            iconTone="is-red"
-            title="Incident runbooks"
-            description="Open runbooks and incident timelines."
-            value={hasModuleAccess('audit') ? 'Open' : 'Locked'}
-            onClick={hasModuleAccess('audit') ? () => onJumpToModule('audit') : undefined}
-          />
-          <SettingsRow
-            icon="⛭"
-            iconTone="is-orange"
-            title="Provider diagnostics"
-            description="Check provider readiness and preflight controls."
-            value={hasModuleAccess('provider') ? 'Open' : 'Locked'}
-            onClick={hasModuleAccess('provider') ? () => onJumpToModule('provider') : undefined}
-          />
-          <SettingsRow
-            icon="✉"
-            iconTone="is-green"
-            title="Messaging diagnostics"
-            description="Review SMS/email investigation and delivery health."
-            value={hasModuleAccess('messaging') ? 'Open' : 'Locked'}
-            onClick={hasModuleAccess('messaging') ? () => onJumpToModule('messaging') : undefined}
-          />
+          {DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS.map((tool) => {
+            const badge = moduleBadge(tool.moduleId);
+            const moduleAvailable = hasModuleAccess(tool.moduleId);
+            return (
+              <SettingsRow
+                key={tool.moduleId}
+                icon={badge.token}
+                iconTone={badge.tone}
+                title={tool.title}
+                description={tool.description}
+                value={moduleAvailable ? 'Open' : 'Locked'}
+                onClick={moduleAvailable ? () => onJumpToModule(tool.moduleId) : undefined}
+              />
+            );
+          })}
         </div>
       </section>
     </section>

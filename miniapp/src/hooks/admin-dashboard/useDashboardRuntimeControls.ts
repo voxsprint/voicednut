@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { RunActionOptions } from '@/hooks/admin-dashboard/useDashboardActions';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type ActivityStatus = 'info' | 'success' | 'error';
 
@@ -88,7 +89,7 @@ export function useDashboardRuntimeControls({
 }: UseDashboardRuntimeControlsOptions): UseDashboardRuntimeControlsResult {
   const refreshRuntimeStatus = useCallback(async (): Promise<void> => {
     try {
-      const data = await invokeAction('runtime.status', {}) as VoiceRuntimePayload;
+      const data = await invokeAction(DASHBOARD_ACTION_CONTRACTS.RUNTIME_STATUS, {}) as VoiceRuntimePayload;
       onRuntimeStatusLoaded(data);
       const canaryOverride = Number(asRecord(data?.runtime).canary_percent_override);
       if (Number.isFinite(canaryOverride)) {
@@ -104,7 +105,7 @@ export function useDashboardRuntimeControls({
 
   const enableRuntimeMaintenance = useCallback(async (): Promise<void> => {
     await runAction(
-      'runtime.maintenance.enable',
+      DASHBOARD_ACTION_CONTRACTS.RUNTIME_MAINTENANCE_ENABLE,
       { duration_ms: 15 * 60 * 1000 },
       {
         confirmText: 'Enable maintenance mode (legacy-only) for 15 minutes?',
@@ -115,7 +116,7 @@ export function useDashboardRuntimeControls({
 
   const disableRuntimeMaintenance = useCallback(async (): Promise<void> => {
     await runAction(
-      'runtime.maintenance.disable',
+      DASHBOARD_ACTION_CONTRACTS.RUNTIME_MAINTENANCE_DISABLE,
       {},
       {
         confirmText: 'Disable maintenance mode and reset runtime circuit now?',
@@ -132,7 +133,7 @@ export function useDashboardRuntimeControls({
     }
     const canaryPercent = clampCanaryPercent(parsed);
     await runAction(
-      'runtime.canary.set',
+      DASHBOARD_ACTION_CONTRACTS.RUNTIME_CANARY_SET,
       { canary_percent: canaryPercent },
       {
         confirmText: `Set runtime canary override to ${canaryPercent}%?`,
@@ -159,7 +160,7 @@ export function useDashboardRuntimeControls({
 
   const clearRuntimeCanary = useCallback(async (): Promise<void> => {
     await runAction(
-      'runtime.canary.clear',
+      DASHBOARD_ACTION_CONTRACTS.RUNTIME_CANARY_CLEAR,
       {},
       {
         confirmText: 'Clear runtime canary override and return to configured value?',

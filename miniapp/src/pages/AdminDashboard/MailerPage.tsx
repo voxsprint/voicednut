@@ -6,6 +6,7 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectMailerPageVm } from './vmSelectors';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
 type MailerPageProps = {
@@ -347,7 +348,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 disabled={controlsBusy || !messageIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
-                    'email.message.status',
+                    DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS,
                     { message_id: messageIdInput.trim() },
                     (payload) => setMessageSnapshot(asRecord(payload.message) || payload),
                   );
@@ -367,7 +368,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 disabled={controlsBusy || !jobIdInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
-                    'email.bulk.job',
+                    DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_JOB,
                     { job_id: jobIdInput.trim() },
                     (payload) => setJobSnapshot(payload),
                   );
@@ -380,7 +381,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
-                    'email.bulk.history',
+                    DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_HISTORY,
                     { limit: 12, offset: 0 },
                     (payload) => setHistorySnapshot(
                       Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : [],

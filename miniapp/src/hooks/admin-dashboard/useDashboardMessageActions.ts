@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { isLikelyEmail, isValidE164 } from '@/services/admin-dashboard/dashboardPrimitives';
 
 type ActivityStatus = 'info' | 'success' | 'error';
@@ -91,7 +92,7 @@ export function useDashboardMessagingActions({
       return;
     }
     if (smsScheduleAt) {
-      setBusyAction('sms.schedule.send');
+      setBusyAction(DASHBOARD_ACTION_CONTRACTS.SMS_SCHEDULE_SEND);
       setError('');
       setNotice('');
       try {
@@ -100,7 +101,7 @@ export function useDashboardMessagingActions({
         const failures: Array<{ recipient: string; error: string }> = [];
         for (const recipient of recipients) {
           try {
-            await invokeAction('sms.schedule.send', {
+            await invokeAction(DASHBOARD_ACTION_CONTRACTS.SMS_SCHEDULE_SEND, {
               to: recipient,
               message: smsMessageInput,
               scheduled_time: scheduledIso,
@@ -141,7 +142,7 @@ export function useDashboardMessagingActions({
       return;
     }
     await runAction(
-      'sms.bulk.send',
+      DASHBOARD_ACTION_CONTRACTS.SMS_BULK_SEND,
       {
         recipients,
         message: smsMessageInput,
@@ -200,7 +201,7 @@ export function useDashboardMessagingActions({
       send_at: mailerScheduleAt ? new Date(mailerScheduleAt).toISOString() : undefined,
     };
     await runAction(
-      'email.bulk.send',
+      DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_SEND,
       payload,
       {
         confirmText: `Queue bulk email for ${validRecipients.length} recipients?`,

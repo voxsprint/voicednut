@@ -5,6 +5,7 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type MessagingInvestigationPageProps = {
   visible: boolean;
@@ -39,7 +40,7 @@ function pickDisplayText(values: unknown[], fallback = ''): string {
 export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigationPageProps) {
   if (!visible) return null;
 
-  const { invokeAction, busyAction } = selectSmsPageVm(vm);
+  const { invokeAction, busyAction, hasCapability } = selectSmsPageVm(vm);
 
   const [statusSidInput, setStatusSidInput] = useState<string>('');
   const [conversationPhoneInput, setConversationPhoneInput] = useState<string>('');
@@ -87,45 +88,47 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     + (historySnapshot.length > 0 ? 1 : 0);
   const activeFilterCount = [statusSid, conversationPhone, messageId, jobId]
     .filter((value) => value.length > 0).length;
+  const canManageSms = hasCapability('sms_bulk_manage');
+  const canManageEmail = hasCapability('email_bulk_manage');
 
   const runSmsStatusLookup = (): void => {
     if (!statusSid) return;
-    void runInvestigationAction('sms.message.status', { message_sid: statusSid }, (payload) => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGE_STATUS, { message_sid: statusSid }, (payload) => {
       setStatusSnapshot(asRecord(payload.message) || payload);
     });
   };
 
   const runSmsConversationLookup = (): void => {
     if (!conversationPhone) return;
-    void runInvestigationAction('sms.messages.conversation', { phone: conversationPhone, limit: 20 }, (payload) => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_CONVERSATION, { phone: conversationPhone, limit: 20 }, (payload) => {
       setConversationMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
     });
   };
 
   const runSmsRecentLookup = (): void => {
-    void runInvestigationAction('sms.messages.recent', { limit: 12, offset: 0 }, (payload) => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT, { limit: 12, offset: 0 }, (payload) => {
       setRecentMessages(Array.isArray(payload.messages) ? payload.messages.map(asRecord) : []);
     });
   };
 
   const runSmsStatsLookup = (): void => {
-    void runInvestigationAction('sms.stats', { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.SMS_STATS, { hours: 24 }, (payload) => setSmsStatsSnapshot(payload));
   };
 
   const runEmailMessageLookup = (): void => {
     if (!messageId) return;
-    void runInvestigationAction('email.message.status', { message_id: messageId }, (payload) => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS, { message_id: messageId }, (payload) => {
       setMessageSnapshot(asRecord(payload.message) || payload);
     });
   };
 
   const runEmailJobLookup = (): void => {
     if (!jobId) return;
-    void runInvestigationAction('email.bulk.job', { job_id: jobId }, (payload) => setJobSnapshot(payload));
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_JOB, { job_id: jobId }, (payload) => setJobSnapshot(payload));
   };
 
   const runEmailHistoryLookup = (): void => {
-    void runInvestigationAction('email.bulk.history', { limit: 12, offset: 0 }, (payload) => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_HISTORY, { limit: 12, offset: 0 }, (payload) => {
       setHistorySnapshot(Array.isArray(payload.jobs) ? payload.jobs.map(asRecord) : []);
     });
   };
@@ -198,6 +201,14 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         <section className="va-grid">
           <UiCard className="va-investigation-card">
           <h3>SMS Investigation</h3>
+          {!canManageSms ? (
+            <UiStatePanel
+              compact
+              title="SMS diagnostics unavailable"
+              description="Your account needs SMS bulk management capability to run SMS diagnostic actions."
+              tone="warning"
+            />
+          ) : null}
           {!hasSmsInvestigationData ? (
             <UiStatePanel
               compact
@@ -214,7 +225,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !statusSid}
+              disabled={controlsBusy || !statusSid || !canManageSms}
               onClick={runSmsStatusLookup}
             >
               Check Status
@@ -228,21 +239,21 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !conversationPhone}
+              disabled={controlsBusy || !conversationPhone || !canManageSms}
               onClick={runSmsConversationLookup}
             >
               Load Conversation
             </UiButton>
             <UiButton
               variant="secondary"
-              disabled={controlsBusy}
+              disabled={controlsBusy || !canManageSms}
               onClick={runSmsRecentLookup}
             >
               Recent
             </UiButton>
             <UiButton
               variant="secondary"
-              disabled={controlsBusy}
+              disabled={controlsBusy || !canManageSms}
               onClick={runSmsStatsLookup}
             >
               Stats
@@ -406,6 +417,14 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         <section className="va-grid">
           <UiCard className="va-investigation-card">
           <h3>Email Investigation</h3>
+          {!canManageEmail ? (
+            <UiStatePanel
+              compact
+              title="Email diagnostics unavailable"
+              description="Your account needs email bulk management capability to run email diagnostic actions."
+              tone="warning"
+            />
+          ) : null}
           {!hasEmailInvestigationData ? (
             <UiStatePanel
               compact
@@ -422,7 +441,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !messageId}
+              disabled={controlsBusy || !messageId || !canManageEmail}
               onClick={runEmailMessageLookup}
             >
               Message Status
@@ -436,14 +455,14 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !jobId}
+              disabled={controlsBusy || !jobId || !canManageEmail}
               onClick={runEmailJobLookup}
             >
               Job Status
             </UiButton>
             <UiButton
               variant="secondary"
-              disabled={controlsBusy}
+              disabled={controlsBusy || !canManageEmail}
               onClick={runEmailHistoryLookup}
             >
               Load History

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CallScriptRow, DashboardVm } from './types';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type ScriptStudioPageProps = {
   visible: boolean;
@@ -140,7 +141,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
   };
 
   const loadSmsScripts = async (): Promise<void> => {
-    const data = await executeStudioAction('smsscript.list', {
+    const data = await executeStudioAction(DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST, {
       include_builtins: true,
       detailed: true,
     });
@@ -156,7 +157,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
   };
 
   const loadEmailTemplates = async (): Promise<void> => {
-    const data = await executeStudioAction('emailtemplate.list', { limit: 120 });
+    const data = await executeStudioAction(DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_LIST, { limit: 120 });
     const rows = toRows(data.templates) as EmailTemplateRow[];
     setEmailTemplates(rows);
     setSelectedEmailTemplateId((current) => {
@@ -168,7 +169,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
 
   const loadCallerFlags = async (): Promise<void> => {
     const status = callerFlagsStatusFilter === 'all' ? undefined : callerFlagsStatusFilter;
-    const data = await executeStudioAction('callerflags.list', {
+    const data = await executeStudioAction(DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_LIST, {
       status,
       limit: 120,
     });
@@ -176,7 +177,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
   };
 
   const loadPersonas = async (): Promise<void> => {
-    const data = await executeStudioAction('persona.list', {});
+    const data = await executeStudioAction(DASHBOARD_ACTION_CONTRACTS.PERSONA_LIST, {});
     setPersonaBuiltin(toRows(data.builtin));
     setPersonaCustom(toRows(data.custom));
   };
@@ -402,7 +403,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             }
             onClick={() => {
               void runAction(
-                'smsscript.create',
+                DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE,
                 {
                   name: smsScriptCreateName.trim(),
                   content: smsScriptCreateContent,
@@ -478,7 +479,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
                 }
                 onClick={() => {
                   void runAction(
-                    'smsscript.update',
+                    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
                     {
                       script_name: selectedSmsScriptName,
                       description: smsScriptDescriptionInput,
@@ -505,7 +506,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
                 }
                 onClick={() => {
                   void runAction(
-                    'smsscript.delete',
+                    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
                     { script_name: selectedSmsScriptName },
                     {
                       confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
@@ -546,7 +547,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             disabled={studioBusy.length > 0 || busyAction.length > 0 || !emailTemplateCreateId.trim()}
             onClick={() => {
               void runAction(
-                'emailtemplate.create',
+                DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE,
                 {
                   template_id: emailTemplateCreateId.trim(),
                   subject: 'New template subject',
@@ -618,7 +619,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
                 disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
                 onClick={() => {
                   void runAction(
-                    'emailtemplate.update',
+                    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
                     {
                       template_id: selectedEmailTemplateId,
                       subject: emailTemplateSubjectInput,
@@ -641,7 +642,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
                 disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
                 onClick={() => {
                   void runAction(
-                    'emailtemplate.delete',
+                    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
                     { template_id: selectedEmailTemplateId },
                     {
                       confirmText: `Delete template "${selectedEmailTemplateId}"?`,
@@ -707,7 +708,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             disabled={studioBusy.length > 0 || busyAction.length > 0 || !callerFlagPhoneInput.trim()}
             onClick={() => {
               void runAction(
-                'callerflags.upsert',
+                DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_UPSERT,
                 {
                   phone_number: callerFlagPhoneInput.trim(),
                   status: callerFlagStatusInput,

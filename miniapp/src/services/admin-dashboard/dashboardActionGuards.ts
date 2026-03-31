@@ -1,4 +1,9 @@
 import { toText } from '@/services/admin-dashboard/dashboardPrimitives';
+import {
+  DASHBOARD_ACTION_CONTRACTS,
+  DASHBOARD_ACTION_ALIAS_CONTRACTS,
+  DASHBOARD_MODULE_ACTION_IDS,
+} from '@/contracts/miniappParityContracts';
 
 function isNonEmptyString(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
@@ -122,35 +127,34 @@ function validateEmailTemplateUpdate(payload: Record<string, unknown>): string |
 }
 
 const ACTION_GUARDS: Record<string, (payload: Record<string, unknown>) => string | null> = {
-  'provider.set': validateProviderAction,
-  'provider.rollback': validateProviderAction,
-  'provider.preflight': validateProviderAction,
-  'sms.bulk.send': validateSmsBulkSend,
-  'sms.schedule.send': validateSmsScheduleSend,
-  'email.bulk.send': validateEmailBulkSend,
-  'users.role.set': validateUserRoleSet,
-  'callscript.update': validateCallScriptIdPayload,
-  'callscript.submit_review': validateCallScriptIdPayload,
-  'callscript.review': validateCallScriptIdPayload,
-  'callscript.promote_live': validateCallScriptIdPayload,
-  'callscript.simulate': validateCallScriptIdPayload,
-  'callerflags.upsert': validateCallerFlagsUpsert,
-  'smsscript.create': validateSmsScriptCreate,
-  'smsscript.update': validateSmsScriptUpdate,
-  'emailtemplate.create': validateEmailTemplateCreate,
-  'emailtemplate.update': validateEmailTemplateUpdate,
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_SET]: validateProviderAction,
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_ROLLBACK]: validateProviderAction,
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT]: validateProviderAction,
+  [DASHBOARD_ACTION_CONTRACTS.SMS_BULK_SEND]: validateSmsBulkSend,
+  [DASHBOARD_ACTION_CONTRACTS.SMS_SCHEDULE_SEND]: validateSmsScheduleSend,
+  [DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_SEND]: validateEmailBulkSend,
+  [DASHBOARD_ACTION_CONTRACTS.USERS_ROLE_SET]: validateUserRoleSet,
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_UPDATE]: validateCallScriptIdPayload,
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SUBMIT_REVIEW]: validateCallScriptIdPayload,
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_REVIEW]: validateCallScriptIdPayload,
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_PROMOTE_LIVE]: validateCallScriptIdPayload,
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SIMULATE]: validateCallScriptIdPayload,
+  [DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_UPSERT]: validateCallerFlagsUpsert,
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE]: validateSmsScriptCreate,
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE]: validateSmsScriptUpdate,
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE]: validateEmailTemplateCreate,
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE]: validateEmailTemplateUpdate,
 };
 
-const ACTION_ALIASES: Record<string, string> = {
-  'sms.reconcile': 'runbook.sms.reconcile',
-  'payment.reconcile': 'runbook.payment.reconcile',
-  'provider.preflight.runbook': 'runbook.provider.preflight',
-  'runbook.sms_reconcile': 'runbook.sms.reconcile',
-  'runbook.payment_reconcile': 'runbook.payment.reconcile',
-  'runbook.provider_preflight': 'runbook.provider.preflight',
-};
+const ACTION_ALIASES = DASHBOARD_ACTION_ALIAS_CONTRACTS;
 
 export type DashboardActionRisk = 'safe' | 'caution' | 'danger';
+export type DashboardActionResolution = {
+  normalizedAction: string;
+  actionId: string;
+  supported: boolean;
+  wasAliased: boolean;
+};
 
 export type DashboardActionPolicy = {
   capability?: string;
@@ -163,7 +167,7 @@ export type DashboardActionPolicy = {
 };
 
 const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
-  'provider.set': {
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_SET]: {
     capability: 'provider_manage',
     risk: 'danger',
     confirmTitle: 'Confirm provider switch',
@@ -172,7 +176,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Switch Provider',
   },
-  'provider.rollback': {
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_ROLLBACK]: {
     capability: 'provider_manage',
     risk: 'danger',
     confirmTitle: 'Confirm provider rollback',
@@ -181,11 +185,11 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Rollback Provider',
   },
-  'provider.preflight': {
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT]: {
     capability: 'provider_manage',
     risk: 'safe',
   },
-  'runtime.maintenance.enable': {
+  [DASHBOARD_ACTION_CONTRACTS.RUNTIME_MAINTENANCE_ENABLE]: {
     capability: 'dashboard_view',
     risk: 'danger',
     confirmTitle: 'Confirm maintenance mode',
@@ -194,7 +198,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Enable Maintenance',
   },
-  'runtime.maintenance.disable': {
+  [DASHBOARD_ACTION_CONTRACTS.RUNTIME_MAINTENANCE_DISABLE]: {
     capability: 'dashboard_view',
     risk: 'danger',
     confirmTitle: 'Confirm maintenance reset',
@@ -203,19 +207,19 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Disable Maintenance',
   },
-  'runtime.canary.set': {
+  [DASHBOARD_ACTION_CONTRACTS.RUNTIME_CANARY_SET]: {
     capability: 'dashboard_view',
     risk: 'caution',
     confirmTitle: 'Confirm canary override',
     confirmTone: 'warning',
   },
-  'runtime.canary.clear': {
+  [DASHBOARD_ACTION_CONTRACTS.RUNTIME_CANARY_CLEAR]: {
     capability: 'dashboard_view',
     risk: 'caution',
     confirmTitle: 'Confirm canary reset',
     confirmTone: 'warning',
   },
-  'sms.bulk.send': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_BULK_SEND]: {
     capability: 'sms_bulk_manage',
     risk: 'danger',
     confirmTitle: 'Confirm bulk SMS send',
@@ -224,7 +228,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: true,
     confirmLabel: 'Queue SMS Batch',
   },
-  'sms.schedule.send': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_SCHEDULE_SEND]: {
     capability: 'sms_bulk_manage',
     risk: 'danger',
     confirmTitle: 'Confirm scheduled SMS',
@@ -233,7 +237,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: true,
     confirmLabel: 'Schedule SMS',
   },
-  'email.bulk.send': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_SEND]: {
     capability: 'email_bulk_manage',
     risk: 'danger',
     confirmTitle: 'Confirm bulk email send',
@@ -242,7 +246,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: true,
     confirmLabel: 'Queue Email Batch',
   },
-  'users.role.set': {
+  [DASHBOARD_ACTION_CONTRACTS.USERS_ROLE_SET]: {
     capability: 'users_manage',
     risk: 'danger',
     confirmTitle: 'Confirm role update',
@@ -251,31 +255,31 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Apply Role Change',
   },
-  'dlq.call.replay': {
+  [DASHBOARD_ACTION_CONTRACTS.DLQ_CALL_REPLAY]: {
     capability: 'dashboard_view',
     risk: 'caution',
     confirmTitle: 'Confirm call DLQ replay',
     confirmTone: 'warning',
   },
-  'dlq.email.replay': {
+  [DASHBOARD_ACTION_CONTRACTS.DLQ_EMAIL_REPLAY]: {
     capability: 'dashboard_view',
     risk: 'caution',
     confirmTitle: 'Confirm email DLQ replay',
     confirmTone: 'warning',
   },
-  'callscript.update': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_UPDATE]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm script update',
     confirmTone: 'warning',
   },
-  'callscript.submit_review': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SUBMIT_REVIEW]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm review submission',
     confirmTone: 'warning',
   },
-  'callscript.review': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_REVIEW]: {
     capability: 'caller_flags_manage',
     risk: 'danger',
     confirmTitle: 'Confirm script review decision',
@@ -284,7 +288,7 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Apply Review Decision',
   },
-  'callscript.promote_live': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_PROMOTE_LIVE]: {
     capability: 'caller_flags_manage',
     risk: 'danger',
     confirmTitle: 'Confirm live promotion',
@@ -293,31 +297,31 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: false,
     confirmLabel: 'Promote Live',
   },
-  'callscript.simulate': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SIMULATE]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'smsscript.list': {
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'smsscript.get': {
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_GET]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'smsscript.create': {
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm SMS script creation',
     confirmTone: 'warning',
   },
-  'smsscript.update': {
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm SMS script update',
     confirmTone: 'warning',
   },
-  'smsscript.delete': {
+  [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE]: {
     capability: 'caller_flags_manage',
     risk: 'danger',
     confirmTitle: 'Confirm SMS script deletion',
@@ -326,27 +330,27 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: true,
     confirmLabel: 'Delete SMS Script',
   },
-  'emailtemplate.list': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_LIST]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'emailtemplate.get': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_GET]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'emailtemplate.create': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm email template creation',
     confirmTone: 'warning',
   },
-  'emailtemplate.update': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm email template update',
     confirmTone: 'warning',
   },
-  'emailtemplate.delete': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE]: {
     capability: 'caller_flags_manage',
     risk: 'danger',
     confirmTitle: 'Confirm email template deletion',
@@ -355,120 +359,158 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     confirmIrreversible: true,
     confirmLabel: 'Delete Email Template',
   },
-  'callerflags.list': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_LIST]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'callerflags.upsert': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_UPSERT]: {
     capability: 'caller_flags_manage',
     risk: 'caution',
     confirmTitle: 'Confirm caller flag update',
     confirmTone: 'warning',
   },
-  'persona.list': {
+  [DASHBOARD_ACTION_CONTRACTS.PERSONA_LIST]: {
     capability: 'caller_flags_manage',
     risk: 'safe',
   },
-  'calls.list': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLS_LIST]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
-  'calls.search': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLS_SEARCH]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
-  'calls.get': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLS_GET]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
-  'calls.events': {
+  [DASHBOARD_ACTION_CONTRACTS.CALLS_EVENTS]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
-  'sms.messages.recent': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT]: {
     capability: 'sms_bulk_manage',
     risk: 'safe',
   },
-  'sms.messages.conversation': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_CONVERSATION]: {
     capability: 'sms_bulk_manage',
     risk: 'safe',
   },
-  'sms.message.status': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGE_STATUS]: {
     capability: 'sms_bulk_manage',
     risk: 'safe',
   },
-  'sms.stats': {
+  [DASHBOARD_ACTION_CONTRACTS.SMS_STATS]: {
     capability: 'sms_bulk_manage',
     risk: 'safe',
   },
-  'email.message.status': {
+  [DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS]: {
     capability: 'email_bulk_manage',
     risk: 'safe',
   },
-  'users.list': {
+  [DASHBOARD_ACTION_CONTRACTS.USERS_LIST]: {
     capability: 'users_manage',
     risk: 'safe',
   },
-  'audit.feed': {
+  [DASHBOARD_ACTION_CONTRACTS.AUDIT_FEED]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
-  'incidents.summary': {
+  [DASHBOARD_ACTION_CONTRACTS.INCIDENTS_SUMMARY]: {
     capability: 'dashboard_view',
     risk: 'safe',
   },
 };
 
-const SUPPORTED_ACTION_IDS = new Set<string>([
+const EXTRA_SUPPORTED_ACTION_IDS = [
+  ...DASHBOARD_MODULE_ACTION_IDS,
+  DASHBOARD_ACTION_CONTRACTS.SMS_STATS,
+  DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS,
+  DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_JOB,
+  DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_HISTORY,
+  DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE,
+  DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PAYMENT_RECONCILE,
+  DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT,
+];
+
+const STATIC_SUPPORTED_ACTION_IDS = new Set<string>([
   ...Object.keys(ACTION_GUARDS),
   ...Object.keys(ACTION_POLICIES),
-  'audit.feed',
-  'callerflags.list',
-  'calls.events',
-  'calls.get',
-  'calls.list',
-  'calls.search',
-  'callscript.list',
-  'email.message.status',
-  'emailtemplate.list',
-  'incidents.summary',
-  'persona.list',
-  'runtime.status',
-  'sms.message.status',
-  'sms.messages.conversation',
-  'sms.messages.recent',
-  'sms.stats',
-  'smsscript.list',
-  'users.list',
-  'email.bulk.job',
-  'email.bulk.history',
-  'runbook.sms.reconcile',
-  'runbook.payment.reconcile',
-  'runbook.provider.preflight',
+  ...EXTRA_SUPPORTED_ACTION_IDS,
 ]);
 
-export function resolveDashboardActionId(action: string): string {
-  const normalizedAction = String(action || '').trim().toLowerCase();
-  if (!normalizedAction) return '';
+let serverSupportedActionIds: Set<string> | null = null;
+
+function normalizeDashboardAction(action: string): string {
+  return String(action || '').trim().toLowerCase();
+}
+
+function normalizeDashboardActionId(action: string): string {
+  const normalizedAction = normalizeDashboardAction(action);
   return ACTION_ALIASES[normalizedAction] || normalizedAction;
 }
 
+function isSupportedDashboardActionId(actionId: string): boolean {
+  const supportedActionSet = serverSupportedActionIds || STATIC_SUPPORTED_ACTION_IDS;
+  return supportedActionSet.has(actionId);
+}
+
+export function setDashboardSupportedActions(actions: unknown): void {
+  if (!Array.isArray(actions)) {
+    serverSupportedActionIds = null;
+    return;
+  }
+  const normalizedActions = new Set<string>();
+  for (const action of actions) {
+    if (typeof action !== 'string') continue;
+    const normalizedActionId = normalizeDashboardActionId(action);
+    if (normalizedActionId) {
+      normalizedActions.add(normalizedActionId);
+    }
+  }
+  // Respect explicit server contracts, including an intentionally empty allow-list.
+  serverSupportedActionIds = normalizedActions;
+}
+
+export function resolveDashboardAction(action: string): DashboardActionResolution {
+  const normalizedAction = normalizeDashboardAction(action);
+  if (!normalizedAction) {
+    return {
+      normalizedAction,
+      actionId: '',
+      supported: false,
+      wasAliased: false,
+    };
+  }
+  const actionId = normalizeDashboardActionId(normalizedAction);
+  return {
+    normalizedAction,
+    actionId,
+    supported: isSupportedDashboardActionId(actionId),
+    wasAliased: actionId !== normalizedAction,
+  };
+}
+
+export function resolveDashboardActionId(action: string): string {
+  return resolveDashboardAction(action).actionId;
+}
+
 export function isDashboardActionSupported(action: string): boolean {
-  const resolvedAction = resolveDashboardActionId(action);
-  return resolvedAction.length > 0 && SUPPORTED_ACTION_IDS.has(resolvedAction);
+  return resolveDashboardAction(action).supported;
 }
 
 export function validateDashboardActionPayload(action: string, payload: unknown): string | null {
   if (!isRecord(payload)) {
     return 'payload must be an object';
   }
-  const resolvedAction = resolveDashboardActionId(action);
-  const guard = ACTION_GUARDS[resolvedAction];
+  const actionResolution = resolveDashboardAction(action);
+  const guard = ACTION_GUARDS[actionResolution.actionId];
   if (!guard) return null;
   return guard(payload);
 }
 
 export function getDashboardActionPolicy(action: string): DashboardActionPolicy {
-  const resolvedAction = resolveDashboardActionId(action);
-  return ACTION_POLICIES[resolvedAction] || { risk: 'safe' };
+  const actionResolution = resolveDashboardAction(action);
+  return ACTION_POLICIES[actionResolution.actionId] || { risk: 'safe' };
 }

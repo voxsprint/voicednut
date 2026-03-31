@@ -17424,8 +17424,227 @@ async function buildMiniAppBootstrapPayload(req) {
   };
 }
 
+const MINI_APP_SUPPORTED_ACTIONS = Object.freeze([
+  "audit.feed",
+  "callerflags.list",
+  "callerflags.upsert",
+  "calls.events",
+  "calls.get",
+  "calls.list",
+  "calls.search",
+  "callscript.list",
+  "callscript.promote_live",
+  "callscript.review",
+  "callscript.simulate",
+  "callscript.submit_review",
+  "callscript.update",
+  "dlq.call.list",
+  "dlq.call.replay",
+  "dlq.email.list",
+  "dlq.email.replay",
+  "email.bulk.history",
+  "email.bulk.job",
+  "email.bulk.send",
+  "email.bulk.stats",
+  "email.message.status",
+  "email.preview",
+  "emailtemplate.create",
+  "emailtemplate.delete",
+  "emailtemplate.get",
+  "emailtemplate.list",
+  "emailtemplate.update",
+  "incidents.summary",
+  "persona.list",
+  "provider.get",
+  "provider.preflight",
+  "provider.rollback",
+  "provider.set",
+  "runbook.payment.reconcile",
+  "runbook.provider.preflight",
+  "runbook.sms.reconcile",
+  "runtime.canary.clear",
+  "runtime.canary.set",
+  "runtime.maintenance.disable",
+  "runtime.maintenance.enable",
+  "runtime.status",
+  "sms.bulk.send",
+  "sms.bulk.status",
+  "sms.message.status",
+  "sms.messages.conversation",
+  "sms.messages.recent",
+  "sms.schedule.send",
+  "sms.stats",
+  "smsscript.create",
+  "smsscript.delete",
+  "smsscript.get",
+  "smsscript.list",
+  "smsscript.update",
+  "users.list",
+  "users.role.set",
+]);
+
+const MINI_APP_DASHBOARD_MODULE_DEFINITIONS = [
+  {
+    id: "ops",
+    label: "Ops Dashboard",
+    capability: "dashboard_view",
+    command: "/status",
+    action_contracts: ["runtime.status"],
+    order: 0,
+    enabled: true,
+  },
+  {
+    id: "sms",
+    label: "SMS Sender",
+    capability: "sms_bulk_manage",
+    command: "/smssender",
+    action_contracts: ["sms.bulk.send", "sms.schedule.send"],
+    order: 1,
+    enabled: true,
+  },
+  {
+    id: "mailer",
+    label: "Mailer Console",
+    capability: "email_bulk_manage",
+    command: "/mailer",
+    action_contracts: ["email.bulk.send"],
+    order: 2,
+    enabled: true,
+  },
+  {
+    id: "provider",
+    label: "Provider Control",
+    capability: "provider_manage",
+    command: "/provider",
+    action_contracts: ["provider.preflight", "provider.set", "provider.rollback"],
+    order: 3,
+    enabled: true,
+  },
+  {
+    id: "content",
+    label: "Script Studio",
+    capability: "caller_flags_manage",
+    command: "/scripts",
+    action_contracts: ["callscript.list", "callscript.update"],
+    order: 4,
+    enabled: true,
+  },
+  {
+    id: "calllog",
+    label: "Call Log Explorer",
+    capability: "dashboard_view",
+    command: "/calllog",
+    action_contracts: ["calls.list", "calls.search", "calls.get", "calls.events"],
+    order: 5,
+    enabled: true,
+  },
+  {
+    id: "callerflags",
+    label: "Caller Flags Moderation",
+    capability: "caller_flags_manage",
+    command: "/callerflags",
+    action_contracts: ["callerflags.list", "callerflags.upsert"],
+    order: 6,
+    enabled: true,
+  },
+  {
+    id: "scriptsparity",
+    label: "Scripts Parity Expansion",
+    capability: "caller_flags_manage",
+    command: "/scripts",
+    action_contracts: ["smsscript.list", "emailtemplate.list"],
+    order: 7,
+    enabled: true,
+  },
+  {
+    id: "messaging",
+    label: "Messaging Investigation",
+    capability: "dashboard_view",
+    command: "/sms",
+    action_contracts: ["sms.messages.recent", "sms.messages.conversation", "sms.message.status"],
+    order: 8,
+    enabled: true,
+  },
+  {
+    id: "persona",
+    label: "Persona Manager",
+    capability: "caller_flags_manage",
+    command: "/persona",
+    action_contracts: ["persona.list"],
+    order: 9,
+    enabled: true,
+  },
+  {
+    id: "users",
+    label: "User & Role Admin",
+    capability: "users_manage",
+    command: "/users",
+    action_contracts: ["users.list", "users.role.set"],
+    order: 10,
+    enabled: true,
+  },
+  {
+    id: "audit",
+    label: "Audit & Incidents",
+    capability: "dashboard_view",
+    command: "/admin",
+    action_contracts: ["audit.feed", "incidents.summary"],
+    order: 11,
+    enabled: true,
+  },
+];
+
+const MINI_APP_SUPPORTED_ACTION_SET = new Set(MINI_APP_SUPPORTED_ACTIONS);
+const MINI_APP_ACTION_ALIASES = Object.freeze({
+  "sms.reconcile": "runbook.sms.reconcile",
+  "payment.reconcile": "runbook.payment.reconcile",
+  "provider.preflight.runbook": "runbook.provider.preflight",
+  "runbook.sms_reconcile": "runbook.sms.reconcile",
+  "runbook.payment_reconcile": "runbook.payment.reconcile",
+  "runbook.provider_preflight": "runbook.provider.preflight",
+});
+
+function normalizeMiniAppAction(action) {
+  return String(action || "").trim().toLowerCase();
+}
+
+function resolveMiniAppAction(action) {
+  const requestedAction = normalizeMiniAppAction(action);
+  const canonicalAction = MINI_APP_ACTION_ALIASES[requestedAction] || requestedAction;
+  return {
+    requestedAction,
+    canonicalAction,
+    wasAliased: requestedAction !== canonicalAction,
+    supported: MINI_APP_SUPPORTED_ACTION_SET.has(canonicalAction),
+  };
+}
+
+const MINI_APP_DASHBOARD_MODULES = Object.freeze(
+  MINI_APP_DASHBOARD_MODULE_DEFINITIONS.map((moduleDef) => {
+    const supportedActionContracts = Array.isArray(moduleDef?.action_contracts)
+      ? moduleDef.action_contracts.filter((actionId) => MINI_APP_SUPPORTED_ACTION_SET.has(actionId))
+      : [];
+    if (
+      Array.isArray(moduleDef?.action_contracts)
+      && supportedActionContracts.length !== moduleDef.action_contracts.length
+    ) {
+      const strippedActionContracts = moduleDef.action_contracts.filter(
+        (actionId) => !MINI_APP_SUPPORTED_ACTION_SET.has(actionId),
+      );
+      console.warn("miniapp_module_action_contracts_stripped", {
+        module_id: moduleDef.id || null,
+        stripped_action_contracts: strippedActionContracts,
+      });
+    }
+    return Object.freeze({
+      ...moduleDef,
+      action_contracts: Object.freeze(supportedActionContracts),
+    });
+  }),
+);
+
 function buildMiniAppActionSpec(action, payload = {}) {
-  const normalizedAction = String(action || "").trim().toLowerCase();
+  const normalizedAction = normalizeMiniAppAction(action);
   const input = payload && typeof payload === "object" ? payload : {};
 
   if (normalizedAction === "provider.get") {
@@ -18888,6 +19107,9 @@ app.get("/miniapp/bootstrap", requireMiniAppSession, async (req, res) => {
       transport: buildMiniAppTransportContract({
         pollIntervalSeconds,
       }),
+      modules: MINI_APP_DASHBOARD_MODULES,
+      supported_actions: MINI_APP_SUPPORTED_ACTIONS,
+      supported_action_count: MINI_APP_SUPPORTED_ACTIONS.length,
       session: buildMiniAppSessionSummary(req.miniAppSession || {}),
       dashboard,
       request_id: req.requestId || null,
@@ -19017,6 +19239,9 @@ app.get("/miniapp/jobs/poll", requireMiniAppSession, async (req, res) => {
       transport: buildMiniAppTransportContract({
         pollIntervalSeconds,
       }),
+      modules: MINI_APP_DASHBOARD_MODULES,
+      supported_actions: MINI_APP_SUPPORTED_ACTIONS,
+      supported_action_count: MINI_APP_SUPPORTED_ACTIONS.length,
       session: buildMiniAppSessionSummary(req.miniAppSession || {}),
       sms_bulk: smsResult.ok ? smsResult.data : null,
       email_bulk_stats: emailStatsResult.ok ? emailStatsResult.data : null,
@@ -19071,7 +19296,9 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
   ) {
     return;
   }
-  const action = String(req.body?.action || "").trim();
+  const requestedAction = String(req.body?.action || "").trim();
+  const actionResolution = resolveMiniAppAction(requestedAction);
+  const action = actionResolution.canonicalAction;
   const payload =
     req.body?.payload && typeof req.body.payload === "object" ? req.body.payload : {};
   const actionMeta =
@@ -19088,17 +19315,32 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
       payload.idempotency_key,
   );
   setMiniAppTelemetryContext(res, {
+    action_requested: requestedAction || null,
     action,
+    action_was_aliased: actionResolution.wasAliased,
     action_id_present: Boolean(actionId),
     idempotency_key_present: Boolean(idempotencyKey),
   });
-  if (!action) {
+  if (!requestedAction) {
     return sendApiError(
       res,
       400,
       "miniapp_action_required",
       "Action is required",
       req.requestId || null,
+    );
+  }
+  if (!actionResolution.supported) {
+    return sendApiError(
+      res,
+      400,
+      "miniapp_action_invalid",
+      "Unsupported miniapp action",
+      req.requestId || null,
+      {
+        requested_action: actionResolution.requestedAction,
+        canonical_action: actionResolution.canonicalAction,
+      },
     );
   }
   const spec = buildMiniAppActionSpec(action, payload);
@@ -19109,6 +19351,10 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
       "miniapp_action_invalid",
       spec.error,
       req.requestId || null,
+      {
+        requested_action: actionResolution.requestedAction,
+        canonical_action: actionResolution.canonicalAction,
+      },
     );
   }
   if (requiresMiniAppActionIdempotency(action, spec) && !idempotencyKey) {
@@ -19127,7 +19373,9 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
 
   console.log("miniapp_action_request", {
     request_id: req.requestId || null,
+    requested_action: actionResolution.requestedAction,
     action,
+    action_was_aliased: actionResolution.wasAliased,
     action_id: actionId ? "present" : "absent",
     idempotency_key: idempotencyKey ? "present" : "absent",
   });
@@ -19159,6 +19407,7 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
         req.requestId || null,
         {
           action,
+          requested_action: actionResolution.requestedAction,
           bridge_status: result.status,
         },
       );
@@ -19167,6 +19416,8 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
     return res.json({
       success: true,
       action,
+      requested_action: actionResolution.requestedAction,
+      was_aliased: actionResolution.wasAliased,
       data: result.data,
       request_id: req.requestId || null,
     });
@@ -19182,7 +19433,10 @@ app.post("/miniapp/action", requireMiniAppSession, async (req, res) => {
       "miniapp_action_failed",
       "Mini App action request failed",
       req.requestId || null,
-      { action },
+      {
+        action,
+        requested_action: actionResolution.requestedAction,
+      },
     );
   }
 });

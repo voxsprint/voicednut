@@ -10,6 +10,7 @@ import {
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { isDashboardActionSupported, resolveDashboardActionId } from '@/services/admin-dashboard/dashboardActionGuards';
 
 type AuditIncidentsPageProps = {
@@ -395,7 +396,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             variant="secondary"
             disabled={!hasCapability('sms_bulk_manage')}
             onClick={(event) => {
-              handleRunbookAction('runbook.sms.reconcile', {}, event.currentTarget);
+              handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, {}, event.currentTarget);
             }}
           >
             Runbook: SMS Reconcile
@@ -404,7 +405,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
-              handleRunbookAction('runbook.payment.reconcile', {}, event.currentTarget);
+              handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PAYMENT_RECONCILE, {}, event.currentTarget);
             }}
           >
             Runbook: Payment Reconcile
@@ -413,7 +414,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
-              handleRunbookAction('runbook.provider.preflight', {}, event.currentTarget);
+              handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT, {}, event.currentTarget);
             }}
           >
             Runbook: Provider Preflight
@@ -422,7 +423,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             variant="secondary"
             disabled={!hasCapability('provider_manage')}
             onClick={(event) => {
-              handleRunbookAction('runbook.provider.preflight', { channel: 'call' }, event.currentTarget);
+              handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT, { channel: 'call' }, event.currentTarget);
             }}
           >
             Playbook: Provider Outage
@@ -431,7 +432,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             variant="secondary"
             disabled={!hasCapability('sms_bulk_manage')}
             onClick={(event) => {
-              handleRunbookAction('runbook.sms.reconcile', { scope: 'failure_spike' }, event.currentTarget);
+              handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, { scope: 'failure_spike' }, event.currentTarget);
             }}
           >
             Playbook: SMS Failure Spike

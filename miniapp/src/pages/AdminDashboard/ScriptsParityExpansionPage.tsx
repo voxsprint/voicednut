@@ -5,6 +5,7 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type ScriptsParityExpansionPageProps = {
   visible: boolean;
@@ -106,7 +107,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
 
   const loadSmsScripts = async (): Promise<void> => {
     await runInvestigationAction(
-      'smsscript.list',
+      DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST,
       {
         include_builtins: true,
         detailed: true,
@@ -127,7 +128,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
 
   const loadEmailTemplates = async (): Promise<void> => {
     await runInvestigationAction(
-      'emailtemplate.list',
+      DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_LIST,
       { limit: 120 },
       (data) => {
         const rows = toRows(data.templates) as EmailTemplateRow[];
@@ -190,7 +191,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
               disabled={controlsBusy || !smsScriptCreateName.trim() || !smsScriptCreateContent.trim()}
               onClick={() => {
                 void runAction(
-                  'smsscript.create',
+                  DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE,
                   {
                     name: smsScriptCreateName.trim(),
                     content: smsScriptCreateContent,
@@ -278,7 +279,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
                   onClick={() => {
                     void runAction(
-                      'smsscript.update',
+                      DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
                       {
                         script_name: selectedSmsScriptName,
                         description: smsScriptDescriptionInput,
@@ -300,7 +301,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
                   onClick={() => {
                     void runAction(
-                      'smsscript.delete',
+                      DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
                       { script_name: selectedSmsScriptName },
                       {
                         confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
@@ -336,7 +337,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
               disabled={controlsBusy || !emailTemplateCreateId.trim()}
               onClick={() => {
                 void runAction(
-                  'emailtemplate.create',
+                  DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE,
                   {
                     template_id: emailTemplateCreateId.trim(),
                     subject: 'New template subject',
@@ -413,7 +414,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   disabled={controlsBusy || !selectedEmailTemplateId}
                   onClick={() => {
                     void runAction(
-                      'emailtemplate.update',
+                      DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
                       {
                         template_id: selectedEmailTemplateId,
                         subject: emailTemplateSubjectInput,
@@ -436,7 +437,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   disabled={controlsBusy || !selectedEmailTemplateId}
                   onClick={() => {
                     void runAction(
-                      'emailtemplate.delete',
+                      DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
                       { template_id: selectedEmailTemplateId },
                       {
                         confirmText: `Delete template "${selectedEmailTemplateId}"?`,

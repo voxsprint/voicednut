@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
+import { DASHBOARD_STATIC_ROUTE_CONTRACTS } from '@/contracts/miniappParityContracts';
 import type { DashboardModule, WorkspaceRoute } from '@/pages/AdminDashboard/dashboardShellConfig';
 
 type UseDashboardModuleRouteGuardsOptions = {
@@ -12,7 +13,7 @@ type UseDashboardModuleRouteGuardsOptions = {
   locationPathname: string;
   navigate: NavigateFunction;
   preferredServerModule: DashboardModule | null;
-  moduleRoutePath: (moduleId: DashboardModule) => string;
+  workspaceRouteFallbackPath: (route: WorkspaceRoute, visibleModuleIds: DashboardModule[]) => string;
   initialServerModuleAppliedRef: MutableRefObject<boolean>;
 };
 
@@ -24,7 +25,7 @@ export function useDashboardModuleRouteGuards({
   locationPathname,
   navigate,
   preferredServerModule,
-  moduleRoutePath: toModuleRoutePath,
+  workspaceRouteFallbackPath: resolveWorkspaceRouteFallbackPath,
   initialServerModuleAppliedRef,
 }: UseDashboardModuleRouteGuardsOptions): void {
   useEffect(() => {
@@ -37,19 +38,18 @@ export function useDashboardModuleRouteGuards({
   useEffect(() => {
     if (!workspaceRoute || workspaceRoute === 'settings') return;
     if (visibleModules.length === 0) {
-      if (locationPathname !== '/') {
-        navigate('/', { replace: true });
+      if (locationPathname !== DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT) {
+        navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT, { replace: true });
       }
       return;
     }
     if (visibleModules.some((module) => module.id === workspaceRoute)) return;
-    const fallbackModule = visibleModules[0]?.id;
-    if (!fallbackModule) return;
-    const fallbackPath = toModuleRoutePath(fallbackModule);
+    const visibleModuleIds = visibleModules.map((module) => module.id);
+    const fallbackPath = resolveWorkspaceRouteFallbackPath(workspaceRoute, visibleModuleIds);
     if (locationPathname !== fallbackPath) {
       navigate(fallbackPath, { replace: true });
     }
-  }, [locationPathname, navigate, toModuleRoutePath, visibleModules, workspaceRoute]);
+  }, [locationPathname, navigate, resolveWorkspaceRouteFallbackPath, visibleModules, workspaceRoute]);
 
   useEffect(() => {
     if (initialServerModuleAppliedRef.current) return;

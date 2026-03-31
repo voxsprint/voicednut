@@ -12,6 +12,7 @@ import type {
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type OpsDashboardPageProps = {
   visible: boolean;
@@ -140,7 +141,9 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
   const loadCallExplorerRows = async (): Promise<void> => {
     setCallExplorerValidationError('');
     const query = callExplorerQuery.trim();
-    const action = query.length >= 2 ? 'calls.search' : 'calls.list';
+    const action = query.length >= 2
+      ? DASHBOARD_ACTION_CONTRACTS.CALLS_SEARCH
+      : DASHBOARD_ACTION_CONTRACTS.CALLS_LIST;
     const payload = query.length >= 2
       ? { query, limit: 12 }
       : { limit: 20, offset: 0 };
@@ -165,7 +168,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
       return;
     }
     setCallExplorerValidationError('');
-    await runInvestigationAction('calls.get', { call_sid: callSid }, (data) => {
+    await runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.CALLS_GET, { call_sid: callSid }, (data) => {
       const payload = asRecord(data);
       const callDetails = payload.call && typeof payload.call === 'object' && !Array.isArray(payload.call)
         ? payload.call as Record<string, unknown>
@@ -181,7 +184,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
       return;
     }
     setCallExplorerValidationError('');
-    await runInvestigationAction('calls.events', { call_sid: callSid }, (data) => {
+    await runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.CALLS_EVENTS, { call_sid: callSid }, (data) => {
       const payload = asRecord(data);
       const states = Array.isArray(payload.recent_states)
         ? payload.recent_states as Array<Record<string, unknown>>
@@ -732,7 +735,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               const rowId = toInt(row.id);
               const handleReplay = (): void => {
                 void runAction(
-                  'dlq.call.replay',
+                  DASHBOARD_ACTION_CONTRACTS.DLQ_CALL_REPLAY,
                   { id: rowId },
                   {
                     confirmText: `Replay call DLQ #${rowId}?`,
@@ -765,7 +768,7 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               const rowId = toInt(row.id);
               const handleReplay = (): void => {
                 void runAction(
-                  'dlq.email.replay',
+                  DASHBOARD_ACTION_CONTRACTS.DLQ_EMAIL_REPLAY,
                   { id: rowId },
                   {
                     confirmText: `Replay email DLQ #${rowId}?`,

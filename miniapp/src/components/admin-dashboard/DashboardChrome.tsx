@@ -1,4 +1,5 @@
 import { UiBadge, UiButton } from '@/components/ui/AdminPrimitives';
+import { DashboardAvatar } from '@/components/admin-dashboard/DashboardAvatar';
 
 type ModuleItem = {
   id: string;
@@ -73,18 +74,11 @@ function DashboardProfileAvatarButton({
       onClick={onOpenSettings}
       disabled={loading}
     >
-      {userAvatarUrl ? (
-        <img
-          className="va-profile-avatar-img"
-          src={userAvatarUrl}
-          alt={profileAlt}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <span className="va-profile-avatar-fallback" aria-hidden>{userAvatarFallback}</span>
-      )}
+      <DashboardAvatar
+        src={userAvatarUrl}
+        alt={profileAlt}
+        fallback={userAvatarFallback}
+      />
     </UiButton>
   );
 }

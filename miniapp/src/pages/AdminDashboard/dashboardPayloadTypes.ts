@@ -128,6 +128,8 @@ export interface MiniAppIncidentsPayload {
 }
 
 export interface DashboardPayload {
+  supported_actions?: unknown;
+  supported_action_count?: unknown;
   session?: unknown;
   provider?: ProviderPayload;
   provider_compatibility?: unknown;
@@ -154,6 +156,8 @@ export interface DashboardPayload {
 export interface DashboardApiPayload extends DashboardPayload {
   success?: boolean;
   dashboard?: DashboardPayload;
+  supported_actions?: unknown;
+  supported_action_count?: unknown;
   session?: unknown;
   bridge?: unknown;
   module_layout?: unknown;

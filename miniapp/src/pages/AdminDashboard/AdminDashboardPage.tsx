@@ -146,6 +146,7 @@ import {
   MODULE_ID_SET,
   moduleRoutePath,
   parseWorkspaceRoute,
+  resolveWorkspaceRouteFallbackPath,
   type DashboardModule,
 } from '@/pages/AdminDashboard/dashboardShellConfig';
 import {
@@ -153,6 +154,10 @@ import {
   type DashboardNoticeTone,
 } from '@/pages/AdminDashboard/dashboardShellHelpers';
 import { resolveDashboardFixtureRequest } from '@/pages/AdminDashboard/dashboardFixtureData';
+import {
+  DASHBOARD_ACTION_CONTRACTS,
+  DASHBOARD_STATIC_ROUTE_CONTRACTS,
+} from '@/contracts/miniappParityContracts';
 import type { ProviderChannel, ProviderSwitchPlan } from '@/pages/AdminDashboard/types';
 import type {
   CallScriptSimulationPayload,
@@ -336,13 +341,15 @@ export function AdminDashboardPage() {
     if (target === settingsOpen) return;
     triggerHaptic('selection');
     if (target) {
-      if (location.pathname !== '/settings') {
-        navigate('/settings');
+      if (location.pathname !== DASHBOARD_STATIC_ROUTE_CONTRACTS.SETTINGS) {
+        navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.SETTINGS);
       }
       return;
     }
     const fallbackModule = options?.fallbackModule || activeModule;
-    const fallbackPath = focusedWorkspaceMode ? moduleRoutePath(fallbackModule) : '/';
+    const fallbackPath = focusedWorkspaceMode
+      ? moduleRoutePath(fallbackModule)
+      : DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
     if (location.pathname !== fallbackPath) {
       navigate(fallbackPath);
     }
@@ -632,7 +639,8 @@ export function AdminDashboardPage() {
   const dashboardLayoutPayload = pollPayload?.module_layout
     || bootstrap?.module_layout
     || dashboard?.module_layout
-    || pollPayload?.modules
+    || {};
+  const moduleDefinitionsPayload = pollPayload?.modules
     || bootstrap?.modules
     || dashboard?.modules
     || {};
@@ -643,6 +651,7 @@ export function AdminDashboardPage() {
   } = useDashboardModuleLayout<DashboardModule>({
     sessionCaps,
     dashboardLayoutPayload,
+    moduleDefinitionsPayload,
     moduleDefinitions: MODULE_DEFINITIONS,
     moduleDefaultOrder: MODULE_DEFAULT_ORDER,
     moduleIdSet: MODULE_ID_SET,
@@ -663,13 +672,15 @@ export function AdminDashboardPage() {
     locationPathname: location.pathname,
     navigate,
     preferredServerModule,
-    moduleRoutePath,
+    workspaceRouteFallbackPath: resolveWorkspaceRouteFallbackPath,
     initialServerModuleAppliedRef,
   });
   const activeModuleMeta = MODULE_CONTEXT[activeModule] || MODULE_CONTEXT.ops;
   const activeModuleLabel = useMemo(() => (
-    MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label || activeModule
-  ), [activeModule]);
+    visibleModules.find((module) => module.id === activeModule)?.label
+      || MODULE_DEFINITIONS.find((module) => module.id === activeModule)?.label
+      || activeModule
+  ), [activeModule, visibleModules]);
   const moduleShortcutIndexById = useMemo(() => (
     visibleModules.reduce<Record<string, number>>((acc, module, index) => {
       acc[module.id] = index + 1;
@@ -1103,7 +1114,7 @@ export function AdminDashboardPage() {
         onRunPreflight={runProviderPreflight}
         onRollback={async (rollbackChannel, provider) => {
           await runAction(
-            'provider.rollback',
+            DASHBOARD_ACTION_CONTRACTS.PROVIDER_ROLLBACK,
             { channel: rollbackChannel, provider },
             {
               confirmText: `Rollback ${rollbackChannel.toUpperCase()} provider to "${provider}"?`,
@@ -1378,7 +1389,7 @@ export function AdminDashboardPage() {
           featureFlagsCount={Object.keys(featureFlags).length || 'default'}
           activeModuleLabel={activeModuleLabel}
           activeModuleSubtitle={activeModuleMeta.subtitle}
-          onBackToDashboard={() => navigate('/')}
+          onBackToDashboard={() => navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT)}
           onOpenSettings={() => toggleSettings(true)}
           error={error}
           errorCode={errorCode}

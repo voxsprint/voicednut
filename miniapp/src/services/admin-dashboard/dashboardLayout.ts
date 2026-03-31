@@ -6,6 +6,16 @@ export type ModuleLayoutRule = {
   label: string | null;
 };
 
+export type ServerModuleDefinition<T extends string> = {
+  id: T;
+  enabled: boolean | null;
+  order: number | null;
+  label: string | null;
+  capability: string | null;
+  command: string | null;
+  actionContracts: string[];
+};
+
 export function parseModuleId<T extends string>(value: unknown, allowed: Set<T>): T | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase() as T;
@@ -67,4 +77,67 @@ export function parseModuleLayoutConfig<T extends string>(
     });
   }
   return rules;
+}
+
+function parseActionContracts(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const actionContracts: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue;
+    const normalized = entry.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    actionContracts.push(normalized);
+  }
+  return actionContracts;
+}
+
+function parseOptionalText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+export function parseServerModuleDefinitions<T extends string>(
+  payload: unknown,
+  allowed: Set<T>,
+): Partial<Record<T, ServerModuleDefinition<T>>> {
+  const root = asRecord(payload);
+  const candidates = Array.isArray(payload)
+    ? payload
+    : Array.isArray(root.modules)
+      ? root.modules
+      : [];
+  const definitions: Partial<Record<T, ServerModuleDefinition<T>>> = {};
+
+  for (const entry of candidates) {
+    const record = asRecord(entry);
+    const id = parseModuleId(record.id ?? record.module ?? record.key, allowed);
+    if (!id) continue;
+    const orderRaw = Number(record.order);
+    const order = Number.isFinite(orderRaw) ? Math.floor(orderRaw) : null;
+    const enabled = typeof record.enabled === 'boolean'
+      ? record.enabled
+      : record.hidden === true || record.disabled === true
+        ? false
+        : null;
+    const capability = parseOptionalText(record.capability);
+    const label = parseOptionalText(record.label);
+    const command = parseOptionalText(record.command);
+    const actionContracts = parseActionContracts(
+      record.action_contracts ?? record.actionContracts ?? record.actions,
+    );
+    definitions[id] = {
+      id,
+      enabled,
+      order,
+      label,
+      capability,
+      command,
+      actionContracts,
+    };
+  }
+
+  return definitions;
 }

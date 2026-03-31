@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
 import {
-  isDashboardActionSupported,
-  resolveDashboardActionId,
+  resolveDashboardAction,
 } from '@/services/admin-dashboard/dashboardActionGuards';
 import type { ProviderChannel, UserRole } from '@/pages/AdminDashboard/types';
 
@@ -120,7 +120,7 @@ export function useDashboardGovernanceActions({
       }
     }
     await runAction(
-      'users.role.set',
+      DASHBOARD_ACTION_CONTRACTS.USERS_ROLE_SET,
       { telegram_id: telegramId, role, reason },
       {
         confirmText: `Set role for ${telegramId} to ${role}?`,
@@ -134,14 +134,21 @@ export function useDashboardGovernanceActions({
     action: string,
     payload: Record<string, unknown> = {},
   ): Promise<void> => {
-    const resolvedAction = resolveDashboardActionId(action);
-    if (!isDashboardActionSupported(resolvedAction)) {
-      pushActivity('error', 'Runbook blocked', `Unsupported runbook action: ${action || 'unknown'}`);
+    const actionResolution = resolveDashboardAction(action);
+    if (!actionResolution.actionId) {
+      pushActivity('error', 'Runbook blocked', 'Runbook blocked: missing action id. Refresh dashboard and retry.');
       return;
     }
-    const normalizedAction = resolvedAction;
+    if (!actionResolution.supported) {
+      pushActivity('error', 'Unsupported runbook action', `Runbook blocked: "${actionResolution.actionId}" is unavailable in this Mini App build.`);
+      return;
+    }
+    const normalizedAction = actionResolution.actionId;
     let nextPayload: Record<string, unknown> = { ...payload };
-    if (normalizedAction === 'runbook.provider.preflight' || normalizedAction === 'provider.preflight') {
+    if (
+      normalizedAction === DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT
+      || normalizedAction === DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT
+    ) {
       const selectedChannel = toText(nextPayload.channel, 'call').toLowerCase();
       const normalizedChannel = CHANNELS.includes(selectedChannel as ProviderChannel)
         ? selectedChannel as ProviderChannel
@@ -161,9 +168,9 @@ export function useDashboardGovernanceActions({
         provider: selectedProvider,
       };
     }
-    await runAction(resolvedAction, nextPayload, {
-      confirmText: `Execute runbook action "${resolvedAction}"?`,
-      successMessage: `Runbook executed: ${resolvedAction}`,
+    await runAction(normalizedAction, nextPayload, {
+      confirmText: `Execute runbook action "${normalizedAction}"?`,
+      successMessage: `Runbook executed: ${normalizedAction}`,
     });
     await refreshAuditModule();
   }, [providersByChannel, pushActivity, refreshAuditModule, runAction]);

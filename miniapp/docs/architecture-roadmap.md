@@ -1,458 +1,826 @@
-# Voicednut Mini App Architecture and Roadmap
+# VOICEDNUT Mini App Architecture Roadmap
 
-This document defines the target architecture and implementation sequence for the Telegram Mini App admin console.
+## Purpose
 
-It is designed to keep integration safe, incremental, and production-ready without changing backend contracts.
+This roadmap defines the target architecture, delivery rules, and implementation priorities for the **VOICEDNUT Telegram Mini App** so it remains fully aligned with the live Telegram bot, backend API, and role-based access model in this repository.
 
-## Source References
+This file is the architectural source for Mini App evolution. It is not a marketing document and it is not a speculative feature wishlist.
 
-Telegram Mini Apps platform references used for integration constraints:
-- About: https://docs.telegram-mini-apps.com/platform/about
-- Init Data: https://docs.telegram-mini-apps.com/platform/init-data
-- Settings Button: https://docs.telegram-mini-apps.com/platform/settings-button
-- Back Button: https://docs.telegram-mini-apps.com/platform/back-button
-- Haptic Feedback: https://docs.telegram-mini-apps.com/platform/haptic-feedback
-- Theme Params: https://docs.telegram-mini-apps.com/platform/theme-params
-- Viewport: https://docs.telegram-mini-apps.com/platform/viewport
+## Source of Truth
 
-Package references:
-- Create Mini App: https://docs.telegram-mini-apps.com/packages/tma-js-create-mini-app
-- SDK React: https://docs.telegram-mini-apps.com/packages/tma-js-sdk-react
-- Init Data Node: https://docs.telegram-mini-apps.com/packages/tma-js-init-data-node
+The product contract for the Mini App must come from the **current implementation**, not from outdated notes or assumptions.
 
-## Current Runtime Architecture
+The required live parity artifact for page-to-command workflow mapping is:
 
-### 1) Platform Shell Layer
-Files:
-- `src/index.tsx`
-- `src/components/Root.tsx`
-- `src/components/App.tsx`
+- `miniapp/docs/page-command-workflow-inventory.md`
+
+### Canonical sources
+
+- `bot/bot.js`
+- `bot/commands/*`
+- Mini App router, page registry, action handlers, dashboard/homepage, shared UI components
+- API routes, controllers, services, auth/bootstrap flows
+- Shared constants, schemas, capabilities, and utility modules
+
+## Core Architectural Rule
+
+The Mini App must not become a separate product with its own drifting logic.
+
+Every Mini App page, action, module, and permission must map to one of the following:
+
+- an existing bot slash command
+- an existing bot callback action
+- an existing backend/API capability
+- an explicitly introduced shared contract approved as part of the implementation
+
+Anything else is considered **architecture drift** and must be fixed, gated, redirected, or removed.
+
+Every implemented Mini App page must also preserve the operational intent of its mapped bot command. A page is not considered aligned merely because it links to the same domain concept. It must mirror the command's real workflow, including entry conditions, validation, prechecks, confirmations, execution path, success behavior, failure behavior, and role restrictions unless an explicit shared contract documents an approved divergence.
+
+# 1. Current Product Contract
+
+## Primary bot command surface
+
+The Mini App architecture must align with this command set:
+
+- `/start`
+- `/help`
+- `/menu`
+- `/guide`
+- `/health`
+- `/call`
+- `/calllog`
+- `/sms`
+- `/email`
+- `/smssender`
+- `/mailer`
+- `/scripts`
+- `/persona`
+- `/provider`
+- `/callerflags`
+- `/users`
+- `/admin`
+- `/status`
+
+## Legacy or compatibility aliases
+
+These may remain supported in code, but they are **not** the primary Mini App contract unless explicitly needed for backward compatibility:
+
+- `/ping`
+- `/schedulesms`
+- `/smsconversation`
+- `/smsstats`
+- `/smsstatus`
+- `/recentsms`
+- `/emailstatus`
+
+## Primary callback/action surface
+
+The Mini App must stay aligned with the live action model, including but not limited to:
+
+- `CALL`
+- `SMS`
+- `EMAIL`
+- `CALLLOG`
+- `GUIDE`
+- `HELP`
+- `MENU`
+- `HEALTH`
+- `STATUS`
+- `USERS`
+- `USERS_LIST`
+- `CALLER_FLAGS`
+- `CALLER_FLAGS_LIST`
+- `BULK_SMS`
+- `BULK_SMS_PRECHECK`
+- `BULK_SMS_SEND`
+- `BULK_SMS_STATUS`
+- `BULK_SMS_LIST`
+- `BULK_SMS_STATS`
+- `BULK_EMAIL`
+- `BULK_EMAIL_PRECHECK`
+- `BULK_EMAIL_SEND`
+- `BULK_EMAIL_STATUS`
+- `BULK_EMAIL_LIST`
+- `BULK_EMAIL_STATS`
+- `EMAIL_SEND`
+- `EMAIL_STATUS`
+- `EMAIL_TIMELINE`
+- `EMAIL_BULK`
+- `EMAIL_TEMPLATES`
+- `EMAIL_HISTORY`
+- `PROVIDER_STATUS`
+- `PROVIDER_SET`
+- `PROVIDER_CONFIRM`
+- `PROVIDER_APPLY`
+- `SCRIPTS`
+- `PERSONA`
+- `ADMIN_PANEL`
+- `SMS_SEND`
+- `SMS_SCHEDULE`
+- `SMS_STATUS`
+- `SMS_CONVO`
+- `SMS_STATS`
+- `SMS_RECENT`
+- `SMS_RECENT_PAGE`
+- `CALLLOG_RECENT`
+- `CALLLOG_SEARCH`
+- `CALLLOG_DETAILS`
+- `CALLLOG_EVENTS`
+- `CALL_DETAILS`
+
+Any additional namespaced callback patterns registered in bot runtime must also be considered part of the live contract.
+
+# 2. Architecture Principles
+
+## 2.1 Bot-first parity
+
+The bot remains the functional reference surface. The Mini App is a structured visual layer over the same capabilities.
+
+## 2.2 Shared contract first
+
+Command names, callback names, route names, permissions, and request/response schemas must come from shared definitions wherever possible.
+
+## 2.3 Business logic stays out of UI
+
+The Mini App should orchestrate and present workflows, not reimplement core business rules inside page components.
+
+## 2.4 Mobile-first production UI
+
+The Mini App must be designed primarily for Telegram mobile use:
+
+- clean layout
+- fast load
+- safe touch targets
+- consistent spacing
+- resilient empty/loading/error states
+
+## 2.5 Graceful degradation
+
+Unsupported, stale, expired, or unknown actions must never hard-fail in normal usage. They must:
+
+- recover safely
+- redirect appropriately
+- refresh state
+- or return a useful fallback message
+
+## 2.6 Role symmetry
+
+If the bot restricts a feature to admin or authorized users, the Mini App must enforce the same rule. UI hiding alone is not sufficient.
+
+## 2.7 Session and auth resilience
+
+Telegram auth/init handling is a production-critical contract, not an implementation detail.
+
+The Mini App must explicitly define and consistently enforce behavior for:
+
+- expired or invalid init data
+- revoked or stale sessions
+- bootstrap auth failures
+- recoverable auth refresh paths
+- blocking auth failures that require re-entry or relaunch
+
+Session recovery logic must be centralized and must not be reimplemented independently in page components.
+
+## 2.8 Transport safety for mutating actions
+
+Mutating Mini App actions must be safe under retry, duplicate taps, slow networks, and partial failures.
+
+The architecture must require:
+
+- idempotency for mutating requests where applicable
+- duplicate-submit protection
+- correlation/request identifiers
+- deterministic timeout handling
+- explicit optimistic-update rollback rules
+- canonical action envelope validation before mutation dispatch
+
+## 2.9 Runtime contract authority
+
+Not every contract belongs in local static definitions.
+
+The Mini App must distinguish between:
+
+- static shared contracts compiled into the client
+- runtime server-authoritative contracts returned by bootstrap, refresh, or action responses
+
+The client may use static contracts for route ids, canonical action ids, labels, and fallback defaults, but server-provided supported actions, enabled modules, permissions, and capability-bearing payloads remain authoritative at runtime.
+
+## 2.10 Observability by default
+
+The Mini App must emit enough diagnostic context to make production failures debuggable without guesswork.
+
+At minimum, critical flows must support:
+
+- request or correlation ids
+- action and route identifiers
+- failure class/category
+- retry/refresh attempts
+- latency measurement for bootstrap, refresh, and action paths
+- safe user-visible error states that distinguish recoverable from blocking failures
+
+## 2.11 Command-native workflow parity
+
+Every Mini App page must behave as a structured interface for a real bot command workflow, not as an independent UI invention.
+
+This means:
+
+- the page entry point must map to one or more canonical bot commands
+- the page must preserve the command's real permissions, defaults, and required inputs
+- the page must reuse or mirror the command's actual prechecks, confirmation rules, and execution flow
+- the page must preserve command-level success, failure, and post-action behavior
+- any intentional divergence from the bot command workflow must be documented as an approved shared contract
+
+The Mini App should improve usability and productivity, but it must not invent alternate business workflows that drift from the bot command surface.
+
+# 3. Target Architecture
+
+## 3.1 Required architecture layers
+
+### Presentation layer
+
+Mini App pages, layouts, components, and route shells.
 
 Responsibilities:
-- Mini App SDK setup and bootstrap.
-- Platform control wiring (settings button, back button, viewport/theme integration).
-- Top-level routing handoff.
 
-### 2) Navigation Layer
-Files:
-- `src/navigation/routes.tsx`
+- rendering
+- navigation
+- view-state
+- optimistic UI where safe
+- loading/error/empty states
 
-Responsibilities:
-- Route definitions and page-level boundaries.
-- Route-driven lifecycle and rendering flow.
+### Interaction layer
 
-### 3) Admin Domain Layer
-Files:
-- `src/pages/AdminDashboard/AdminDashboardPage.tsx`
-- `src/pages/AdminDashboard/*.tsx` (module pages)
-- `src/hooks/admin-dashboard/*`
-- `src/services/admin-dashboard/*`
+Centralized action dispatch, route mapping, page event handling, and recovery flows.
 
 Responsibilities:
-- Dashboard state composition across bootstrap, polling, and stream updates.
-- Capability-aware module visibility.
-- Read and write orchestration to API endpoints.
 
-Current direction:
-- Continue reducing monolithic page logic by moving pure primitives and side-effect workflows into dedicated service/hook modules.
+- action registry
+- route resolution
+- safe fallback handling
+- telemetry hooks
+- command-to-page workflow mapping
+- consistent execution orchestration across command-equivalent flows
 
-### 4) Presentation Layer
-Files:
-- `src/pages/AdminDashboard/AdminDashboardPage.css`
-- module-level page components
-- `src/components/admin-dashboard/*` (shared dashboard UI components)
+### Shared contract layer
+
+Single source of truth for:
+
+- slash command names
+- callback action names
+- route identifiers
+- role/capability identifiers
+- request/response schemas
+- feature flags where needed
+
+### Runtime contract layer
+
+Server-authoritative contract surface for:
+
+- enabled modules
+- supported actions for the current user/session
+- bootstrap payloads
+- refresh/poll payloads
+- capability-bearing responses
+- action result envelopes
 
 Responsibilities:
-- Shared visual tokens and reusable UI primitives.
-- Telegram-native, mobile-first dark interface.
-- Stable component patterns (cards, chips, buttons, tiles, empty/error states).
-
-## API Contract Boundaries
-
-No backend behavior changes are required for this roadmap. The frontend keeps using:
-- `POST /miniapp/session`
-- `GET /miniapp/bootstrap`
-- `GET /miniapp/jobs/poll`
-- `POST /miniapp/action`
-
-Reliability posture:
-- Session bootstrap is required before privileged data/actions.
-- Polling remains fallback-safe when streaming is degraded.
-- Action calls remain capability-gated by backend.
-
-## Strategic Enhancement Backlog (Corrected)
-
-This section replaces the previous Phase A-D priority order and is the canonical execution plan.
-
-Already completed foundation work (kept as baseline):
-- Dashboard shell/component extraction, VM builders, transport helpers, request-state primitives, and smoke gating remain in place.
-- Existing backend API contracts remain unchanged unless explicitly approved.
-
-### Must-Fix Before Production
-
-1. Reliability-first data + auth layer
-- What changes: centralized mini app session manager, Telegram `initData` refresh and re-auth flow, retry policy, stale-while-revalidate cache behavior, and unified error normalization.
-- What stays: existing endpoint contracts and capability gating model.
-- Effort: M
-- Impact: Very High
-- Risk: Low-Med
-- Likely files affected: `src/services/miniappAuth.ts`, `src/services/admin-dashboard/dashboardTransport.ts`, `src/services/admin-dashboard/dashboardApiContracts.ts`, `src/hooks/admin-dashboard/*`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
-
-2. Operator-safe action framework
-- What changes: destructive-action confirmation layer, idempotency keys for writes, optimistic updates with rollback, and audit trail entries for all admin actions.
-- What stays: existing action endpoint shape (`POST /miniapp/action`) and module permissions model.
-- Effort: M-L
-- Impact: Very High
-- Risk: Med
-- Likely files affected: `src/hooks/admin-dashboard/useDashboardActions.ts`, `src/services/admin-dashboard/dashboardActionGuards.ts`, `src/components/admin-dashboard/DashboardActionDialog.tsx`, `src/pages/AdminDashboard/*`.
-
-3. Professional UI system v1 (non-cosmetic)
-- What changes: strict design tokens (spacing/type/radius/shadows), reusable `status card`, `metric tile`, `incident row`, and `action bar` primitives, and consistent empty/loading/error state surfaces.
-- What stays: current dark brand direction and Telegram-first layout constraints.
-- Effort: M
-- Impact: High
-- Risk: Low
-- Likely files affected: `src/components/ui/AdminPrimitives.tsx`, `src/components/admin-dashboard/*`, `src/pages/AdminDashboard/AdminDashboardPage.css`, `src/styles/*`.
-
-4. Telegram-native interaction polish
-- What changes: hardened Back/Settings lifecycle handling, reliable theme sync, haptic feedback on key actions, viewport/safe-area resilience, and pull-to-refresh semantics.
-- What stays: existing routing topology and dashboard module boundaries.
-- Effort: M
-- Impact: High
-- Risk: Low-Med
-- Likely files affected: `src/components/Root.tsx`, `src/components/App.tsx`, `src/hooks/*telegram*`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
-
-5. Observability + incident UX
-- What changes: frontend telemetry for load/failure/auth-expiry classes, correlation IDs surfaced in operator UI, diagnostics panel, and grouped runtime errors.
-- What stays: current status rail and incident summary surface direction.
-- Effort: M
-- Impact: High
-- Risk: Low
-- Likely files affected: `src/components/admin-dashboard/DashboardStatusRail.tsx`, `src/services/admin-dashboard/*`, `src/pages/AdminDashboard/*`, `scripts/smoke-admin-dashboard.mjs`.
-
-6. Production access model hardening
-- What changes: strict server-side RBAC enforcement per operation, feature flags by role/workspace, and sensitive-value redaction in UI-visible logs.
-- What stays: existing role labels and workspace selection UX.
-- Effort: M
-- Impact: High
-- Risk: Med
-- Likely files affected: `api/functions/*miniapp*`, `api/services/miniappAuth.js`, `src/services/admin-dashboard/dashboardApiContracts.ts`, `src/pages/AdminDashboard/*`.
-
-### Premium Polish Improvements
-
-7. Task-centric navigation model
-- What changes: workflow-first IA (`Monitor`, `Incidents`, `Queues`, `Providers`, `Runbooks`) with clear primary and secondary actions.
-- What stays: module capability gating and focused-module concept.
-- Effort: M
-- Impact: High
-- Risk: Low
-- Likely files affected: `src/navigation/routes.tsx`, `src/components/admin-dashboard/DashboardChrome.tsx`, `src/pages/AdminDashboard/AdminDashboardPage.tsx`.
-
-8. Command surface for power users
-- What changes: searchable command palette, role-aware command visibility, and keyboard shortcuts where supported.
-- What stays: current module actions and guardrails.
-- Effort: M
-- Impact: Med-High
-- Risk: Med
-- Likely files affected: `src/components/admin-dashboard/*`, `src/hooks/admin-dashboard/*`, `src/pages/AdminDashboard/*`.
-
-9. Data density modes
-- What changes: compact and comfortable modes, list/table mode switching for dense workflows, sticky filters, and saved views.
-- What stays: default mobile-first ergonomics.
-- Effort: M
-- Impact: Med
-- Risk: Low
-- Likely files affected: `src/components/admin-dashboard/*`, `src/pages/AdminDashboard/*`, `src/services/admin-dashboard/dashboardLayout.ts`.
-
-### Architecture and Maintainability Improvements
-
-10. Performance budgets + runtime safeguards
-- What changes: bundle-size budgets, route-level splitting, abortable requests, and render-cost profiling for dashboard modules.
-- What stays: current framework/toolchain stack.
-- Effort: M
-- Impact: Med-High
-- Risk: Low
-- Likely files affected: `vite.config.*`, `src/navigation/routes.tsx`, `src/hooks/admin-dashboard/*`, `package.json`.
-
-11. Test strategy for confidence
-- What changes: API adapter contract tests, critical-flow smoke tests, auth-expiry regression coverage, and CI validation gates.
-- What stays: existing local smoke gate entrypoints.
-- Effort: M-L
-- Impact: High
-- Risk: Low
-- Likely files affected: `miniapp/tests/*`, `scripts/smoke-admin-dashboard.mjs`, CI workflow files under `.github/workflows/*`.
-
-12. Module boundary cleanup
-- What changes: explicit frontend architecture boundaries (app shell, domain modules, shared UI, infra adapters), typed API client boundaries, and removal of cross-feature coupling.
-- What stays: endpoint contracts and dashboard module intent.
-- Effort: L
-- Impact: High (long-term)
-- Risk: Med
-- Likely files affected: `src/pages/AdminDashboard/*`, `src/services/admin-dashboard/*`, `src/components/admin-dashboard/*`, `src/navigation/*`.
-
-## Best Top 5 Next Enhancements (Execution Order)
-
-1. Reliability-first data + auth layer.
-2. Operator-safe action framework.
-3. Professional UI system v1 primitives and state consistency.
-4. Telegram-native interaction polish.
-5. Observability and incident UX.
-
-## Execution Status Snapshot
-
-Current implementation status for active workstream:
-- Track 1 (Reliability-first data + auth layer): Completed.
-- Track 2 (Operator-safe action framework): In Progress.
-- Track 3 (Professional UI system v1): In Progress.
-- Track 4 (Telegram-native interaction polish): In Progress.
-- Track 5 (Observability + incident UX): In Progress.
-
-Track 1 completed slices:
-- Session and refresh error-code normalization extracted into shared `dashboardSessionErrors` helpers.
-- Bootstrap and poll loaders suppress generic fatal copy for recognized session-blocking error classes.
-- Expired cached session token path now attempts secure `/miniapp/session/refresh` before fallback session bootstrap.
-- Session cache reader supports stale-token recovery mode to avoid dropping refresh candidates too early.
-- Add bounded retry/backoff utility for idempotent reads (`bootstrap`, `poll`) with jitter.
-- Add structured diagnostics payload (correlation id, failure class, endpoint) in status rail.
-- Add regression smoke checks for `miniapp_init_data_expired` and `miniapp_token_expired` recovery paths.
-
-Track 2 completed slices:
-- Action execution now enforces in-flight dedupe by action plus stable payload fingerprint to block accidental double submissions.
-- Duplicate submit attempts are surfaced as operator-visible activity events without invoking backend writes.
-- Action lifecycle events now emit started/cancelled/succeeded/failed entries with trace and idempotency hints for operator-side correlation.
-- Low-risk runtime canary actions now apply optimistic UI updates and rollback deterministically on action failure.
-
-Track 3 completed slices:
-- Shared `UiMetricTile` primitive now backs dashboard overview metrics to eliminate per-page ad-hoc metric-card markup.
-- Overview metric rendering keeps card spacing, typography, and responsive behavior consistent via shared primitive usage.
-
-Track 4 completed slices:
-- Telegram `SettingsButton` lifecycle now mounts and unmounts explicitly with guarded cleanup to prevent stale controls.
-- Telegram `BackButton` lifecycle now mounts on entry and unmounts on cleanup to keep route transitions deterministic.
-- Pull-to-refresh now uses a local trigger lock to prevent duplicate refresh dispatches before async loading state settles.
-- Pull-threshold and release callbacks are now wired to Telegram haptics for native gesture feedback without double-triggering refresh actions.
-
-## Product Quality Bar (Top-Grade Standard)
-
-The mini app is considered production-grade only when all criteria below are met:
-- Reliability: no unactionable fatal states in primary operator flows; every failure path provides a recover action.
-- UX consistency: all dashboard modules use standardized loading, empty, success, warning, and error states.
-- Telegram-native compliance: Back/Settings/theme/viewport/haptics are deterministic across supported Telegram clients.
-- Operator safety: destructive actions require confirmation and produce immutable audit events.
-- Security and access: RBAC enforcement is server-authoritative, never UI-only.
-- Observability: every critical request path emits traceable telemetry with correlation identifiers.
-- Performance: first meaningful dashboard content under agreed budget and no avoidable blocking work on app boot.
-- Testability: critical flows are covered by smoke checks and regression tests with CI gating.
-
-## North-Star Metrics and SLO Targets
-
-Use these targets to measure readiness and catch regressions early:
-- Session bootstrap success rate: >= 99.5%.
-- Auth-expiry recovery success rate (no manual reload): >= 99.0%.
-- Dashboard load p95 (Telegram webview): <= 2.5s.
-- Action success confirmation latency p95: <= 1.5s (excluding long-running jobs).
-- Client-side fatal error rate: < 0.5% of sessions.
-- Stream-to-poll fallback recovery: < 5s to stable degraded mode.
-- Incident acknowledgement interaction success: >= 99%.
-
-## Implementation Blueprint for Top 5 (Detailed)
-
-### Track 1: Reliability-First Data and Auth Layer
-
-Scope:
-- Introduce a single session lifecycle controller for token/bootstrap state.
-- Add request middleware for retryable failures with bounded backoff and jitter.
-- Add stale-while-revalidate caching for bootstrap and derived view-model slices.
-- Normalize API error shapes into deterministic domain error categories.
-
-Definition of done:
-- Expired init data no longer leaves dashboard in terminal error state.
-- Any 401/403/auth-expired class triggers controlled re-auth attempt or clear blocked state.
-- Polling and stream paths use unified error categorization and consistent UI messaging.
-- Retry policy excludes unsafe writes and is limited to idempotent read paths.
-
-Likely implementation files:
-- `src/services/miniappAuth.ts`
-- `src/services/admin-dashboard/dashboardTransport.ts`
-- `src/services/admin-dashboard/dashboardApiContracts.ts`
-- `src/services/admin-dashboard/dashboardVm/*`
-- `src/hooks/admin-dashboard/useDashboardPollingLoop.ts`
-- `src/hooks/admin-dashboard/useDashboardEventStream.ts`
-
-### Track 2: Operator-Safe Action Framework
-
-Scope:
-- Enforce confirm-before-execute for destructive and high-impact actions.
-- Generate idempotency keys for write actions and attach to transport layer.
-- Support optimistic UI for low-risk actions with rollback on failure.
-- Surface action timeline entries in UI with status, actor, and correlation id.
-
-Definition of done:
-- No destructive action executes from a single accidental tap.
-- Duplicate action submissions do not trigger double execution.
-- Action failures rollback UI state and show deterministic remediation guidance.
-- Action records are inspectable from operator surfaces.
-
-Likely implementation files:
-- `src/hooks/admin-dashboard/useDashboardActions.ts`
-- `src/hooks/admin-dashboard/useDashboardRuntimeControls.ts`
-- `src/components/admin-dashboard/DashboardActionDialog.tsx`
-- `src/components/admin-dashboard/DashboardStatusRail.tsx`
-- `src/services/admin-dashboard/dashboardActionGuards.ts`
-
-### Track 3: Professional UI System v1
-
-Scope:
-- Formalize token system for color, type, spacing, radius, elevation, motion, and interaction states.
-- Build canonical primitives for metric tiles, status cards, incident rows, and action bars.
-- Consolidate all transient UI states (loading/empty/error/blocked/degraded) to shared components.
-- Enforce role and capability badge consistency with semantic status colors.
-
-Definition of done:
-- No module uses ad-hoc state visuals outside shared primitives.
-- Card layout, spacing rhythm, and typography scale are consistent on mobile and desktop.
-- Critical operator surfaces can be scanned in < 5s for current sync status and incidents.
-- Accessibility baseline: clear focus ring, contrast-compliant text, and screen-reader labels on controls.
-
-Likely implementation files:
-- `src/components/ui/AdminPrimitives.tsx`
-- `src/components/admin-dashboard/DashboardStateCards.tsx`
-- `src/components/admin-dashboard/DashboardChrome.tsx`
-- `src/components/admin-dashboard/DashboardTopShell.tsx`
-- `src/pages/AdminDashboard/AdminDashboardPage.css`
-
-### Track 4: Telegram-Native Interaction Polish
-
-Scope:
-- Harden Back/Settings button subscription lifecycle and route transitions.
-- Keep theme and viewport in sync with Telegram runtime updates.
-- Add haptic feedback for confirm/success/error states where appropriate.
-- Add safe-area handling and pull-to-refresh semantics for top-level dashboard refresh.
-
-Definition of done:
-- Telegram controls never remain stale after route/module transitions.
-- No clipped UI in notched devices or dynamic viewport changes.
-- Pull-to-refresh invokes deterministic data refresh without duplicate in-flight requests.
-- Haptics are present only for key interactions and never spammy.
-
-Likely implementation files:
-- `src/components/Root.tsx`
-- `src/components/App.tsx`
-- `src/hooks/admin-dashboard/useDashboardModuleRoute.ts`
-- `src/pages/AdminDashboard/AdminDashboardPage.tsx`
-- `src/services/admin-dashboard/dashboardTransport.ts`
-
-### Track 5: Observability and Incident UX
-
-Scope:
-- Emit client telemetry events for bootstrap latency, auth failures, and action outcomes.
-- Surface request and action correlation ids in status/error panels.
-- Add diagnostics panel with environment, last sync health, and recent failure classes.
-- Group errors by normalized type to reduce alert noise and speed triage.
-
-Definition of done:
-- Operator can identify failing subsystem and correlation id without browser devtools.
-- Recurring client failures are grouped and trendable.
-- Diagnostics panel is accessible from dashboard shell and safe for production usage.
-- Smoke script validates key telemetry and diagnostics rendering paths.
-
-Likely implementation files:
-- `src/components/admin-dashboard/DashboardStatusRail.tsx`
-- `src/components/admin-dashboard/DashboardShellFrame.tsx`
-- `src/services/admin-dashboard/dashboardApiContracts.ts`
-- `src/services/admin-dashboard/dashboardTransport.ts`
-- `scripts/smoke-admin-dashboard.mjs`
-
-## Extended Enhancements for Top-Notch Version (Post-Top 12)
-
-13. Runbook and guided recovery engine
-- Add inline runbooks for each critical failure class with one-tap safe remediation actions.
-
-14. Incident timeline intelligence
-- Add timeline of events, retries, provider switches, and operator interventions for every incident.
-
-15. Provider health confidence scoring
-- Add composite provider score from latency, error classes, queue depth, and fallback rate.
-
-16. Workspace governance center
-- Add environment-level policy controls, approval tiers, and action windows by role.
-
-17. Adaptive dashboard summaries
-- Add role-aware executive summary cards and per-workspace watchlists.
-
-18. Offline and poor-network resilience
-- Add explicit offline mode, queued refresh attempts, and reconnection guidance.
-
-19. Internationalization and localization readiness
-- Add UI copy strategy, message key boundaries, and locale-safe formatting.
-
-20. Change intelligence and release notes feed
-- Add in-app release highlights and migration notices for operators.
-
-## Execution Structure and Delivery Cadence
-
-Suggested execution model:
-- Wave 1 (Production hardening): tracks 1, 2, and 4.
-- Wave 2 (Professional UX): track 3 and high-impact parts of track 5.
-- Wave 3 (Scale and maintainability): remaining observability plus items 10-12 and selected extended enhancements.
-
-PR sizing guideline:
-- Keep each PR focused to one track slice with <= 8 files where possible.
-- Each PR must include a rollback note and explicit risk surface.
-- Each PR must include before/after operator behavior notes.
-
-## Security and Compliance Readiness Checklist
-
-- Enforce server-side permission checks for all write actions.
-- Ensure sensitive values are redacted in logs, telemetry, and diagnostics.
-- Validate init data and auth timestamps strictly against accepted skew windows.
-- Guard against replay on write operations with idempotency and expiry windows.
-- Ensure all operator-facing errors avoid leaking implementation secrets.
-
-## Operator UX Principles (Non-Negotiable)
-
-- Every alert must answer: what happened, what is impacted, what to do next.
-- Every critical action must expose scope, consequence, and rollback path.
-- Every degraded state must preserve at least one safe operational path.
-- Every module must communicate freshness timestamp and data trust level.
-- Every empty state must provide meaningful next action, never dead ends.
-
-## Verification Gate Per Change
-
-Run minimum checks after each meaningful refactor:
-
-```bash
-npm --prefix miniapp run lint
-npm --prefix miniapp run build
-npm --prefix miniapp run smoke:admin-dashboard
-```
-
-For auth/session-critical changes, also verify manually:
-- Launch from Telegram bot menu only.
-- Confirm init-data validation and session bootstrap succeeds.
-- Confirm settings and back button lifecycle work on supported clients.
-
-## Deployment Guardrails (Vercel)
-
-- Root: `miniapp`
-- Build: `npm run build`
-- Output: `dist`
-- Required env:
-  - `VITE_API_BASE_URL` (preferred)
-  - or `VITE_API_BASE`
-
-Rollout checklist:
-- Confirm API URL targets correct environment.
-- Confirm bot `MINI_APP_URL` points to current Vercel deployment.
-- Smoke test with real Telegram launch, not standalone browser only.
-- Run deployment commands from `miniapp/` only.
-- Never create or keep `/workspaces/voicednut/.vercel` for this app.
-- If Vercel project root differs from `miniapp`, override with explicit deploy path command:
-  - `vercel deploy /workspaces/voicednut/miniapp --prod --yes`
-
-## Non-Goals
-
-To keep upgrades safe, this roadmap intentionally avoids:
-- backend endpoint contract changes
-- new external dependencies unless explicitly approved
-- large rewrites that reduce release confidence
+
+- prevent the client from assuming unsupported capabilities
+- invalidate stale client assumptions
+- drive safe fallback and recovery behavior
+- carry authoritative role/capability state
+
+### Backend/API layer
+
+Authoritative business logic, validation, state mutation, role checks, orchestration, and external integrations.
+
+### Telegram integration layer
+
+Bot command registration, callback handling, Mini App launch integration, Telegram auth/init handling, and shared identity continuity.
+
+### Command workflow parity layer
+
+Shared execution model for translating bot command behavior into Mini App page workflows.
+
+Responsibilities:
+
+- map each implemented page to canonical bot command workflow(s)
+- preserve command entry requirements and defaults
+- reuse shared validation, precheck, confirmation, and execution semantics
+- define approved workflow divergences explicitly when the Mini App improves UX without changing business behavior
+- prevent page-only workflow inventions that bypass the main bot contract
+
+# 4. Required Shared Contracts
+
+The codebase should converge toward shared definitions for the following:
+
+## 4.1 Commands
+
+One shared module defining:
+
+- primary commands
+- aliases
+- visibility by role
+- display labels/descriptions
+
+## 4.2 Callback actions
+
+One shared module defining:
+
+- action names
+- namespaced patterns
+- supported payload shapes
+- route targets or handler targets
+
+## 4.3 Routes/screens
+
+One shared route catalog defining:
+
+- route ids
+- screen labels
+- required role/capability
+- linked bot command(s)
+- fallback behavior
+
+## 4.4 Roles and capabilities
+
+One shared authorization definition covering:
+
+- guest
+- authorized user
+- admin
+- capability-to-command mapping
+- capability-to-route mapping
+
+## 4.5 Data schemas
+
+Shared request/response schemas for key workflows:
+
+- call flows
+- call logs
+- SMS flows
+- bulk SMS
+- email flows
+- bulk email
+- provider switching
+- users management
+- caller flags
+- status/health views
+
+These shared schemas must also cover transport envelopes for:
+
+- bootstrap responses
+- refresh or poll responses
+- action request envelopes
+- action response envelopes
+- event or timeline payloads
+- error payloads used by the Mini App shell
+
+## 4.6 Session and auth contract
+
+One shared auth/session contract defining:
+
+- Telegram init-data validation requirements
+- bootstrap auth prerequisites
+- recoverable auth error classes
+- blocking auth error classes
+- session refresh rules
+- logout or re-entry requirements after invalidation
+
+## 4.7 Action transport contract
+
+One shared transport contract defining:
+
+- which actions are mutating
+- idempotency-key requirements
+- request/correlation-id behavior
+- timeout expectations
+- duplicate-submit policy
+- optimistic UI and rollback rules
+- stale-contract retry and refresh behavior
+
+## 4.8 Observability contract
+
+One shared observability definition covering:
+
+- required telemetry fields
+- log/event naming conventions
+- correlation-id propagation
+- failure-class taxonomy
+- minimum diagnostics for bootstrap, refresh, and action failures
+- safe redaction rules for user/session data
+
+## 4.9 Parity matrix artifact
+
+One maintained parity artifact defining, for every intended Mini App feature surface:
+
+- bot command
+- callback/action
+- Mini App route or screen
+- backend/API dependency
+- required role/capability
+- runtime payload/schema
+- fallback or degraded behavior
+- regression coverage status
+
+## 4.10 Command workflow contract
+
+One shared command-workflow contract defining, for every Mini App page mapped to a bot command:
+
+- canonical bot command name
+- optional callback/action aliases
+- page or route entry point
+- required role/capability
+- required inputs and defaults
+- validation and precheck steps
+- confirmation requirements
+- execution handler or backend capability
+- success-state behavior
+- failure-state behavior
+- post-action navigation or follow-up state
+- any approved Mini App-specific UX enhancement that does not change business semantics
+
+# 5. Mini App Parity Model
+
+## Required page-to-command correspondence
+
+| Bot Command | Mini App Responsibility |
+|---|---|
+| `/start` | landing screen or role-aware dashboard |
+| `/help` | help / commands guide screen |
+| `/menu` | quick actions dashboard |
+| `/guide` | usage guide screen |
+| `/health` | health summary for authorized users |
+| `/call` | call workflow entry and setup flow |
+| `/calllog` | call log, recent calls, search, details, events |
+| `/sms` | SMS center |
+| `/email` | Email center |
+| `/smssender` | bulk SMS admin sender |
+| `/mailer` | bulk email admin mailer |
+| `/scripts` | script management |
+| `/persona` | persona management |
+| `/provider` | provider management |
+| `/callerflags` | caller flags admin tools |
+| `/users` | user management |
+| `/admin` | Mini App admin console entry |
+| `/status` | deep system/admin status |
+
+## Required parity behavior
+
+- A Mini App route must not exist without a valid bot/API equivalent.
+- A bot feature with an intended visual workflow should have a Mini App equivalent.
+- Hidden or disabled routes must still be validated server-side.
+- Dashboard modules must match actual supported capabilities.
+- Runtime payloads must be validated before the UI consumes them.
+- Static route/action contracts must not override server-authoritative supported-action or capability responses.
+- Every degraded flow must define its fallback route, fallback message, or disabled-state behavior.
+- Every implemented page must declare its canonical bot command mapping.
+- Every implemented page must preserve the main bot command workflow, not only the label or destination.
+- If a page composes multiple related bot actions, the command workflow contract must define the orchestration explicitly.
+- Mini App productivity enhancements are allowed only when they remain execution-compatible with the underlying bot/API workflow.
+
+## Required page-to-command workflow correspondence
+
+For every implemented page, parity must include all of the following:
+
+- command entry mapping
+- required permissions and visibility
+- input collection requirements
+- preflight validation and safety checks
+- confirmation or approval steps where applicable
+- actual execution path
+- success feedback and resulting state
+- failure handling and recovery
+- follow-up actions or next-step shortcuts where the bot already provides them
+
+The Mini App may compress or improve the operator experience, but it must not weaken or replace the underlying bot command workflow semantics.
+
+# 6. Known Risk Areas to Eliminate
+
+## 6.1 Unsupported Mini App actions
+
+The “Unsupported miniapp action” class of failure indicates an architectural mismatch between:
+
+- action creation
+- action registration
+- route resolution
+- page handlers
+- or fallback logic
+
+### Required resolution
+
+- centralize action registration
+- remove duplicated string literals
+- normalize action parsing
+- add safe unknown-action fallback
+- add regression coverage for all valid action paths
+
+## 6.2 Homepage/dashboard drift
+
+The homepage/dashboard must not expose modules that are:
+
+- stale
+- unsupported
+- permission-incompatible
+- or visually inconsistent
+
+### Required resolution
+
+- show only supported modules
+- use shared action definitions
+- use shared avatar/user-profile components
+- standardize layout and spacing
+
+## 6.3 UI inconsistency in shared profile/avatar rendering
+
+The dashboard avatar must match the same rounded/circular rendering model used on other pages.
+
+### Required resolution
+
+- reuse shared avatar component if it exists
+- standardize border radius, clipping, centering, spacing, and size behavior
+- remove page-specific drift in avatar rendering
+
+## 6.4 Role mismatch
+
+Admin-only bot features must remain admin-only in the Mini App. Authorized-user and guest experiences must match the live bot access model.
+
+## 6.5 Session/auth mismatch
+
+The Mini App must not silently assume that a cached session, Telegram init payload, or prior bootstrap result is still valid.
+
+### Required resolution
+
+- centralize session/auth error classification
+- distinguish recoverable auth refresh from blocking auth failure
+- invalidate stale auth/session state deterministically
+- provide user-safe recovery or relaunch guidance
+- add regression coverage for expired, invalid, and revoked-session paths
+
+## 6.6 Runtime contract drift
+
+A locally known route or action is not sufficient proof that the current runtime session supports it.
+
+### Required resolution
+
+- treat bootstrap/refresh capability data as authoritative
+- refresh stale supported-action contracts before blocking when safe
+- prevent modules from rendering as enabled unless runtime support confirms them
+- add regression coverage for stale contract recovery paths
+
+## 6.7 Observability blind spots
+
+Routing and action failures that cannot be correlated, classified, or traced are production risks.
+
+### Required resolution
+
+- standardize action/route telemetry fields
+- propagate request/correlation ids through Mini App critical paths
+- classify failure types consistently
+- expose safe diagnostics for support and admin flows
+- verify instrumentation exists for bootstrap, refresh, and action failures
+
+## 6.8 Workflow facsimile drift
+
+A Mini App page that looks equivalent to a bot command but does not execute the same operational workflow is a product and architecture defect.
+
+### Required resolution
+
+- map every implemented page to a canonical bot command workflow contract
+- remove page-only shortcuts that bypass required command validation or confirmation logic
+- reuse shared execution handlers and backend capabilities instead of reproducing business logic in UI code
+- document and approve any Mini App-specific workflow compression or batching
+- add regression coverage proving that critical pages preserve bot-command semantics
+
+# 7. Delivery Roadmap
+
+## Phase 1 — Architecture audit and parity baseline
+
+Deliverables:
+
+- inventory of bot commands
+- inventory of callback actions
+- inventory of Mini App routes/screens
+- inventory of API dependencies
+- role/capability matrix
+- drift report
+- parity matrix
+- auth/session lifecycle map
+- runtime-contract inventory
+- failure-mode inventory for bootstrap, refresh, and action flows
+- page-to-command workflow inventory
+- command-workflow divergence report
+
+Exit criteria:
+
+- all unsupported or ambiguous surfaces identified
+- shared contract targets defined
+- parity matrix fields standardized
+- auth, runtime-contract, and degraded-state gaps identified
+- implemented pages mapped to canonical bot workflows
+- all page-only workflow inventions identified
+- `miniapp/docs/page-command-workflow-inventory.md` reflects the mounted route surface
+
+## Phase 2 — Shared contract consolidation
+
+Deliverables:
+
+- central command definitions
+- central callback action definitions
+- central route registry
+- central role/capability mapping
+- schema normalization for key workflows
+- explicit split between static client contracts and runtime server contracts
+- central session/auth contract
+- central action transport contract
+- central observability contract
+- central command workflow contract
+- central page-to-command mapping registry
+
+Exit criteria:
+
+- stringly-typed routing reduced
+- Mini App actions derived from shared definitions
+- drift-prone literals eliminated
+- static and runtime contract boundaries documented
+- key payload envelopes normalized
+- workflow mappings are explicit for implemented pages
+
+## Phase 3 — Routing and action hardening
+
+Deliverables:
+
+- centralized action dispatch
+- safe fallback for unknown/stale actions
+- route guards
+- recovery flow for expired actions
+- telemetry for action failures
+- session/auth error classification
+- stale-contract refresh rules
+- idempotent mutation handling
+- degraded-state standards for blocked, disabled, expired, and partial-data flows
+- command-equivalent execution paths enforced for implemented pages
+
+Exit criteria:
+
+- no normal-path unsupported action failures
+- stale actions recover safely
+- auth/session failures recover or block deterministically
+- mutating actions are retry-safe by contract
+- implemented pages do not bypass required bot-command workflow steps
+
+## Phase 4 — Homepage/dashboard cleanup
+
+Deliverables:
+
+- role-aware dashboard
+- supported-feature-only module list
+- shared avatar/profile rendering
+- consistent layout primitives
+- polished mobile presentation
+
+Exit criteria:
+
+- homepage matches shared UI standards
+- dashboard no longer exposes unsupported actions
+
+## Phase 5 — Workflow parity completion
+
+Deliverables:
+
+- call workflow parity
+- call log parity
+- SMS center parity
+- email center parity
+- bulk SMS parity
+- bulk email parity
+- provider/users/callerflags/persona/scripts/status parity
+
+Exit criteria:
+
+- route-to-command parity established for all intended product areas
+- workflow payload and fallback parity established for all intended product areas
+- command-workflow parity established for all implemented pages in intended product areas
+
+## Phase 6 — Production hardening
+
+Deliverables:
+
+- lint clean
+- type-check clean
+- test coverage for routing, permissions, and parity
+- robust loading/error/empty states
+- observability for key user paths
+- regression coverage for auth/session, stale-contract, and degraded-state flows
+- supportable diagnostics for production incidents
+
+Exit criteria:
+
+- build passes
+- regression coverage exists
+- deployment-safe confidence achieved
+- production failures are traceable by contract identifiers and correlation metadata
+
+# 8. Definition of Done
+
+The Mini App architecture is considered aligned only when all of the following are true:
+
+- No broken or unsupported Mini App actions in normal usage
+- Shared command/action contracts are introduced or clearly centralized
+- Homepage/dashboard is visually consistent with shared components
+- Mini App routes correspond to real bot and API capabilities
+- Role gating matches bot behavior exactly
+- Unknown/stale actions fail safely
+- Runtime contracts are treated as authoritative at execution time
+- Session/auth failures are classified and handled deterministically
+- Mutating actions are safe under retry and duplicate submission
+- Bootstrap, refresh, and action flows emit usable diagnostics
+- Every implemented page has an explicit bot-command workflow contract
+- Implemented pages execute command-equivalent workflows or document approved divergence
+- Relevant tests, lint, type-check, and build pass
+- Architecture drift is documented or removed
+
+# 9. Required Engineering Standards
+
+## Every change must include
+
+- root cause
+- implementation plan
+- files changed
+- contract impact
+- command workflow impact
+- tests added or updated
+- validation steps and results
+- parity gaps found
+- follow-up risks or technical debt
+
+## Preferred implementation style
+
+- inspect first
+- map parity
+- fix highest-risk drift first
+- keep diffs small
+- prefer shared contracts over local patches
+- validate before closing work
+- preserve server-authoritative runtime behavior over client convenience
+- define degraded-state behavior, not only success-path behavior
+- preserve bot-command workflow semantics when adding Mini App productivity enhancements
+
+# 10. Codex Working Rules
+
+When using Codex or any coding agent against this roadmap:
+
+1. Inspect the repository before editing.
+2. Treat live bot code as the contract.
+3. Build or update the parity matrix before major feature work.
+4. Do not add Mini App features without a bot/API mapping.
+5. Do not leave duplicated command/action strings if a shared contract can replace them.
+6. Do not solve architecture problems with page-only hacks.
+7. Do not stop at visual fixes; verify permissions, contracts, routing, and backend compatibility.
+8. Do not assume static client contracts are authoritative when runtime server contracts disagree.
+9. Do not ship mutating Mini App actions without retry/idempotency semantics defined.
+10. Do not close work without checking degraded-state behavior for the touched flow.
+11. Do not implement a Mini App page without tracing it to the main bot command workflow it represents.
+12. Do not replace command validation, confirmation, or execution semantics with UI-only approximations.
+13. When improving productivity, compress the workflow only if the underlying command behavior remains preserved.
+
+# 11. Immediate Priorities
+
+## Highest priority
+
+- Remove all causes of `Unsupported miniapp action`
+- Align dashboard modules to real supported actions
+- Centralize action and route definitions
+- Fix shared avatar rendering consistency
+- Formalize session/auth failure handling
+- Formalize runtime-contract vs static-contract boundaries
+- Formalize page-to-command workflow contracts for implemented pages
+
+## Next priority
+
+- Complete route/command/capability parity matrix
+- Enforce role symmetry across bot and Mini App
+- Expand regression coverage around routing and permissions
+- Expand regression coverage around auth/session, stale-contract refresh, and degraded-state behavior
+- Expand regression coverage proving command-workflow parity for implemented pages
+
+# 12. Maintenance Rule
+
+This roadmap must be updated whenever any of the following change:
+
+- bot command surface
+- callback action model
+- Mini App routing model
+- authorization/capability logic
+- major shared data contracts
+- admin/user role behavior
+- auth/session lifecycle behavior
+- runtime contract model
+- observability contract
+- regression matrix for critical failure modes
+- page-to-command workflow mappings
+- approved Mini App workflow divergences from bot-command behavior
+- the contents of `miniapp/docs/page-command-workflow-inventory.md`
+
+If the implementation and this roadmap diverge, the live code must be re-audited and this document must be corrected immediately.

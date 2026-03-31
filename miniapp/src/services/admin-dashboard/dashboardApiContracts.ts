@@ -32,6 +32,8 @@ const DASHBOARD_PAYLOAD_KEYS = [
   'poll_interval_seconds',
   'poll_at',
   'server_time',
+  'supported_actions',
+  'supported_action_count',
 ];
 
 function hasKnownDashboardShape(payload: Record<string, unknown>): boolean {

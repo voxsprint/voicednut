@@ -5,6 +5,7 @@ import type { ActivityStatus } from '@/hooks/admin-dashboard/useDashboardActivit
 import {
   asRecord,
 } from '@/services/admin-dashboard/dashboardPrimitives';
+import { setDashboardSupportedActions } from '@/services/admin-dashboard/dashboardActionGuards';
 import {
   isSessionBootstrapBlockingCode,
 } from '@/services/admin-dashboard/dashboardTransport';
@@ -118,6 +119,17 @@ function primitiveString(value: unknown): string {
 
 function trimmedPrimitiveString(value: unknown): string {
   return primitiveString(value).trim();
+}
+
+function extractSupportedActions(payload: DashboardApiPayload): unknown {
+  const dashboardPayload = asRecord(payload.dashboard);
+  return payload.supported_actions ?? dashboardPayload.supported_actions;
+}
+
+function hasSupportedActions(payload: DashboardApiPayload): boolean {
+  const dashboardPayload = asRecord(payload.dashboard);
+  return Object.prototype.hasOwnProperty.call(payload, 'supported_actions')
+    || Object.prototype.hasOwnProperty.call(dashboardPayload, 'supported_actions');
 }
 
 function isNetworkLikeError(error: unknown): boolean {
@@ -335,6 +347,8 @@ export function useDashboardSyncLoaders({
     bootstrapAbortRef.current = controller;
     setLoading(true);
     setError('');
+    // Reset any prior server allow-list so a fresh bootstrap owns the action contract.
+    setDashboardSupportedActions(null);
     try {
       const rawPayload = asRecord(
         await requestWithBoundedReadRetry(
@@ -355,6 +369,9 @@ export function useDashboardSyncLoaders({
         return;
       }
       const payload = bootstrapValidation.payload as DashboardApiPayload;
+      if (hasSupportedActions(payload)) {
+        setDashboardSupportedActions(extractSupportedActions(payload));
+      }
       const now = Date.now();
       setBootstrap(payload);
       setPollPayload(payload);
@@ -475,6 +492,9 @@ export function useDashboardSyncLoaders({
         return false;
       }
       const payload = pollValidation.payload as DashboardApiPayload;
+      if (hasSupportedActions(payload)) {
+        setDashboardSupportedActions(extractSupportedActions(payload));
+      }
       setError('');
       setPollPayload(payload);
       setPollFailureCount(0);
@@ -568,6 +588,9 @@ export function useDashboardSyncLoaders({
       return false;
     }
     const nextPayload = streamValidation.payload as DashboardApiPayload;
+    if (hasSupportedActions(nextPayload)) {
+      setDashboardSupportedActions(extractSupportedActions(nextPayload));
+    }
     setPollPayload((prev) => ({
       ...(asRecord(prev) as DashboardApiPayload),
       ...nextPayload,

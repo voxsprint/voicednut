@@ -5,7 +5,7 @@ import { asRecord } from '@/services/admin-dashboard/dashboardPrimitives';
 import { validateActionEnvelope } from '@/services/admin-dashboard/dashboardApiContracts';
 import {
   getDashboardActionPolicy,
-  resolveDashboardActionId,
+  resolveDashboardAction,
   validateDashboardActionPayload,
 } from '@/services/admin-dashboard/dashboardActionGuards';
 
@@ -30,6 +30,13 @@ export type ActionTelemetry = {
 
 type ActivityStatus = 'info' | 'success' | 'error';
 const RETRY_ACTION_META_TTL_MS = 2 * 60 * 1000;
+
+type DashboardActionError = Error & {
+  code?: string;
+  traceHint?: string;
+  correlationId?: string;
+  requestId?: string;
+};
 
 export type RunActionOptions = {
   confirmText?: string;
@@ -93,6 +100,27 @@ function toHint(value: unknown): string {
   return normalized.slice(-8);
 }
 
+function readErrorMetadata(
+  err: unknown,
+): { code: string; traceHint: string; correlationId: string; requestId: string } {
+  const source = err as DashboardActionError | null;
+  const code = typeof source?.code === 'string' ? source.code.trim() : '';
+  const traceHint = typeof source?.traceHint === 'string' ? source.traceHint.trim() : '';
+  const correlationId = typeof source?.correlationId === 'string' ? source.correlationId.trim() : '';
+  const requestId = typeof source?.requestId === 'string' ? source.requestId.trim() : '';
+  return {
+    code,
+    traceHint,
+    correlationId,
+    requestId,
+  };
+}
+
+function isUnsupportedMiniAppActionError(code: string, detail: string): boolean {
+  if (code !== 'miniapp_action_invalid') return false;
+  return /unsupported miniapp action/i.test(detail);
+}
+
 function toStablePayloadKey(value: unknown): string {
   const seen = new WeakSet<object>();
 
@@ -147,14 +175,31 @@ export function useDashboardActions({
     error: '',
   });
 
+  const refreshDashboardActionContract = useCallback(async (action: string) => {
+    const initialResolution = resolveDashboardAction(action);
+    if (!initialResolution.actionId || initialResolution.supported) {
+      return initialResolution;
+    }
+    await Promise.resolve(loadBootstrap());
+    return resolveDashboardAction(action);
+  }, [loadBootstrap]);
+
   const invokeAction = useCallback(async (
     action: string,
     payload: Record<string, unknown>,
     metaOverride?: Partial<ActionRequestMeta>,
   ): Promise<unknown> => {
-    const resolvedAction = resolveDashboardActionId(action);
+    let actionResolution = resolveDashboardAction(action);
+    let resolvedAction = actionResolution.actionId;
     if (!resolvedAction) {
       throw new Error('Missing miniapp action id');
+    }
+    if (!actionResolution.supported) {
+      actionResolution = await refreshDashboardActionContract(action);
+      resolvedAction = actionResolution.actionId;
+    }
+    if (!actionResolution.supported) {
+      throw new Error(`Blocked action: "${resolvedAction}" is unavailable in this Mini App build.`);
     }
     const actionPolicy = getDashboardActionPolicy(resolvedAction);
     if (actionPolicy.capability && hasCapability && !hasCapability(actionPolicy.capability)) {
@@ -214,6 +259,7 @@ export function useDashboardActions({
         : err instanceof Error
           ? err.message
           : String(err);
+      const errorMetadata = readErrorMetadata(err);
       const latencyMs = Math.max(0, Date.now() - startedAt);
       setActionTelemetry({
         traceHint,
@@ -226,23 +272,48 @@ export function useDashboardActions({
       if (isAbortError) {
         throw new Error(detail);
       }
-      throw new Error(detail);
+      const wrappedError = new Error(detail) as DashboardActionError;
+      if (errorMetadata.code) wrappedError.code = errorMetadata.code;
+      if (errorMetadata.traceHint) wrappedError.traceHint = errorMetadata.traceHint;
+      if (errorMetadata.correlationId) wrappedError.correlationId = errorMetadata.correlationId;
+      if (errorMetadata.requestId) wrappedError.requestId = errorMetadata.requestId;
+      throw wrappedError;
     } finally {
       clearTimeout(timeout);
     }
-  }, [createActionMeta, hasCapability, request]);
+  }, [createActionMeta, hasCapability, refreshDashboardActionContract, request]);
 
   const runAction = useCallback(async (
     action: string,
     payload: Record<string, unknown>,
     options: RunActionOptions = {},
   ): Promise<void> => {
-    const resolvedAction = resolveDashboardActionId(action);
+    let actionResolution = resolveDashboardAction(action);
+    let resolvedAction = actionResolution.actionId;
     if (!resolvedAction) {
-      const missingActionDetail = 'Blocked action: missing miniapp action id.';
+      const missingActionDetail = 'Blocked action: missing action id.';
       setError(missingActionDetail);
       triggerHaptic('warning');
       pushActivity('error', 'Action blocked', missingActionDetail);
+      return;
+    }
+    if (!actionResolution.supported) {
+      pushActivity('info', 'Action contract refresh', `Refreshing dashboard contract for ${resolvedAction}`);
+      try {
+        actionResolution = await refreshDashboardActionContract(action);
+        if (actionResolution.actionId) {
+          resolvedAction = actionResolution.actionId;
+        }
+      } catch (refreshErr) {
+        const refreshDetail = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        pushActivity('error', 'Contract refresh failed', `${refreshDetail} (${resolvedAction})`);
+      }
+    }
+    if (!actionResolution.supported) {
+      const unsupportedActionDetail = `Blocked action: "${resolvedAction}" is unavailable in this Mini App build after refreshing the dashboard contract.`;
+      setError(unsupportedActionDetail);
+      triggerHaptic('warning');
+      pushActivity('error', 'Action blocked', unsupportedActionDetail);
       return;
     }
     const actionPolicy = getDashboardActionPolicy(resolvedAction);
@@ -362,7 +433,26 @@ export function useDashboardActions({
         if (rollbackOptimisticUpdate) {
           rollbackOptimisticUpdate();
         }
+        const errorMetadata = readErrorMetadata(err);
         const detail = err instanceof Error ? err.message : String(err);
+        if (isUnsupportedMiniAppActionError(errorMetadata.code, detail)) {
+          const refreshDetail = `Action unavailable: ${resolvedAction}. Refreshing dashboard contract.`;
+          setError(refreshDetail);
+          triggerHaptic('warning');
+          pushActivity('error', `Action unavailable: ${resolvedAction}`, `${detail} (${actionAuditHint})`);
+          try {
+            await Promise.resolve(loadBootstrap());
+            setNotice(`Dashboard contract refreshed after unsupported action: ${resolvedAction}`);
+          } catch (refreshErr) {
+            const refreshErrorDetail = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+            pushActivity(
+              'error',
+              'Contract refresh failed',
+              `${refreshErrorDetail} (${actionAuditHint})`,
+            );
+          }
+          return;
+        }
         setError(detail);
         triggerHaptic('error');
         pushActivity('error', `Action failed: ${resolvedAction}`, `${detail} (${actionAuditHint})`);
@@ -387,6 +477,7 @@ export function useDashboardActions({
     triggerHaptic,
     confirmAction,
     hasCapability,
+    refreshDashboardActionContract,
   ]);
 
   return {

@@ -1,35 +1,38 @@
 import type { FeatureFlagRegistryEntry } from '@/hooks/admin-dashboard/useDashboardFeatureFlags';
+import {
+  DASHBOARD_MODULE_IDS,
+  DASHBOARD_MODULE_ROUTE_CONTRACTS,
+  DASHBOARD_MODULE_SCREEN_CONTRACTS,
+  DASHBOARD_ROUTE_SCREEN_CONTRACTS,
+  DASHBOARD_STATIC_ROUTE_CONTRACTS,
+  DASHBOARD_MODULE_ACTION_CONTRACTS,
+  DASHBOARD_MODULE_COMMAND_CONTRACTS,
+  type DashboardModuleId,
+} from '@/contracts/miniappParityContracts';
 
-export type DashboardModule =
-  | 'ops'
-  | 'sms'
-  | 'mailer'
-  | 'provider'
-  | 'content'
-  | 'calllog'
-  | 'callerflags'
-  | 'scriptsparity'
-  | 'messaging'
-  | 'persona'
-  | 'users'
-  | 'audit';
+export type DashboardModule = DashboardModuleId;
 
 export type WorkspaceRoute = DashboardModule | 'settings' | null;
 
-export const MODULE_DEFINITIONS: Array<{ id: DashboardModule; label: string; capability: string }> = [
-  { id: 'ops', label: 'Ops Dashboard', capability: 'dashboard_view' },
-  { id: 'sms', label: 'SMS Sender', capability: 'sms_bulk_manage' },
-  { id: 'mailer', label: 'Mailer Console', capability: 'email_bulk_manage' },
-  { id: 'provider', label: 'Provider Control', capability: 'provider_manage' },
-  { id: 'content', label: 'Script Studio', capability: 'caller_flags_manage' },
-  { id: 'calllog', label: 'Call Log Explorer', capability: 'dashboard_view' },
-  { id: 'callerflags', label: 'Caller Flags Moderation', capability: 'caller_flags_manage' },
-  { id: 'scriptsparity', label: 'Scripts Parity Expansion', capability: 'caller_flags_manage' },
-  { id: 'messaging', label: 'Messaging Investigation', capability: 'dashboard_view' },
-  { id: 'persona', label: 'Persona Manager', capability: 'caller_flags_manage' },
-  { id: 'users', label: 'User & Role Admin', capability: 'users_manage' },
-  { id: 'audit', label: 'Audit & Incidents', capability: 'dashboard_view' },
-];
+export type DashboardModuleDefinition = {
+  id: DashboardModule;
+  label: string;
+  capability: string;
+  command: string;
+  actionContracts: string[];
+};
+
+export const MODULE_DEFINITIONS: DashboardModuleDefinition[] = DASHBOARD_MODULE_IDS.map((moduleId) => ({
+  id: moduleId,
+  label: DASHBOARD_MODULE_SCREEN_CONTRACTS[moduleId].label,
+  capability: DASHBOARD_MODULE_SCREEN_CONTRACTS[moduleId].capability,
+  command: DASHBOARD_MODULE_COMMAND_CONTRACTS[moduleId],
+  actionContracts: [...DASHBOARD_MODULE_ACTION_CONTRACTS[moduleId]],
+}));
+
+export const DASHBOARD_WORKSPACE_ROUTE_PATHS = DASHBOARD_ROUTE_SCREEN_CONTRACTS
+  .map((route) => route.path)
+  .filter((path) => path !== DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT);
 
 export const MODULE_CONTEXT: Record<DashboardModule, { subtitle: string; detail: string }> = {
   ops: {
@@ -82,7 +85,7 @@ export const MODULE_CONTEXT: Record<DashboardModule, { subtitle: string; detail:
   },
 };
 
-export const MODULE_ID_SET = new Set<DashboardModule>(MODULE_DEFINITIONS.map((module) => module.id));
+export const MODULE_ID_SET = new Set<DashboardModule>(DASHBOARD_MODULE_IDS);
 
 export const MODULE_DEFAULT_ORDER: Record<DashboardModule, number> = {
   ops: 0,
@@ -128,16 +131,65 @@ export const MODULE_GROUPS: DashboardModuleGroup[] = [
 ];
 
 export function moduleRoutePath(moduleId: DashboardModule): string {
-  return `/${moduleId}`;
+  return DASHBOARD_MODULE_ROUTE_CONTRACTS[moduleId];
 }
 
-export function parseWorkspaceRoute(pathname: string): WorkspaceRoute {
+function normalizeWorkspacePath(pathname: string): string {
   const normalized = String(pathname || '/').trim().toLowerCase();
   const slug = normalized.replace(/^\/+|\/+$/g, '');
-  if (!slug) return null;
-  if (slug === 'settings') return 'settings';
-  if (MODULE_ID_SET.has(slug as DashboardModule)) return slug as DashboardModule;
-  return null;
+  return slug ? `/${slug}` : DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
+}
+
+const ROUTE_PATH_TO_WORKSPACE_ROUTE = new Map<string, WorkspaceRoute>(
+  DASHBOARD_ROUTE_SCREEN_CONTRACTS.map((route) => ([
+    normalizeWorkspacePath(route.path),
+    route.moduleId ?? (route.routeId === 'dashboard.settings' ? 'settings' : null),
+  ])),
+);
+
+const WORKSPACE_ROUTE_FALLBACK_PATHS: Partial<Record<Exclude<WorkspaceRoute, null>, string>> = (() => {
+  const map: Partial<Record<Exclude<WorkspaceRoute, null>, string>> = {};
+  DASHBOARD_ROUTE_SCREEN_CONTRACTS.forEach((route) => {
+    const workspaceRoute: WorkspaceRoute = route.moduleId
+      ?? (route.routeId === 'dashboard.settings' ? 'settings' : null);
+    if (!workspaceRoute) return;
+    map[workspaceRoute] = normalizeWorkspacePath(route.fallbackPath);
+  });
+  return map;
+})();
+
+export function parseWorkspaceRoute(pathname: string): WorkspaceRoute {
+  const normalizedPath = normalizeWorkspacePath(pathname);
+  return ROUTE_PATH_TO_WORKSPACE_ROUTE.get(normalizedPath) ?? null;
+}
+
+export function workspaceRouteFallbackPath(workspaceRoute: WorkspaceRoute): string {
+  if (!workspaceRoute) return DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
+  return WORKSPACE_ROUTE_FALLBACK_PATHS[workspaceRoute] ?? DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
+}
+
+export function resolveWorkspaceRouteFallbackPath(
+  workspaceRoute: WorkspaceRoute,
+  visibleModuleIds: DashboardModule[],
+): string {
+  const visibleModuleIdSet = new Set<DashboardModule>(visibleModuleIds);
+  if (workspaceRoute && workspaceRoute !== 'settings' && visibleModuleIdSet.has(workspaceRoute)) {
+    return moduleRoutePath(workspaceRoute);
+  }
+
+  const configuredFallbackPath = workspaceRouteFallbackPath(workspaceRoute);
+  const configuredFallbackRoute = parseWorkspaceRoute(configuredFallbackPath);
+  if (configuredFallbackRoute === 'settings') return configuredFallbackPath;
+  if (configuredFallbackRoute && visibleModuleIdSet.has(configuredFallbackRoute)) {
+    return moduleRoutePath(configuredFallbackRoute);
+  }
+
+  const [firstVisibleModuleId] = visibleModuleIds;
+  if (firstVisibleModuleId) {
+    return moduleRoutePath(firstVisibleModuleId);
+  }
+
+  return DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
 }
 
 export function moduleGlyph(moduleId: string): string {

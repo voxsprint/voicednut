@@ -5,6 +5,7 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type PersonaManagerPageProps = {
   visible: boolean;
@@ -42,7 +43,7 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
 
   const loadPersonas = async (): Promise<void> => {
     await runInvestigationAction(
-      'persona.list',
+      DASHBOARD_ACTION_CONTRACTS.PERSONA_LIST,
       {},
       (data) => {
         setBuiltin(toRows(data.builtin));

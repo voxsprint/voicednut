@@ -2,27 +2,14 @@ import { useLaunchParams, useSignal, miniApp } from '@tma.js/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { Suspense, lazy } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { DASHBOARD_WORKSPACE_ROUTE_PATHS } from '@/pages/AdminDashboard/dashboardShellConfig';
 
 const AdminDashboardPage = lazy(async () => {
   const module = await import('@/pages/AdminDashboard/AdminDashboardPage.tsx');
   return { default: module.AdminDashboardPage };
 });
 
-const adminWorkspaceRoutes = [
-  '/ops',
-  '/sms',
-  '/mailer',
-  '/provider',
-  '/content',
-  '/calllog',
-  '/callerflags',
-  '/scriptsparity',
-  '/messaging',
-  '/persona',
-  '/users',
-  '/audit',
-  '/settings',
-] as const;
+const adminWorkspaceRoutes = [...DASHBOARD_WORKSPACE_ROUTE_PATHS];
 
 export function App() {
   const lp = useLaunchParams();

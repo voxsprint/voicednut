@@ -6,6 +6,7 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
 type SmsSenderPageProps = {
@@ -284,7 +285,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 disabled={controlsBusy || !statusSidInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
-                    'sms.message.status',
+                    DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGE_STATUS,
                     { message_sid: statusSidInput.trim() },
                     (payload) => setStatusSnapshot(asRecord(payload.message) || payload),
                   );
@@ -304,7 +305,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 disabled={controlsBusy || !conversationPhoneInput.trim()}
                 onClick={() => {
                   void runInvestigationAction(
-                    'sms.messages.conversation',
+                    DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_CONVERSATION,
                     { phone: conversationPhoneInput.trim(), limit: 20 },
                     (payload) => setConversationMessages(
                       Array.isArray(payload.messages) ? payload.messages.map(asRecord) : [],
@@ -319,7 +320,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
-                    'sms.messages.recent',
+                    DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT,
                     { limit: 12, offset: 0 },
                     (payload) => setRecentMessages(
                       Array.isArray(payload.messages) ? payload.messages.map(asRecord) : [],
@@ -334,7 +335,7 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 disabled={controlsBusy}
                 onClick={() => {
                   void runInvestigationAction(
-                    'sms.stats',
+                    DASHBOARD_ACTION_CONTRACTS.SMS_STATS,
                     { hours: 24 },
                     (payload) => setStatsSnapshot(payload),
                   );

@@ -2,6 +2,7 @@ import { backButton, settingsButton } from '@tma.js/sdk-react';
 import { useEffect } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
+import { DASHBOARD_STATIC_ROUTE_CONTRACTS } from '@/contracts/miniappParityContracts';
 import type { DashboardDialogState } from '@/hooks/admin-dashboard/useDashboardDialog';
 import type { DashboardModule } from '@/pages/AdminDashboard/dashboardShellConfig';
 
@@ -99,7 +100,7 @@ export function useDashboardTelegramButtons({
       }
       if (focusedWorkspaceMode) {
         triggerHaptic('selection');
-        navigate('/');
+        navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT);
         return;
       }
       if (activeModule !== 'ops') {

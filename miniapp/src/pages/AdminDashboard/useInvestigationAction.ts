@@ -38,15 +38,13 @@ export function useInvestigationAction(invokeAction: InvokeAction): UseInvestiga
     payload,
     onSuccess,
   ) => {
-    const normalizedAction = action.trim();
-    const resolvedAction = resolveDashboardActionId(normalizedAction);
-    const actionToInvoke = resolvedAction || normalizedAction.toLowerCase();
+    const actionToInvoke = resolveDashboardActionId(action);
     if (!actionToInvoke) {
-      setInvestigationError('Unsupported miniapp action.');
+      setInvestigationError('Action blocked: missing action id. Refresh and retry.');
       return;
     }
     if (!isDashboardActionSupported(actionToInvoke)) {
-      setInvestigationError(`Unsupported miniapp action: ${actionToInvoke}`);
+      setInvestigationError(`Action blocked: "${actionToInvoke}" is unavailable in this Mini App build.`);
       return;
     }
     setInvestigationBusy(actionToInvoke);

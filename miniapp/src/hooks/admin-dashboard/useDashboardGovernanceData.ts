@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
+
 type ActivityStatus = 'info' | 'success' | 'error';
 
 type InvokeAction = (
@@ -38,7 +40,7 @@ export function useDashboardGovernanceData<UsersPayload, AuditPayload, Incidents
 }: UseDashboardGovernanceDataOptions<UsersPayload, AuditPayload, IncidentsPayload>): UseDashboardGovernanceDataResult {
   const refreshUsersModule = useCallback(async (): Promise<void> => {
     try {
-      const data = await invokeAction('users.list', {
+      const data = await invokeAction(DASHBOARD_ACTION_CONTRACTS.USERS_LIST, {
         limit: 120,
         offset: 0,
         search: userSearch,
@@ -57,8 +59,8 @@ export function useDashboardGovernanceData<UsersPayload, AuditPayload, Incidents
   const refreshAuditModule = useCallback(async (): Promise<void> => {
     try {
       const [auditData, incidentData] = await Promise.all([
-        invokeAction('audit.feed', { limit: 80, hours: 24 }),
-        invokeAction('incidents.summary', { limit: 80, hours: 24 }),
+        invokeAction(DASHBOARD_ACTION_CONTRACTS.AUDIT_FEED, { limit: 80, hours: 24 }),
+        invokeAction(DASHBOARD_ACTION_CONTRACTS.INCIDENTS_SUMMARY, { limit: 80, hours: 24 }),
       ]);
       setAuditSnapshot(auditData as AuditPayload);
       setIncidentsSnapshot(incidentData as IncidentsPayload);

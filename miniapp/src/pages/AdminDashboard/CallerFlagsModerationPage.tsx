@@ -5,6 +5,7 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type CallerFlagsModerationPageProps = {
   visible: boolean;
@@ -46,7 +47,7 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
   const loadFlags = async (): Promise<void> => {
     const status = statusFilter === 'all' ? undefined : statusFilter;
     await runInvestigationAction(
-      'callerflags.list',
+      DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_LIST,
       { status, limit: 120 },
       (data) => {
         setFlags(toRows(data.flags));
@@ -112,7 +113,7 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
               disabled={controlsBusy || !phoneInput.trim()}
               onClick={() => {
                 void runAction(
-                  'callerflags.upsert',
+                  DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_UPSERT,
                   {
                     phone_number: phoneInput.trim(),
                     status: statusInput,

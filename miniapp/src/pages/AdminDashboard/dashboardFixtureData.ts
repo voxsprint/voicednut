@@ -1,4 +1,5 @@
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
+import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 const DASHBOARD_ALL_CAPS = [
   'dashboard_view',
@@ -187,7 +188,11 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
       alerts: [],
       total_alerts: 0,
       runbooks: [
-        { action: 'runbook.provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+        {
+          action: DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT,
+          label: 'Run provider preflight',
+          capability: 'provider_manage',
+        },
       ],
       summary: {
         open: 0,
@@ -262,7 +267,7 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
 
 function resolveDashboardFixtureActionData(action: string, nowIso: string): Record<string, unknown> {
   switch (action) {
-    case 'users.list':
+    case DASHBOARD_ACTION_CONTRACTS.USERS_LIST:
       return {
         rows: [
           {
@@ -277,7 +282,7 @@ function resolveDashboardFixtureActionData(action: string, nowIso: string): Reco
         ],
         total: 1,
       };
-    case 'audit.feed':
+    case DASHBOARD_ACTION_CONTRACTS.AUDIT_FEED:
       return {
         rows: [
           {
@@ -291,17 +296,21 @@ function resolveDashboardFixtureActionData(action: string, nowIso: string): Reco
         summary: { total: 1 },
         hours: 24,
       };
-    case 'incidents.summary':
+    case DASHBOARD_ACTION_CONTRACTS.INCIDENTS_SUMMARY:
       return {
         alerts: [],
         total_alerts: 0,
         runbooks: [
-          { action: 'runbook.provider.preflight', label: 'Run provider preflight', capability: 'provider_manage' },
+          {
+            action: DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT,
+            label: 'Run provider preflight',
+            capability: 'provider_manage',
+          },
         ],
         summary: { open: 0 },
       };
-    case 'provider.preflight':
-    case 'runbook.provider.preflight':
+    case DASHBOARD_ACTION_CONTRACTS.PROVIDER_PREFLIGHT:
+    case DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT:
       return { success: true, result: 'ok' };
     default:
       return { success: true, applied_at: nowIso };
