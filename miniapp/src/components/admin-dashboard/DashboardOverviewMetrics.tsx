@@ -1,4 +1,4 @@
-import { UiMetricTile } from '@/components/ui/AdminPrimitives';
+import { UiWorkspacePulse } from '@/components/ui/AdminPrimitives';
 
 type DashboardOverviewMetricsProps = {
   isDashboardDegraded: boolean;
@@ -16,14 +16,19 @@ export function DashboardOverviewMetrics({
   lastSuccessfulPollLabel,
 }: DashboardOverviewMetricsProps): JSX.Element {
   return (
-    <section
-      className={`va-overview-metrics ${isDashboardDegraded ? 'is-degraded' : 'is-healthy'}`}
-      aria-label="Overview status"
-    >
-      <UiMetricTile label="Sync mode" value={syncModeLabel} />
-      <UiMetricTile label="Incidents" value={openIncidentCount} />
-      <UiMetricTile label="Queue backlog" value={queueBacklogTotal} />
-      <UiMetricTile label="Last healthy sync" value={lastSuccessfulPollLabel} />
+    <section aria-label="Overview status">
+      <UiWorkspacePulse
+        title="Console status"
+        description="Core delivery, incident, and queue posture for the admin console."
+        status={isDashboardDegraded ? 'Attention needed' : 'Healthy'}
+        tone={isDashboardDegraded ? 'warning' : 'success'}
+        items={[
+          { label: 'Sync mode', value: syncModeLabel },
+          { label: 'Incidents', value: openIncidentCount },
+          { label: 'Queue backlog', value: queueBacklogTotal },
+          { label: 'Last healthy sync', value: lastSuccessfulPollLabel },
+        ]}
+      />
     </section>
   );
 }

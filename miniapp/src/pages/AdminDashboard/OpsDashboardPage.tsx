@@ -12,7 +12,14 @@ import type {
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
-import { UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiButton,
+  UiCard,
+  UiInput,
+  UiStatePanel,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type OpsDashboardPageProps = {
@@ -138,6 +145,30 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
     if (!Array.isArray(callExplorerEvents)) return [];
     return callExplorerEvents.slice(0, 12);
   }, [callExplorerEvents]);
+  const isInitialSyncing = loading && !hasMeaningfulData;
+  const opsPulseTone: 'info' | 'success' | 'warning' | 'error' = callExplorerError
+    ? 'error'
+    : controlsBusy || isInitialSyncing
+      ? 'info'
+      : isDashboardDegraded
+        ? 'warning'
+        : 'success';
+  const opsPulseStatus = callExplorerError
+    ? 'Needs attention'
+    : controlsBusy || isInitialSyncing
+      ? 'Working'
+      : isDashboardDegraded
+        ? 'Degraded'
+        : 'Healthy';
+  const opsPulseDescription = callExplorerError
+    ? callExplorerError
+    : controlsBusy
+      ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'Operational controls are running.'
+      : isInitialSyncing
+        ? 'Collecting runtime telemetry, provider readiness, and recovery metrics.'
+        : isDashboardDegraded
+          ? degradedCauses[0] || 'Operational telemetry is reporting degraded conditions.'
+          : 'Runtime controls, provider readiness, and recovery workflows are available in one place.';
 
   const loadCallExplorerRows = async (): Promise<void> => {
     setCallExplorerValidationError('');
@@ -202,26 +233,33 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         <p className="va-muted">
           Reliability, runtime controls, and recovery signals for calls, SMS, and email.
         </p>
-        <div className="va-inline-metrics">
-          <span className="va-meta-chip">Sync {syncModeLabel}</span>
-          <span className="va-meta-chip">Feed {streamModeLabel}</span>
-          <span className="va-meta-chip">Poll failures {pollFailureCount}</span>
-          <span className="va-meta-chip">Bridge 5xx {bridgeHardFailures}</span>
-          <span className="va-meta-chip">Queue {queueBacklogTotal}</span>
-          <span className="va-meta-chip">Error budget {sloErrorBudgetPercent}%</span>
-        </div>
       </section>
 
-      {loading && !hasMeaningfulData ? (
-        <section className="va-grid">
-          <div className="va-card">
-            <UiStatePanel
-              title="Refreshing operational telemetry"
-              description="Collecting the latest poll/stream metrics, runtime state, and job summaries."
-              tone="info"
-            />
-          </div>
-        </section>
+      <UiWorkspacePulse
+        title="Operations workspace"
+        description={opsPulseDescription}
+        status={opsPulseStatus}
+        tone={opsPulseTone}
+        items={[
+          { label: 'Sync mode', value: syncModeLabel },
+          { label: 'Providers ready', value: `${providerReadinessTotals.ready}/${providerReadinessTotals.total}` },
+          { label: 'Queue backlog', value: queueBacklogTotal },
+          { label: 'Error budget', value: `${sloErrorBudgetPercent}%` },
+        ]}
+      />
+
+      {isInitialSyncing ? (
+        <div className="va-status-state-stack">
+          <UiSurfaceState
+            eyebrow="Telemetry sync"
+            status="Loading"
+            statusVariant="info"
+            title="Refreshing operational telemetry"
+            description="Collecting the latest poll and stream metrics, runtime state, and job summaries."
+            tone="info"
+            compact
+          />
+        </div>
       ) : null}
 
       <DashboardWorkflowContractCard moduleId="ops" />
@@ -602,20 +640,33 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
               Events
             </UiButton>
           </div>
-          {controlsBusy ? (
-            <UiStatePanel
-              compact
-              title="Call explorer request in progress"
-              description={`Running ${activeActionLabel || 'request'}...`}
-            />
-          ) : null}
-          {callExplorerError ? (
-            <UiStatePanel
-              title="Call explorer request failed"
-              description={callExplorerError}
-              tone="error"
-              compact
-            />
+          {controlsBusy || callExplorerError ? (
+            <div className="va-status-state-stack">
+              {controlsBusy ? (
+                <UiSurfaceState
+                  eyebrow="Explorer state"
+                  status="In progress"
+                  statusVariant="info"
+                  title="Call explorer request is running"
+                  description={`Running ${activeActionLabel || 'request'}...`}
+                  tone="info"
+                  compact
+                  cardTone="subcard"
+                />
+              ) : null}
+              {callExplorerError ? (
+                <UiSurfaceState
+                  eyebrow="Explorer state"
+                  status="Needs attention"
+                  statusVariant="error"
+                  title="Call explorer needs attention"
+                  description={callExplorerError}
+                  tone="error"
+                  compact
+                  cardTone="subcard"
+                />
+              ) : null}
+            </div>
           ) : null}
           <div className="va-inline-tools">
             <UiCard tone="subcard">
@@ -799,17 +850,18 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
       </section>
 
       {!hasMeaningfulData ? (
-        <section className="va-grid">
-          <div className="va-card va-empty-state">
-            <h3>No Recent Operational Activity</h3>
-            <UiStatePanel
-              title="Feed is connected"
-              description="Metrics and events will populate as live traffic and background jobs are processed."
-              tone="info"
-              compact
-            />
-          </div>
-        </section>
+        <div className="va-status-state-stack">
+          <UiSurfaceState
+            eyebrow="Workspace state"
+            status="Awaiting traffic"
+            statusVariant="info"
+            title="No recent operational activity"
+            description="The feed is connected. Metrics and events will populate as live traffic and background jobs are processed."
+            tone="info"
+            compact
+            cardTone="empty"
+          />
+        </div>
       ) : null}
     </>
   );

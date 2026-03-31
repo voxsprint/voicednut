@@ -5,7 +5,17 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
-import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import {
+  UiActionBar,
+  UiButton,
+  UiCard,
+  UiDisclosure,
+  UiInput,
+  UiStatePanel,
+  UiSurfaceState,
+  UiTextarea,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
@@ -76,6 +86,27 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
   });
   const controlsBusy = smsRequestState.isBusy;
   const activeActionLabel = smsRequestState.activeActionLabel;
+  const pulseTone: 'info' | 'success' | 'warning' | 'error' = investigationError
+    ? 'error'
+    : smsRequestState.status === 'busy'
+      ? 'info'
+      : !smsCanSubmit && (smsRecipientsInput.trim() || smsMessageInput.trim())
+        ? 'warning'
+        : 'success';
+  const pulseStatus = investigationError
+    ? 'Needs attention'
+    : smsRequestState.status === 'busy'
+      ? 'Working'
+      : !smsCanSubmit && (smsRecipientsInput.trim() || smsMessageInput.trim())
+        ? 'Needs setup'
+        : 'Ready';
+  const pulseDescription = investigationError
+    ? investigationError
+    : smsRequestState.status === 'busy'
+      ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'SMS actions are in progress.'
+      : !smsCanSubmit && (smsRecipientsInput.trim() || smsMessageInput.trim())
+        ? smsReadinessHint
+        : 'Recipients, routing checks, and send controls are ready for the next batch.';
 
   return (
     <>
@@ -85,14 +116,20 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         <p className="va-muted">
           Compose bulk SMS campaigns, validate recipients, estimate cost, and monitor completion.
         </p>
-        <div className="va-inline-metrics">
-          <UiBadge>Recipients {smsRecipientsParsed.length}</UiBadge>
-          <UiBadge>Invalid {smsInvalidRecipients.length}</UiBadge>
-          <UiBadge>Duplicates {smsDuplicateCount}</UiBadge>
-          <UiBadge>Segments {smsSegmentEstimate.segments}</UiBadge>
-          <UiBadge>Est. cost ${smsEstimatedCost.toFixed(4)}</UiBadge>
-        </div>
       </section>
+
+      <UiWorkspacePulse
+        title="SMS workspace"
+        description={pulseDescription}
+        status={pulseStatus}
+        tone={pulseTone}
+        items={[
+          { label: 'Audience', value: smsRecipientsParsed.length },
+          { label: 'Invalid', value: smsInvalidRecipients.length },
+          { label: 'Segments', value: smsSegmentEstimate.segments },
+          { label: 'Est. cost', value: `$${smsEstimatedCost.toFixed(4)}` },
+        ]}
+      />
 
       <LoadingTelemetryCard
         visible={smsRequestState.isLoading && smsRecipientsParsed.length === 0}
@@ -108,14 +145,23 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         <section className="va-grid">
           <UiCard>
             <h3>SMS Sender Console</h3>
-            {!smsRecipientsInput.trim() && !smsMessageInput.trim() ? (
-              <UiStatePanel
-                title="Start a new SMS batch"
-                description="Paste recipients and a message body, or upload a CSV/TXT recipient list."
-                tone="info"
-                compact
-              />
-            ) : null}
+            <UiActionBar
+              title="Prepare the next batch"
+              description={
+                smsCanSubmit
+                  ? 'Review delivery settings, then run a dry-run or send the batch.'
+                  : 'Paste recipients and a message body, or upload a CSV/TXT recipient list.'
+              }
+              actions={(
+                <UiButton
+                  variant="primary"
+                  disabled={controlsBusy || !smsCanSubmit}
+                  onClick={() => { void sendSmsFromConsole(); }}
+                >
+                  {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
+                </UiButton>
+              )}
+            />
             <p className="va-card-eyebrow">Audience</p>
             <UiTextarea
               id="va-sms-recipients"
@@ -188,13 +234,6 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 />
                 {' '}Dry-run only
               </label>
-              <UiButton
-                variant="primary"
-                disabled={controlsBusy || !smsCanSubmit}
-                onClick={() => { void sendSmsFromConsole(); }}
-              >
-                {smsDryRunMode ? 'Run Dry-Run' : smsScheduleAt ? 'Schedule SMS Batch' : 'Send SMS Batch'}
-              </UiButton>
             </div>
             {!smsCanSubmit ? (
               <UiStatePanel
@@ -229,25 +268,33 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
               Segment estimate: <strong>{smsSegmentEstimate.segments}</strong>
               {' '}segment(s), {smsSegmentEstimate.perSegment} chars/segment.
             </p>
-            <h4>Route Simulation</h4>
-            {smsRouteSimulationRows.length === 0 ? (
-              <UiStatePanel
-                title="Route simulation warming up"
-                description="Provider routing diagnostics will appear after the first parse/run cycle."
-                tone="info"
-                compact
-              />
-            ) : (
-              <ul className="va-list va-list-dense">
-                {smsRouteSimulationRows.map((row) => (
-                  <li key={`sms-route-${row.provider}`}>
-                    <strong>{row.provider}</strong>
-                    <span>Ready: {row.ready ? 'yes' : 'no'} | Degraded: {row.degraded ? 'yes' : 'no'}</span>
-                    <span>Parity gaps: {row.parityGapCount}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <UiDisclosure
+              title="Routing preview"
+              subtitle={
+                smsRouteSimulationRows.length === 0
+                  ? 'Provider diagnostics will appear after the first parse or send cycle.'
+                  : `${smsRouteSimulationRows.length} provider path${smsRouteSimulationRows.length === 1 ? '' : 's'} loaded`
+              }
+            >
+              {smsRouteSimulationRows.length === 0 ? (
+                <UiStatePanel
+                  title="Route simulation warming up"
+                  description="Provider routing diagnostics will appear after the first parse/run cycle."
+                  tone="info"
+                  compact
+                />
+              ) : (
+                <ul className="va-list va-list-dense">
+                  {smsRouteSimulationRows.map((row) => (
+                    <li key={`sms-route-${row.provider}`}>
+                      <strong>{row.provider}</strong>
+                      <span>Ready: {row.ready ? 'yes' : 'no'} | Degraded: {row.degraded ? 'yes' : 'no'}</span>
+                      <span>Parity gaps: {row.parityGapCount}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </UiDisclosure>
           </UiCard>
           <UiCard>
             <h3>SMS Job Tracker</h3>
@@ -271,6 +318,32 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
           <h3 className="va-section-title">Investigation & Status</h3>
           <p className="va-muted">Message-level diagnostics for recent, conversation, and SID lookups.</p>
         </header>
+        {investigationError || smsRequestState.status === 'busy' ? (
+          <div className="va-status-state-stack">
+            {investigationError ? (
+              <UiSurfaceState
+                eyebrow="Lookup status"
+                status="Needs attention"
+                statusVariant="error"
+                title="SMS investigation needs attention"
+                description={investigationError}
+                tone="error"
+                compact
+              />
+            ) : null}
+            {smsRequestState.status === 'busy' ? (
+              <UiSurfaceState
+                eyebrow="Lookup status"
+                status="In progress"
+                statusVariant="info"
+                title="SMS investigation is running"
+                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
+                tone="info"
+                compact
+              />
+            ) : null}
+          </div>
+        ) : null}
         <section className="va-grid">
           <UiCard>
             <h3>SMS Message Lookup</h3>
@@ -344,22 +417,6 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
                 Stats
               </UiButton>
             </div>
-            {investigationError ? (
-              <UiStatePanel
-                title="SMS investigation failed"
-                description={investigationError}
-                tone="error"
-                compact
-              />
-            ) : null}
-            {smsRequestState.status === 'busy' ? (
-              <UiStatePanel
-                title="SMS request in progress"
-                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
-                tone="info"
-                compact
-              />
-            ) : null}
             <div className="va-subcard-grid va-subcard-grid-two">
               <UiCard tone="subcard">
                 <h4>Status Snapshot</h4>

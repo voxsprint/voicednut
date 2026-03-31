@@ -33,7 +33,6 @@ type DashboardFocusedHeaderProps = {
   userAvatarUrl: string;
   userAvatarFallback: string;
   loading: boolean;
-  onBackToDashboard: () => void;
   onOpenSettings: () => void;
 };
 
@@ -110,7 +109,7 @@ export function DashboardMainHeader({
         />
         <div className="va-header-copy">
           <h1>Voicednut Console</h1>
-          <p className="va-muted">Monitor reliability, triage incidents, and run provider and messaging operations.</p>
+          <p className="va-muted">Stay on top of delivery, calling, provider health, and incident response.</p>
           <p className="va-module-context-line va-muted">
             <span className="va-module-context-icon" aria-hidden>{activeModuleGlyph}</span>
             <span>{moduleDetail}</span>
@@ -167,20 +166,11 @@ export function DashboardFocusedHeader({
   userAvatarUrl,
   userAvatarFallback,
   loading,
-  onBackToDashboard,
   onOpenSettings,
 }: DashboardFocusedHeaderProps) {
   return (
     <header className="va-focused-header">
       <div className="va-focused-main">
-        <UiButton
-          variant="plain"
-          className="va-focused-back"
-          onClick={onBackToDashboard}
-          disabled={loading}
-        >
-          ← Dashboard
-        </UiButton>
         <div className="va-focused-copy">
           <h2 className="va-page-title">{title}</h2>
           <p className="va-muted">{subtitle}</p>

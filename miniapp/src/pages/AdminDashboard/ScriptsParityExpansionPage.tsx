@@ -7,7 +7,17 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
 import { Link } from '@/components/Link/Link.tsx';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
-import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import { useDashboardHaptic } from '@/hooks/admin-dashboard/useDashboardHaptic';
+import {
+  UiActionBar,
+  UiBadge,
+  UiButton,
+  UiCard,
+  UiInput,
+  UiStatePanel,
+  UiTextarea,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import {
   DASHBOARD_ACTION_CONTRACTS,
   DASHBOARD_MODULE_ROUTE_CONTRACTS,
@@ -46,7 +56,7 @@ function toRows(value: unknown): Array<Record<string, unknown>> {
   return value.map((entry) => asRecord(entry));
 }
 
-function toLifecycleBadgeVariant(value: unknown): 'meta' | 'info' | 'success' | 'error' {
+function toLifecycleBadgeVariant(value: unknown): 'meta' | 'info' | 'success' | 'warning' | 'error' {
   const normalized = typeof value === 'string'
     ? value.trim().toLowerCase()
     : typeof value === 'number' || typeof value === 'boolean'
@@ -56,6 +66,9 @@ function toLifecycleBadgeVariant(value: unknown): 'meta' | 'info' | 'success' | 
   if (normalized.includes('active') || normalized.includes('ready') || normalized.includes('published')) {
     return 'success';
   }
+  if (normalized.includes('review') || normalized.includes('submitted') || normalized.includes('pending')) {
+    return 'warning';
+  }
   if (normalized.includes('error') || normalized.includes('fail') || normalized.includes('blocked')) {
     return 'error';
   }
@@ -64,6 +77,8 @@ function toLifecycleBadgeVariant(value: unknown): 'meta' | 'info' | 'success' | 
 
 export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansionPageProps) {
   if (!visible) return null;
+
+  const { triggerHaptic } = useDashboardHaptic();
 
   const { toText, invokeAction, runAction, busyAction } = selectScriptStudioPageVm(vm);
 
@@ -90,6 +105,20 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
   });
   const controlsBusy = requestState.isBusy;
   const activeAction = requestState.activeActionLabel;
+  const pulseTone = investigationError
+    ? 'error'
+    : controlsBusy
+      ? 'info'
+      : selectedSmsScriptName || selectedEmailTemplateId
+        ? 'success'
+        : 'neutral';
+  const pulseStatus = investigationError
+    ? 'Needs attention'
+    : controlsBusy
+      ? activeAction || 'Refreshing'
+      : selectedSmsScriptName || selectedEmailTemplateId
+        ? 'Editing'
+        : 'Ready';
 
   const selectedSmsScript = useMemo(() => (
     smsScripts.find((script) => toText(script.name, '') === selectedSmsScriptName) || null
@@ -158,41 +187,46 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
     <>
       <section className="va-page-intro">
         <p className="va-kicker">Content</p>
-        <h2 className="va-page-title">Scripts Parity Expansion</h2>
-        <p className="va-muted">Manage SMS scripts and email templates in dedicated parity tooling.</p>
-        <div className="va-inline-metrics">
-          <UiBadge>SMS scripts {smsScripts.length}</UiBadge>
-          <UiBadge>Email templates {emailTemplates.length}</UiBadge>
-          <UiBadge>Selected script {selectedSmsScriptName || 'none'}</UiBadge>
-          <UiBadge>Selected template {selectedEmailTemplateId || 'none'}</UiBadge>
-        </div>
+        <h2 className="va-page-title">Message Templates</h2>
+        <p className="va-muted">Manage SMS scripts and email templates in one workspace.</p>
       </section>
+      <UiWorkspacePulse
+        title="Workspace pulse"
+        description="Keep content sync, active selections, and editing readiness visible at a glance."
+        tone={pulseTone}
+        status={pulseStatus}
+        items={[
+          { label: 'SMS scripts', value: smsScripts.length },
+          { label: 'Email templates', value: emailTemplates.length },
+          { label: 'Selected script', value: selectedSmsScriptName || 'None' },
+          { label: 'Selected template', value: selectedEmailTemplateId || 'None' },
+        ]}
+      />
 
       <DashboardWorkflowContractCard moduleId="scriptsparity" />
-      <div className="va-card">
-        <h3>Canonical /scripts handoff</h3>
+      <UiCard>
+        <h3>Scripts workspace</h3>
         <p className="va-muted">
-          This workspace is downstream of the canonical <strong>/scripts</strong> command page and
-          is limited to SMS script and email template parity work. Call-script lifecycle ownership
-          remains in Script Studio.
+          Use this workspace for SMS scripts and email templates. Call scripts stay in Script
+          Studio.
         </p>
         <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS}>
           <Cell
-            subtitle="Return to the command-native /scripts entry point before switching to another scripts workflow."
+            subtitle="Open the scripts overview before moving to another content workspace."
             after={<Navigation>Open</Navigation>}
           >
-            /scripts command page
+            Scripts overview
           </Cell>
         </Link>
         <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.content}>
           <Cell
-            subtitle="Open the downstream workspace for call-script drafting, review, simulation, and promote-live ownership."
+            subtitle="Open call script drafting, review, simulation, and live promotion tools."
             after={<Navigation>Open</Navigation>}
           >
-            Script Studio
+            Call Scripts
           </Cell>
         </Link>
-      </div>
+      </UiCard>
 
       <section className="va-grid">
         <UiCard>
@@ -202,7 +236,10 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
             <UiButton
               variant="secondary"
               disabled={controlsBusy}
-              onClick={() => { void loadSmsScripts(); }}
+              onClick={() => {
+                triggerHaptic('impact', 'light');
+                void loadSmsScripts();
+              }}
             >
               Refresh SMS Scripts
             </UiButton>
@@ -271,7 +308,10 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   <UiButton
                     variant="chip"
                     className={active ? 'is-active' : ''}
-                    onClick={() => setSelectedSmsScriptName(scriptName)}
+                    onClick={() => {
+                      triggerHaptic('selection');
+                      setSelectedSmsScriptName(scriptName);
+                    }}
                   >
                     {active ? 'Selected' : 'Select'}
                   </UiButton>
@@ -306,49 +346,57 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                 rows={4}
                 disabled={selectedSmsScript.is_builtin === true}
               />
-              <div className="va-inline-tools">
-                <UiButton
-                  variant="primary"
-                  disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
-                  onClick={() => {
-                    void runAction(
-                      DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
-                      {
-                        script_name: selectedSmsScriptName,
-                        description: smsScriptDescriptionInput,
-                        content: smsScriptContentInput,
-                      },
-                      {
-                        successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
-                        onSuccess: () => {
-                          void loadSmsScripts();
-                        },
-                      },
-                    );
-                  }}
-                >
-                  Save SMS Script
-                </UiButton>
-                <UiButton
-                  variant="secondary"
-                  disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
-                  onClick={() => {
-                    void runAction(
-                      DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
-                      { script_name: selectedSmsScriptName },
-                      {
-                        confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
-                        successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
-                        onSuccess: () => {
-                          void loadSmsScripts();
-                        },
-                      },
-                    );
-                  }}
-                >
-                  Delete SMS Script
-                </UiButton>
-              </div>
+              <UiActionBar
+                title={controlsBusy ? 'SMS script action in progress' : 'SMS script ready'}
+                description={selectedSmsScript.is_builtin === true
+                  ? 'Built-in scripts are read-only. Create a custom script to make edits.'
+                  : 'Save content changes or remove the selected custom script.'}
+                actions={(
+                  <>
+                    <UiButton
+                      variant="primary"
+                      disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
+                      onClick={() => {
+                        void runAction(
+                          DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
+                          {
+                            script_name: selectedSmsScriptName,
+                            description: smsScriptDescriptionInput,
+                            content: smsScriptContentInput,
+                          },
+                          {
+                            successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
+                            onSuccess: () => {
+                              void loadSmsScripts();
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      Save SMS Script
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
+                      disabled={controlsBusy || selectedSmsScript.is_builtin === true || !selectedSmsScriptName}
+                      onClick={() => {
+                        void runAction(
+                          DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
+                          { script_name: selectedSmsScriptName },
+                          {
+                            confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
+                            successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
+                            onSuccess: () => {
+                              void loadSmsScripts();
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      Delete SMS Script
+                    </UiButton>
+                  </>
+                )}
+              />
             </>
           ) : null}
         </UiCard>
@@ -357,7 +405,10 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
           <h3>Email Templates</h3>
           <p className="va-muted">Create and maintain reusable email templates.</p>
           <div className="va-inline-tools">
-            <UiButton variant="secondary" disabled={controlsBusy} onClick={() => { void loadEmailTemplates(); }}>
+            <UiButton variant="secondary" disabled={controlsBusy} onClick={() => {
+              triggerHaptic('impact', 'light');
+              void loadEmailTemplates();
+            }}>
               Refresh Templates
             </UiButton>
             <UiInput
@@ -411,7 +462,10 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                   <UiButton
                     variant="chip"
                     className={active ? 'is-active' : ''}
-                    onClick={() => setSelectedEmailTemplateId(templateId)}
+                    onClick={() => {
+                      triggerHaptic('selection');
+                      setSelectedEmailTemplateId(templateId);
+                    }}
                   >
                     {active ? 'Selected' : 'Select'}
                   </UiButton>
@@ -441,50 +495,56 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
                 onChange={(event) => setEmailTemplateTextInput(event.target.value)}
                 rows={3}
               />
-              <div className="va-inline-tools">
-                <UiButton
-                  variant="primary"
-                  disabled={controlsBusy || !selectedEmailTemplateId}
-                  onClick={() => {
-                    void runAction(
-                      DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
-                      {
-                        template_id: selectedEmailTemplateId,
-                        subject: emailTemplateSubjectInput,
-                        html: emailTemplateHtmlInput,
-                        text: emailTemplateTextInput,
-                      },
-                      {
-                        successMessage: `Updated template "${selectedEmailTemplateId}"`,
-                        onSuccess: () => {
-                          void loadEmailTemplates();
-                        },
-                      },
-                    );
-                  }}
-                >
-                  Save Template
-                </UiButton>
-                <UiButton
-                  variant="secondary"
-                  disabled={controlsBusy || !selectedEmailTemplateId}
-                  onClick={() => {
-                    void runAction(
-                      DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
-                      { template_id: selectedEmailTemplateId },
-                      {
-                        confirmText: `Delete template "${selectedEmailTemplateId}"?`,
-                        successMessage: `Deleted template "${selectedEmailTemplateId}"`,
-                        onSuccess: () => {
-                          void loadEmailTemplates();
-                        },
-                      },
-                    );
-                  }}
-                >
-                  Delete Template
-                </UiButton>
-              </div>
+              <UiActionBar
+                title={controlsBusy ? 'Template action in progress' : 'Template ready'}
+                description="Save subject/body changes or remove the selected template once the current revision is confirmed."
+                actions={(
+                  <>
+                    <UiButton
+                      variant="primary"
+                      disabled={controlsBusy || !selectedEmailTemplateId}
+                      onClick={() => {
+                        void runAction(
+                          DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
+                          {
+                            template_id: selectedEmailTemplateId,
+                            subject: emailTemplateSubjectInput,
+                            html: emailTemplateHtmlInput,
+                            text: emailTemplateTextInput,
+                          },
+                          {
+                            successMessage: `Updated template "${selectedEmailTemplateId}"`,
+                            onSuccess: () => {
+                              void loadEmailTemplates();
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      Save Template
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
+                      disabled={controlsBusy || !selectedEmailTemplateId}
+                      onClick={() => {
+                        void runAction(
+                          DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
+                          { template_id: selectedEmailTemplateId },
+                          {
+                            confirmText: `Delete template "${selectedEmailTemplateId}"?`,
+                            successMessage: `Deleted template "${selectedEmailTemplateId}"`,
+                            onSuccess: () => {
+                              void loadEmailTemplates();
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      Delete Template
+                    </UiButton>
+                  </>
+                )}
+              />
             </>
           ) : null}
         </UiCard>
@@ -506,7 +566,7 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
         <section className="va-grid">
           <UiCard>
             <UiStatePanel
-              title="Scripts parity action failed"
+              title="Message template action failed"
               description={investigationError}
               tone="error"
             />

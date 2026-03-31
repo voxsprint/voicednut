@@ -15,7 +15,6 @@ import { Link } from '@/components/Link/Link.tsx';
 import { Page } from '@/components/Page.tsx';
 import {
   BOT_CALLBACK_TO_DASHBOARD_ACTION_CONTRACTS,
-  BOT_PRIMARY_COMMANDS,
   DASHBOARD_ACTION_CONTRACTS,
   DASHBOARD_MODULE_ROUTE_CONTRACTS,
   DASHBOARD_STATIC_ROUTE_CONTRACTS,
@@ -27,10 +26,13 @@ import {
 } from '@/contracts/miniappParityContracts';
 import { useMiniAppCommandSession } from '@/hooks/useMiniAppCommandSession';
 import {
+  UiActionBar,
   UiBadge,
   UiButton,
   UiCard,
+  UiDisclosure,
   UiInput,
+  UiMetricTile,
   UiSelect,
   UiStatePanel,
   UiTextarea,
@@ -492,7 +494,7 @@ function getCommandRuntimeRows(
       label: 'Bridge HTTP status trail',
       value: snapshot.bridgeStatuses.length > 0
         ? snapshot.bridgeStatuses.join(', ')
-        : 'No bridge response status history in current bootstrap',
+        : 'No bridge response status history in the current session snapshot',
     },
     {
       label: 'Bootstrap timing',
@@ -575,7 +577,7 @@ function describeActionAvailability(
     return 'Mini App route not mounted yet';
   }
   if (action.availability === 'partial') {
-    return 'Partial parity route';
+    return 'Partially available workflow';
   }
   return 'Available now';
 }
@@ -913,16 +915,16 @@ function getCommandContent(
         {
           header: 'Welcome posture',
           items: [
-            'This page mirrors /start and keeps execution actions locked until your Telegram account is approved.',
-            `Use ${BOT_PRIMARY_COMMANDS.HELP} to review available workflows and access expectations.`,
+            'Review available workflows and current access before you start work in the admin console.',
+            'Use Help to review available workflows and access expectations.',
           ],
         },
         {
           header: 'Guest next steps',
           items: [
-            `Open ${BOT_PRIMARY_COMMANDS.GUIDE} for workflow rules and safe usage practices.`,
-            `Open ${BOT_PRIMARY_COMMANDS.MENU} for role-aware quick actions that currently exist in the Mini App.`,
-            'Request admin approval in the main bot to unlock call, SMS, and email execution.',
+            'Open Guide for workflow rules and safe usage practices.',
+            'Open Menu for the quick actions currently available in the Mini App.',
+            'Request access from an admin to unlock call, SMS, and email execution.',
           ],
         },
       ];
@@ -932,23 +934,23 @@ function getCommandContent(
       {
         header: 'Welcome posture',
         items: [
-          'This page mirrors /start as the role-aware command launcher for the Mini App.',
-          'Actions below remain bound to existing bot/API workflows; this page does not invent independent execution logic.',
+          'Start from the workflows available to your current access level.',
+          'Each action below opens the same backend-backed flow used across the admin console.',
         ],
       },
       {
         header: 'Primary workflows',
         items: [
-          `${BOT_PRIMARY_COMMANDS.CALL} launches outbound call workflows.`,
-          `${BOT_PRIMARY_COMMANDS.SMS} and ${BOT_PRIMARY_COMMANDS.EMAIL} launch messaging and delivery workflows.`,
-          `${BOT_PRIMARY_COMMANDS.CALLLOG} opens recent calls, search, details, and events.`,
+          'Call opens outbound call workflows.',
+          'SMS and Email open messaging and delivery workflows.',
+          'Call Log opens recent calls, search, details, and events.',
         ],
       },
       {
         header: 'Utilities',
         items: [
-          `${BOT_PRIMARY_COMMANDS.GUIDE}, ${BOT_PRIMARY_COMMANDS.HELP}, and ${BOT_PRIMARY_COMMANDS.MENU} remain available for navigation and operator guidance.`,
-          `${BOT_PRIMARY_COMMANDS.HEALTH} exposes runtime posture and ${BOT_PRIMARY_COMMANDS.STATUS} provides deeper admin diagnostics.`,
+          'Guide, Help, and Menu remain available for navigation and operator guidance.',
+          'Health exposes runtime posture and Status provides deeper admin diagnostics.',
         ],
       },
     ];
@@ -957,8 +959,8 @@ function getCommandContent(
       sections.push({
         header: 'Admin extensions',
         items: [
-          `${BOT_PRIMARY_COMMANDS.SMSSENDER} and ${BOT_PRIMARY_COMMANDS.MAILER} stay available through admin workspace routes.`,
-          `${BOT_PRIMARY_COMMANDS.USERS}, ${BOT_PRIMARY_COMMANDS.CALLERFLAGS}, ${BOT_PRIMARY_COMMANDS.SCRIPTS}, and ${BOT_PRIMARY_COMMANDS.PROVIDER} remain command-owned admin workflows.`,
+          'SMS Sender and Mailer stay available through admin workspace routes.',
+          'Users, Caller Flags, Scripts, and Provider remain available as admin workflows.',
         ],
       });
     }
@@ -973,11 +975,11 @@ function getCommandContent(
           header: 'Access posture',
           items: [
             'You can review menus and guides, but execution remains locked until access is approved.',
-            'The bot admin controls authorization from the main Telegram bot.',
+            'Authorization is managed separately from this Mini App session.',
           ],
         },
         {
-          header: 'What this bot can do',
+          header: 'What this app can do',
           items: [
             'Run AI-powered voice calls and message workflows.',
             'Track call, SMS, and email execution from the same backend.',
@@ -990,30 +992,30 @@ function getCommandContent(
       {
         header: 'Call tools',
         items: [
-          `${BOT_PRIMARY_COMMANDS.CALL} opens the Mini App call composer for custom outbound calls.`,
-          `${BOT_PRIMARY_COMMANDS.CALLLOG} opens recent calls, search, details, and events.`,
+          'Call opens the Mini App call composer for custom outbound calls.',
+          'Call Log opens recent calls, search, details, and events.',
         ],
       },
       {
         header: 'Messaging tools',
         items: [
-          `${BOT_PRIMARY_COMMANDS.SMS} opens the SMS center and diagnostics.`,
-          `${BOT_PRIMARY_COMMANDS.EMAIL} opens email sending, status, and history workflows.`,
+          'SMS opens the SMS center and diagnostics.',
+          'Email opens sending, status, and history workflows.',
         ],
       },
       {
         header: 'Navigation',
         items: [
-          `${BOT_PRIMARY_COMMANDS.MENU} reopens quick actions.`,
-          `${BOT_PRIMARY_COMMANDS.GUIDE} shows operating guidance and number rules.`,
-          `${BOT_PRIMARY_COMMANDS.HEALTH} and ${BOT_PRIMARY_COMMANDS.STATUS} surface runtime posture through the ops workspace.`,
+          'Menu reopens quick actions.',
+          'Guide shows operating guidance and number rules.',
+          'Health and Status surface runtime posture through the ops workspace.',
         ],
       },
       {
         header: 'Quick usage',
         items: [
-          'Use the quick-action list below to enter an existing Mini App workflow.',
-          'Where parity is still partial or missing, the page shows the gap instead of redirecting blindly.',
+          'Use the quick-action list below to open the workspace you need.',
+          'If a workflow is not available in this build, the page tells you directly instead of sending you into a dead end.',
         ],
       },
     ];
@@ -1021,9 +1023,9 @@ function getCommandContent(
       sections.push({
         header: 'Admin toolkit',
         items: [
-          `${BOT_PRIMARY_COMMANDS.USERS} manages access and roles.`,
-          `${BOT_PRIMARY_COMMANDS.CALLERFLAGS} moderates inbound caller flags.`,
-          `${BOT_PRIMARY_COMMANDS.PROVIDER}, ${BOT_PRIMARY_COMMANDS.SMSSENDER}, and ${BOT_PRIMARY_COMMANDS.MAILER} stay on the admin console routes.`,
+          'Users manages access and roles.',
+          'Caller Flags moderates inbound caller flags.',
+          'Provider, SMS Sender, and Mailer stay on the admin console routes.',
         ],
       });
     }
@@ -1036,15 +1038,15 @@ function getCommandContent(
         {
           header: 'SMS center access',
           items: [
-            'This page mirrors /sms and keeps send/status actions locked until access is approved.',
-            'You can review workflow ownership, fallback behavior, and command guidance before requesting access.',
+            'SMS tools stay locked until your account has the required access.',
+            'You can still review the workflow layout and operating guidance before requesting approval.',
           ],
         },
         {
           header: 'Guest next steps',
           items: [
-            `Use ${BOT_PRIMARY_COMMANDS.HELP} for command guidance and access expectations.`,
-            `Use ${BOT_PRIMARY_COMMANDS.GUIDE} for number formatting rules and safe delivery practices.`,
+            'Use Help for access expectations and workflow guidance.',
+            'Use Guide for number formatting rules and safe delivery practices.',
           ],
         },
       ];
@@ -1054,16 +1056,16 @@ function getCommandContent(
       {
         header: 'SMS center workflow',
         items: [
-          'This page mirrors /sms by keeping SMS send, schedule, status, and diagnostics ownership in one command-native surface.',
-          'This command page executes send, schedule, status, conversation, recent, and stats actions directly through shared Mini App action contracts.',
+          'Keep send, schedule, delivery checks, and diagnostics in one SMS workspace.',
+          'Actions on this page run through the same Mini App action contracts used elsewhere in the console.',
         ],
       },
       {
-        header: 'Current parity posture',
+        header: 'Current workflow coverage',
         items: [
-          'Single-recipient command workflows execute here with the same backend action contracts used by the bot and dashboard.',
+          'Single-recipient workflows execute here through the same backend action contracts used across the admin console.',
           'Callback actions such as SMS_SEND, SMS_STATUS, SMS_CONVO, SMS_RECENT_PAGE:* and SMS_STATS are mapped to shared Mini App action contracts with safe fallback for unknown callbacks.',
-          `High-volume bulk execution remains in the canonical ${BOT_PRIMARY_COMMANDS.SMSSENDER} workflow with precheck and batching safeguards.`,
+          'High-volume bulk execution remains in SMS Sender with precheck and batching safeguards.',
         ],
       },
       {
@@ -1079,7 +1081,7 @@ function getCommandContent(
       sections.push({
         header: 'Admin sender controls',
         items: [
-          `${BOT_PRIMARY_COMMANDS.SMSSENDER} remains the bulk SMS execution control plane.`,
+          'SMS Sender remains the bulk SMS execution control plane.',
           'Use schedule and delivery checks before high-volume sends.',
         ],
       });
@@ -1094,15 +1096,15 @@ function getCommandContent(
         {
           header: 'Email center access',
           items: [
-            'This page mirrors /email and keeps send/status actions locked until access is approved.',
-            'You can still review workflow ownership, guidance, and fallback paths before requesting access.',
+            'Email tools stay locked until your account has the required access.',
+            'You can still review the workflow layout, guidance, and handoff points before requesting approval.',
           ],
         },
         {
           header: 'Guest next steps',
           items: [
-            `Use ${BOT_PRIMARY_COMMANDS.HELP} for command guidance and access details.`,
-            `Use ${BOT_PRIMARY_COMMANDS.GUIDE} for safe usage practices and operational checks.`,
+            'Use Help for access details and workflow guidance.',
+            'Use Guide for safe usage practices and operational checks.',
           ],
         },
       ];
@@ -1112,22 +1114,22 @@ function getCommandContent(
       {
         header: 'Email center workflow',
         items: [
-          'This page mirrors /email by presenting email send/status/template/history ownership in one command-native surface.',
-          'Execution stays bound to existing backend action contracts; this page orchestrates rather than reimplements those flows.',
+          'Manage send, status, templates, and history in one email workspace.',
+          'Execution stays bound to the existing backend action contracts; this page coordinates those flows instead of reimplementing them.',
         ],
       },
       {
-        header: 'Current parity posture',
+        header: 'Current workflow coverage',
         items: [
           'Single-recipient send/schedule, template preview, status/timeline, template list, and bulk history execute directly through shared Mini App action contracts.',
-          'Callback actions such as EMAIL_SEND, EMAIL_STATUS:* and EMAIL_HISTORY map through shared contracts so this page executes the same callback-owned workflow surface as the bot.',
-          'The canonical /mailer workflow remains the high-volume control plane with broader campaign and deliverability tooling.',
+          'Callback actions such as EMAIL_SEND, EMAIL_STATUS:* and EMAIL_HISTORY map through shared contracts so this page executes the same workflow surface used elsewhere in the console.',
+          'Mailer remains the high-volume control plane with broader campaign and deliverability tooling.',
         ],
       },
       {
         header: 'Operational safety',
         items: [
-          'Use provider diagnostics before large campaigns or incident recovery actions.',
+          'Use provider diagnostics before large campaigns or incident response actions.',
           'If a route is unsupported in the current build, the action remains visible as a partial or missing gap instead of silently failing.',
         ],
       },
@@ -1137,7 +1139,7 @@ function getCommandContent(
       sections.push({
         header: 'Admin mailer controls',
         items: [
-          `${BOT_PRIMARY_COMMANDS.MAILER} remains the bulk-email execution control plane.`,
+          'Mailer remains the bulk-email execution control plane.',
           'Use preflight, job status, and history checks before high-volume sends.',
         ],
       });
@@ -1149,24 +1151,24 @@ function getCommandContent(
   if (pageId === 'SCRIPTS') {
     return [
       {
-        header: 'Scripts command ownership',
+        header: 'Scripts workspace',
         items: [
-          'This page restores /scripts as a command-native Mini App entry point instead of treating script workspaces as standalone product routes.',
-          'The command remains admin-scoped and keeps live bot ownership over reusable prompts, call scripts, SMS script parity, and email template parity workflows.',
+          'Use this page to enter the script workspace without losing the current admin session context.',
+          'Reusable prompts, call scripts, SMS scripts, and email templates stay routed through the existing admin workflows.',
         ],
       },
       {
         header: 'Workspace split',
         items: [
-          `Script Studio (${DASHBOARD_MODULE_ROUTE_CONTRACTS.content}) owns call-script drafting, review, simulation, and promote-live workflows.`,
-          `Scripts Parity Expansion (${DASHBOARD_MODULE_ROUTE_CONTRACTS.scriptsparity}) owns SMS script and email-template parity workflows tied back to ${BOT_PRIMARY_COMMANDS.SCRIPTS}.`,
+          'Script Studio owns call-script drafting, review, simulation, and promote-live workflows.',
+          'Scripts Expansion owns SMS script and email-template workflows.',
         ],
       },
       {
         header: 'Operational rule',
         items: [
           'This route should hand operators into the correct workspace, not duplicate script business logic locally.',
-          'If script-adjacent capabilities drift, update the shared /scripts contracts first so both downstream workspaces stay bounded to the same command semantics.',
+          'If script capabilities drift, update the shared script contracts first so both downstream workspaces stay aligned.',
         ],
       },
     ];
@@ -1177,9 +1179,9 @@ function getCommandContent(
       {
         header: 'Making calls',
         items: [
-          'Start a call via /call or the Call quick action.',
-          'The Mini App now executes both custom and script-backed /call launches against the live backend contract.',
-          'Script catalog browsing remains constrained by the current Mini App capability contract, and the full guided bot wizard is still not mounted here.',
+          'Start a call from the Call quick action.',
+          'The Mini App executes both custom and script-backed call launches against the live backend contract.',
+          'Script catalog browsing remains constrained by the current Mini App capability contract, and the full guided setup flow is still not mounted here.',
           'Provide the destination number in E.164 format such as +18005551234.',
           'Describe persona, objective, and first spoken message clearly.',
         ],
@@ -1226,16 +1228,16 @@ function getCommandContent(
       {
         header: 'Health workflow',
         items: [
-          'This page mirrors /health by showing quick runtime posture from the server-authoritative Mini App bootstrap.',
+          'Review quick runtime posture from the same session snapshot used across the admin console.',
           'Use refresh when you need the latest state without leaving the command workflow.',
           'Escalate to /status for deeper runtime controls and admin diagnostics.',
         ],
       },
       {
-        header: 'Recovery behavior',
+        header: 'Session behavior',
         items: [
-          'If bootstrap refresh fails, the page keeps last-known visibility and shows the blocking error code.',
-          'Unknown or stale navigation still recovers to dashboard root instead of hard-failing.',
+          'If session refresh fails, the page keeps last-known visibility and shows the blocking error code.',
+          'Unknown or stale navigation still returns to the admin console instead of hard-failing.',
         ],
       },
     ];
@@ -1246,7 +1248,7 @@ function getCommandContent(
       {
         header: 'Status workflow',
         items: [
-          'This page mirrors /status by surfacing deep admin runtime posture from the same bootstrap source used by ops.',
+          'Review detailed runtime posture from the same session snapshot used by operations.',
           'Use Provider or Admin Console quick actions when incident handling requires command-adjacent workflows.',
           'Role symmetry is enforced: this route remains admin-scoped and never bypasses server authorization.',
         ],
@@ -1265,14 +1267,14 @@ function getCommandContent(
     {
       header: 'Quick actions',
       items: [
-        'This page mirrors the bot /menu command by showing only the quick actions relevant to your current access tier.',
-        'Each item below routes only to an existing Mini App workflow or explicitly reports the missing parity gap.',
+        'Use this page to open only the quick actions relevant to your current access tier.',
+        'Each item below routes only to an available Mini App workflow or clearly reports when something is unavailable.',
       ],
     },
     {
       header: 'Workflow rule',
       items: [
-        'Menu should launch real command-owned workflows, not standalone Mini App logic.',
+        'Menu should launch real supported workflows, not standalone Mini App logic.',
         'If an action is still missing in the Mini App, it remains visible as a documented gap instead of silently disappearing.',
       ],
     },
@@ -1350,8 +1352,8 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
               </Cell>
             </Link>
             <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
-              <Cell subtitle="Return to dashboard root.">
-                Dashboard root
+              <Cell subtitle="Open the admin console home.">
+                Admin console
               </Cell>
             </Link>
           </Section>
@@ -1371,7 +1373,7 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
             {describeAccessLevel(accessLevel)}
           </Cell>
           <Cell
-            subtitle={error ? `Bootstrap fallback active. ${error}` : 'Server-authoritative bootstrap loaded.'}
+            subtitle={error ? `Session needs attention. ${error}` : 'Connected to the latest available session data.'}
             after={<Navigation>{error ? 'Retry' : 'Ready'}</Navigation>}
             onClick={() => {
               void reload();
@@ -1380,7 +1382,7 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
             Session status
           </Cell>
           {errorCode && (
-            <Cell subtitle="Latest bootstrap blocking or recovery code">
+            <Cell subtitle="Latest session issue code">
               {errorCode}
             </Cell>
           )}
@@ -1398,7 +1400,7 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
         {(pageId === 'HEALTH' || pageId === 'STATUS') && (
           <Section
             header="Live command snapshot"
-            footer="Sourced from /miniapp/bootstrap so this page stays aligned with the same runtime posture used by bot-backed ops workflows."
+            footer="Sourced from the latest runtime snapshot so this page stays aligned with the same operational posture used across the admin console."
           >
             {runtimeRows.map((row) => (
               <Cell key={row.label} subtitle={row.value}>
@@ -1410,7 +1412,7 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
 
         <Section
           header="Quick actions"
-          footer="These shortcuts mirror the live bot keyboard but route only to Mini App workflows that currently exist."
+          footer="These shortcuts open the workflows currently available in the Mini App for your access level."
         >
           {visibleActions.map((actionId) => {
             const action = MINIAPP_COMMAND_ACTION_CONTRACTS[actionId];
@@ -1421,7 +1423,7 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
                 <Link key={actionId} to={action.routePath}>
                   <Cell
                     subtitle={subtitle}
-                    after={<Navigation>{action.availability === 'partial' ? 'Open partial parity' : 'Open'}</Navigation>}
+                    after={<Navigation>{action.availability === 'partial' ? 'Open available steps' : 'Open'}</Navigation>}
                   >
                     {action.label}
                   </Cell>
@@ -1442,11 +1444,11 @@ function CommandPage({ pageId }: { pageId: CommandPageId }) {
 
         <Section
           header="Fallback"
-          footer="Unknown, stale, or unsupported actions fall back to the dashboard root instead of hard-failing."
+          footer="If a workflow is unavailable, continue from the admin console instead of forcing a broken route."
         >
           <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
-            <Cell subtitle="Open the admin dashboard shell and role-aware workspace launcher.">
-              Dashboard root
+            <Cell subtitle="Open the admin console home and choose another workspace.">
+              Admin console
             </Cell>
           </Link>
         </Section>
@@ -1523,8 +1525,8 @@ function ScriptsCommandPageContent() {
               </Cell>
             </Link>
             <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
-              <Cell subtitle="Return to dashboard root.">
-                Dashboard root
+              <Cell subtitle="Open the admin console home.">
+                Admin console
               </Cell>
             </Link>
           </Section>
@@ -1544,7 +1546,7 @@ function ScriptsCommandPageContent() {
             {describeAccessLevel(accessLevel)}
           </Cell>
           <Cell
-            subtitle={error ? `Bootstrap fallback active. ${error}` : 'Server-authoritative bootstrap loaded.'}
+            subtitle={error ? `Session needs attention. ${error}` : 'Connected to the latest available session data.'}
             after={<Navigation>{error ? 'Retry' : 'Ready'}</Navigation>}
             onClick={() => {
               void reload();
@@ -1553,7 +1555,7 @@ function ScriptsCommandPageContent() {
             Session status
           </Cell>
           {errorCode && (
-            <Cell subtitle="Latest bootstrap blocking or recovery code">
+            <Cell subtitle="Latest session issue code">
               {errorCode}
             </Cell>
           )}
@@ -1571,7 +1573,7 @@ function ScriptsCommandPageContent() {
 
         <Section
           header="Workspace handoff"
-          footer="These routes stay inside the existing admin workspace shell, but they are now explicitly downstream of the canonical /scripts command page."
+          footer="These routes stay inside the existing admin workspace shell and keep script work separated by job type."
         >
           <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.content}>
             <Cell
@@ -1583,17 +1585,17 @@ function ScriptsCommandPageContent() {
           </Link>
           <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.scriptsparity}>
             <Cell
-              subtitle="Open Scripts Parity Expansion for SMS script and email template parity workflows."
+              subtitle="Open the scripts expansion workspace for SMS scripts and email templates."
               after={<Navigation>Open</Navigation>}
             >
-              Scripts Parity Expansion
+              Scripts Expansion
             </Cell>
           </Link>
         </Section>
 
         <Section
           header="Runtime posture"
-          footer="Sourced from /miniapp/bootstrap so the /scripts handoff stays bounded by the same server-authoritative runtime and access posture as the rest of the Mini App."
+          footer="Sourced from the latest runtime snapshot so this handoff stays aligned with the same runtime and access posture as the rest of the Mini App."
         >
           {runtimeRows.map((row) => (
             <Cell key={row.label} subtitle={row.value}>
@@ -1604,7 +1606,7 @@ function ScriptsCommandPageContent() {
 
         <Section
           header="Quick actions"
-          footer="These shortcuts mirror live command ownership and avoid bypassing the /scripts handoff page."
+          footer="These shortcuts keep operators in the supported script workspaces without bypassing the intended handoff."
         >
           {visibleActions.map((actionId) => {
             const action = MINIAPP_COMMAND_ACTION_CONTRACTS[actionId];
@@ -1615,7 +1617,7 @@ function ScriptsCommandPageContent() {
                 <Link key={actionId} to={action.routePath}>
                   <Cell
                     subtitle={subtitle}
-                    after={<Navigation>{action.availability === 'partial' ? 'Open partial parity' : 'Open'}</Navigation>}
+                    after={<Navigation>{action.availability === 'partial' ? 'Open available steps' : 'Open'}</Navigation>}
                   >
                     {action.label}
                   </Cell>
@@ -1636,11 +1638,11 @@ function ScriptsCommandPageContent() {
 
         <Section
           header="Fallback"
-          footer="Unknown, stale, or unsupported actions fall back to the dashboard root instead of hard-failing."
+          footer="Unknown, stale, or unsupported actions fall back to the admin console instead of hard-failing."
         >
           <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
             <Cell subtitle="Open the admin dashboard shell and role-aware workspace launcher.">
-              Dashboard root
+              Admin console
             </Cell>
           </Link>
         </Section>
@@ -1926,14 +1928,14 @@ function CallCommandPageContent() {
       complete: numberValid,
       description: numberValid
         ? `Number ready: ${normalizedNumber}${customerNameValue ? ` | customer ${customerNameValue}` : ''}`
-        : 'Enter the destination number in E.164 format. Customer name stays optional, matching the bot prompt.',
+        : 'Enter the destination number in E.164 format. Customer name stays optional.',
     },
     {
       title: '2. Choose setup path',
       complete: true,
       description: workflowMode === 'script'
-        ? 'Current path: use call script. This mirrors the bot branch that selects a saved script first.'
-        : 'Current path: build custom persona. This mirrors the bot branch that gathers prompt and first message directly.',
+        ? 'Current path: use a saved call script first.'
+        : 'Current path: build a custom persona with the opening message on this page.',
     },
     {
       title: workflowMode === 'script' ? '3. Select script and fill variables' : '3. Draft prompt and opening line',
@@ -1947,7 +1949,7 @@ function CallCommandPageContent() {
             : `Known script ID ready: ${effectiveScriptId}`)
           : (canBrowseScripts
             ? 'Choose a script from the live catalog, then fill any placeholder values you want to replace.'
-            : 'Enter a known script ID or continue in the bot when guided script selection is required.'))
+            : 'Enter a known script ID when guided script selection is not available in this session.'))
         : (promptValue && firstMessageValue
           ? `Prompt and first message captured | purpose ${callPurposeLabel}`
           : 'Enter the agent prompt and the first spoken message before launch.'),
@@ -1971,12 +1973,31 @@ function CallCommandPageContent() {
       description: submitResult?.call_sid
         ? `Launch completed with call SID ${submitResult.call_sid}. Live call console polling is active while webhook updates continue.`
         : (canSubmit
-          ? 'All required fields are present. Start Call will execute the same /outbound-call backend path used by the bot.'
+          ? 'All required fields are present. Start Call will execute the live outbound call backend path.'
           : `Waiting on ${missingRequirements[0] || 'the remaining required fields'} before launch.`),
     },
   ];
   const activeWizardStepIndex = callWizardSteps.findIndex((step) => !step.complete);
   const activeWizardStepTitle = callWizardSteps[activeWizardStepIndex]?.title || 'All phases complete';
+  const activeWizardStepLabel = activeWizardStepTitle.replace(/^\d+\.\s*/, '');
+  const completedWizardSteps = callWizardSteps.filter((step) => step.complete).length;
+  const launchStateLabel = submitResult?.call_sid
+    ? (submitResult.deduped ? 'Reused' : 'Live')
+    : (canSubmit ? 'Ready' : 'Needs input');
+  const consoleStateLabel = activeCallSid
+    ? (callConsoleTerminal
+      ? 'Complete'
+      : ((callConsoleBusy || callConsoleRefreshing) ? 'Refreshing' : 'Tracking'))
+    : 'Idle';
+  const remainingRequirementCount = Math.max(0, missingRequirements.length - 1);
+  const actionBarTitle = submitResult?.call_sid
+    ? 'Call tracking is active'
+    : (canSubmit ? 'Ready to start call' : 'Complete launch requirements');
+  const actionBarDescription = submitResult?.call_sid
+    ? `Tracking ${submitResult.call_sid} in the live console below.`
+    : (canSubmit
+      ? `This will start an outbound call to ${normalizedNumber}${workflowMode === 'script' ? ` using ${selectedScriptName || `script #${effectiveScriptId}`}` : ''}.`
+      : `${missingRequirements[0] || 'Fill the remaining fields'}${remainingRequirementCount > 0 ? ` and ${remainingRequirementCount} more ${remainingRequirementCount === 1 ? 'item' : 'items'}` : ''}.`);
 
   const refreshScriptCatalog = async (): Promise<void> => {
     if (!canBrowseScripts) return;
@@ -2198,7 +2219,7 @@ function CallCommandPageContent() {
             {describeAccessLevel(accessLevel)}
           </Cell>
           <Cell
-            subtitle={error ? `Bootstrap fallback active. ${error}` : 'Mini App session is ready for command-owned call execution.'}
+            subtitle={error ? `Session needs attention. ${error}` : 'Call workspace is ready.'}
             after={<Navigation>{error ? 'Retry' : 'Ready'}</Navigation>}
             onClick={() => {
               void reload();
@@ -2207,7 +2228,7 @@ function CallCommandPageContent() {
             Session status
           </Cell>
           {errorCode ? (
-            <Cell subtitle="Latest bootstrap blocking or recovery code">
+            <Cell subtitle="Latest session issue code">
               {errorCode}
             </Cell>
           ) : null}
@@ -2216,23 +2237,44 @@ function CallCommandPageContent() {
         {!canOperate ? (
           <Section
             header="Access required"
-            footer="The live /call bot command is restricted to authorized users. The Mini App keeps the same rule."
+            footer="Call execution is restricted to authorized users. The Mini App keeps the same rule."
           >
             <UiStatePanel
               title="Authorized access required"
-              description="Open the main bot to request access or use /help and /guide for non-execution guidance."
+              description="Request access from an admin or use Help and Guide for non-execution guidance."
               tone="warning"
             />
           </Section>
         ) : (
           <>
             <Section
-              header="Live /call wizard parity"
-              footer="The bot gathers these inputs one step at a time. The Mini App keeps the same phases explicit, but shows them on one page so operators can move faster without changing the backend workflow."
+              header="Call setup workspace"
+              footer="Set the route, confirm readiness, and keep launch context on one focused screen."
             >
               <div className="va-grid">
                 <UiCard>
-                  <p className="va-card-eyebrow">Bot setup phases</p>
+                  <p className="va-card-eyebrow">Launch snapshot</p>
+                  <div className={`va-overview-metrics ${canSubmit ? 'is-healthy' : 'is-degraded'}`}>
+                    <UiMetricTile
+                      label="Mode"
+                      value={workflowMode === 'script' ? 'Script' : 'Custom'}
+                    />
+                    <UiMetricTile
+                      label="Next"
+                      value={activeWizardStepLabel}
+                    />
+                    <UiMetricTile
+                      label="Launch"
+                      value={launchStateLabel}
+                    />
+                    <UiMetricTile
+                      label="Console"
+                      value={consoleStateLabel}
+                    />
+                  </div>
+                  <p className="va-muted">
+                    Choose the workflow and complete only the fields needed for this call.
+                  </p>
                   <div className="va-inline-tools">
                     <UiButton
                       variant={workflowMode === 'script' ? 'primary' : 'secondary'}
@@ -2247,48 +2289,6 @@ function CallCommandPageContent() {
                       Build Custom Persona
                     </UiButton>
                   </div>
-                  <ul className="va-list va-list-dense">
-                    {callWizardSteps.map((step) => (
-                      <li key={step.title}>
-                        {step.complete ? '[done]' : '[next]'} {step.title}: {step.description}
-                      </li>
-                    ))}
-                  </ul>
-                </UiCard>
-                <UiCard>
-                  <p className="va-card-eyebrow">Current parity posture</p>
-                  <div className="va-inline-metrics">
-                    <UiBadge>Mode {workflowMode}</UiBadge>
-                    <UiBadge>Next {activeWizardStepTitle}</UiBadge>
-                    <UiBadge>{workflowMode === 'script' ? `Script ${effectiveScriptId > 0 ? 'ready' : 'missing'}` : `Prompt ${promptValue && firstMessageValue ? 'ready' : 'missing'}`}</UiBadge>
-                  </div>
-                  <UiStatePanel
-                    compact
-                    title={workflowMode === 'script' ? 'Script-backed bot branch' : 'Custom-persona bot branch'}
-                    description={workflowMode === 'script'
-                      ? (canBrowseScripts
-                        ? 'This page now follows the bot branch order: recipient, script selection, placeholder fill, provider guard review, then launch. Script catalog access still depends on the current Mini App capability contract.'
-                        : 'This page follows the bot script branch, but restricted Mini App sessions still need a known script ID because catalog browsing is capability-gated.')
-                      : 'This page now follows the bot custom branch order: recipient, prompt, first message, purpose/tone review, then launch. The bot conversation prompts are flattened into visible fields here.'}
-                    tone="info"
-                  />
-                  <UiStatePanel
-                    compact
-                    title="What still differs from the bot"
-                    description="Voice picker pagination, button-by-button script browsing for restricted sessions, and the bot's conversational waits are still compressed into this single command page. Execution and validation remain on the same backend contract."
-                    tone="warning"
-                  />
-                </UiCard>
-              </div>
-            </Section>
-
-            <Section
-              header="Workflow mode"
-              footer="The live bot supports both script-backed and custom call setup. This Mini App slice now preserves both execution paths and exposes the same setup phases directly on-page, while keeping catalog-access and conversational UX gaps explicit."
-            >
-              <div className="va-grid">
-                <UiCard>
-                  <p className="va-card-eyebrow">Mode selector</p>
                   <UiSelect
                     aria-label="Call workflow mode"
                     value={workflowMode}
@@ -2298,36 +2298,86 @@ function CallCommandPageContent() {
                       <option key={option.id} value={option.id}>{option.label}</option>
                     ))}
                   </UiSelect>
-                  {workflowMode === 'script' ? (
-                    <UiStatePanel
-                      compact
-                      title={canBrowseScripts ? 'Script-backed execution ready' : 'Script-backed execution available'}
-                      description={canBrowseScripts
-                        ? 'This page can load the live call-script catalog through the Mini App action contract, then launch /outbound-call with the selected script.'
-                        : 'This page can launch /outbound-call with a known script ID. Catalog browsing remains restricted to higher-access Mini App sessions under the current server contract.'}
-                      tone={canBrowseScripts ? 'success' : 'warning'}
-                    />
-                  ) : (
-                    <UiStatePanel
-                      compact
-                      title="Custom call execution ready"
-                      description="This page posts directly to the live /outbound-call backend path using the current Mini App session."
-                      tone="success"
-                    />
-                  )}
+                  <UiStatePanel
+                    compact
+                    title={workflowMode === 'script' ? 'Script-backed workflow' : 'Custom call workflow'}
+                    description={workflowMode === 'script'
+                      ? (canBrowseScripts
+                        ? 'Browse the live script catalog, fill placeholders, review provider posture, and launch from this page.'
+                        : 'Launch with a known script ID when catalog browsing is not available for this access tier.')
+                      : 'Capture the recipient, prompt, opening line, and conversation posture without leaving this workspace.'}
+                    tone={workflowMode === 'script' && !canBrowseScripts ? 'warning' : 'info'}
+                  />
+                  <UiDisclosure
+                    title="Setup checklist"
+                    subtitle={`${completedWizardSteps}/${callWizardSteps.length} phases complete`}
+                    open
+                  >
+                    <ul className="va-list va-list-dense">
+                      {callWizardSteps.map((step) => (
+                        <li key={step.title}>
+                          {step.complete ? '[done]' : '[next]'} {step.title}: {step.description}
+                        </li>
+                      ))}
+                    </ul>
+                  </UiDisclosure>
                 </UiCard>
                 <UiCard>
-                  <p className="va-card-eyebrow">Workflow posture</p>
+                  <p className="va-card-eyebrow">Session coverage</p>
                   <div className="va-inline-metrics">
                     <UiBadge>Access {accessLevel}</UiBadge>
                     <UiBadge>Mode {workflowMode}</UiBadge>
-                    <UiBadge>{workflowMode === 'script' ? `Script ${effectiveScriptId > 0 ? 'set' : 'missing'}` : `Prompt ${promptValue ? 'set' : 'missing'}`}</UiBadge>
-                    <UiBadge>{workflowMode === 'script' ? `Catalog ${canBrowseScripts ? 'available' : 'restricted'}` : `First message ${firstMessageValue ? 'set' : 'missing'}`}</UiBadge>
+                    <UiBadge>{workflowMode === 'script' ? `Script ${effectiveScriptId > 0 ? 'ready' : 'missing'}` : `Prompt ${promptValue && firstMessageValue ? 'ready' : 'missing'}`}</UiBadge>
+                    <UiBadge>{activeCallSid ? `Console ${consoleStateLabel.toLowerCase()}` : 'Console idle'}</UiBadge>
                   </div>
-                  <p className="va-muted">
-                    Command ownership stays with {BOT_PRIMARY_COMMANDS.CALL}. The Mini App adds form productivity,
-                    but execution still uses the same backend contract and validation rules as the bot.
-                  </p>
+                  <UiStatePanel
+                    compact
+                    title={workflowMode === 'script'
+                      ? (canBrowseScripts ? 'Script catalog available' : 'Manual script entry required')
+                      : 'Custom call execution ready'}
+                    description={workflowMode === 'script'
+                      ? (canBrowseScripts
+                        ? 'This session can load the live call-script catalog and use it directly for launch.'
+                        : 'This session can still launch a script-backed call, but it needs a known script ID.')
+                      : 'This page posts directly to the live outbound call path using the current Mini App session.'}
+                    tone={workflowMode === 'script' && !canBrowseScripts ? 'warning' : 'success'}
+                  />
+                  {activeCallSid ? (
+                    <UiStatePanel
+                      compact
+                      title={callConsoleTerminal ? 'Recent call finished' : 'Live console attached'}
+                      description={callConsoleTerminal
+                        ? `Recent call ${activeCallSid} reached a terminal state and remains available for review below.`
+                        : `Tracking ${activeCallSid} from this workspace while provider and webhook updates continue.`}
+                      tone={callConsoleTerminal ? 'success' : 'info'}
+                    />
+                  ) : null}
+                  <UiDisclosure
+                    title="Operational notes"
+                    subtitle="Access, catalog coverage, and provider safeguards"
+                  >
+                    <p className="va-muted">
+                      Validation and launch still use the same backend contract. This page only compresses setup,
+                      review, and live tracking into one workspace.
+                    </p>
+                    <ul className="va-list va-list-dense">
+                      <li>
+                        {workflowMode === 'script'
+                          ? (canBrowseScripts
+                            ? 'The live script catalog is available in this session.'
+                            : 'Script launch is available, but catalog browsing is restricted for this session.')
+                          : 'Custom prompt calls can be prepared and launched directly here.'}
+                      </li>
+                      <li>
+                        {requiresPaymentProviderGuard
+                          ? 'Payment-related scripts still require provider posture confirmation before launch.'
+                          : 'Provider posture stays visible during review and launch.'}
+                      </li>
+                      <li>
+                        Runtime tracking restores the active call SID for the same Telegram session when a call is still in progress.
+                      </li>
+                    </ul>
+                  </UiDisclosure>
                 </UiCard>
               </div>
             </Section>
@@ -2458,21 +2508,12 @@ function CallCommandPageContent() {
                           <UiStatePanel
                             compact
                             title="Catalog browsing restricted"
-                            description="This access tier cannot list call scripts in the Mini App today. Enter a known script ID to preserve backend execution parity, or use the bot /call wizard when interactive script browsing is required."
+                            description="This access tier cannot list call scripts here yet. Enter a known script ID when guided script browsing is unavailable in this session."
                             tone="warning"
                           />
                       )}
                       {selectedScript ? (
                         <>
-                          <p className="va-card-eyebrow">Selected script</p>
-                          <ul className="va-list va-list-dense">
-                            {scriptSummaryLines.map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                          {toTextValue(selectedScript.description) ? (
-                            <p className="va-muted">{toTextValue(selectedScript.description)}</p>
-                          ) : null}
                           {scriptPlaceholderTokens.length > 0 ? (
                             <>
                               <p className="va-card-eyebrow">Variables</p>
@@ -2493,7 +2534,7 @@ function CallCommandPageContent() {
                               <UiStatePanel
                                 compact
                                 title="Placeholder resolution"
-                                description="Leave any variable blank to keep its original {token} placeholder, matching the bot's skip behavior during script setup."
+                                description="Leave any variable blank to keep its original {token} placeholder during script setup."
                                 tone="info"
                               />
                             </>
@@ -2544,21 +2585,10 @@ function CallCommandPageContent() {
                                 title="Payment flow provider posture"
                                 description={activeCallProvider
                                   ? `Active call provider is ${activeCallProvider}. This payment flow matches the preferred twilio route.`
-                                  : 'Provider posture is unavailable in the current bootstrap payload. Verify /provider if this payment flow is sensitive to routing.'}
+                                  : 'Provider posture is unavailable in the current session snapshot. Verify Provider status if this payment flow is sensitive to routing.'}
                                 tone={activeCallProvider ? 'success' : 'info'}
                               />
                             )
-                          ) : null}
-                          {(scriptPromptValue || scriptFirstMessageValue) ? (
-                            <UiStatePanel
-                              compact
-                              title="Resolved script content"
-                              description={[
-                                resolvedScriptPromptValue ? `Prompt: ${resolvedScriptPromptValue}` : '',
-                                resolvedScriptFirstMessageValue ? `First message: ${resolvedScriptFirstMessageValue}` : '',
-                              ].filter(Boolean).join(' | ')}
-                              tone="info"
-                            />
                           ) : null}
                         </>
                       ) : null}
@@ -2616,28 +2646,15 @@ function CallCommandPageContent() {
                     </>
                   )}
 
-                  <div className="va-inline-tools">
-                    <UiButton
-                      variant="primary"
-                      disabled={!canSubmit}
-                      onClick={() => {
-                        void submitCall();
-                      }}
-                    >
-                      {submitting ? 'Starting call...' : 'Start Call'}
-                    </UiButton>
-                    <UiButton
-                      variant="secondary"
-                      disabled={submitting && !submitResult}
-                      onClick={() => {
-                        setSubmitResult(null);
-                        setSubmitError('');
-                        setSubmitCode('');
-                        clearCallConsoleState({ clearPersistedSid: true });
-                      }}
-                    >
-                      Clear Result
-                    </UiButton>
+                </UiCard>
+
+                <UiCard>
+                  <p className="va-card-eyebrow">Launch review</p>
+                  <div className="va-inline-metrics">
+                    <UiBadge>Recipient {numberValid ? normalizedNumber : 'missing'}</UiBadge>
+                    <UiBadge>Mode {workflowMode}</UiBadge>
+                    <UiBadge>Launch {launchStateLabel}</UiBadge>
+                    <UiBadge>{requiresPaymentProviderGuard ? 'Provider guard active' : 'Standard flow'}</UiBadge>
                   </div>
 
                   {missingRequirements.length > 0 ? (
@@ -2648,15 +2665,7 @@ function CallCommandPageContent() {
                       tone="warning"
                     />
                   ) : null}
-                </UiCard>
 
-                <UiCard>
-                  <p className="va-card-eyebrow">Call brief</p>
-                  <ul className="va-list va-list-dense">
-                    {callBriefLines.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
                   {requiresPaymentProviderGuard ? (
                     <UiStatePanel
                       compact
@@ -2671,7 +2680,6 @@ function CallCommandPageContent() {
                       tone={paymentProviderGuardBlocked && !paymentProviderGuardAcknowledged ? 'warning' : 'info'}
                     />
                   ) : null}
-
                   {submitError ? (
                     <UiStatePanel
                       title="Call launch failed"
@@ -2697,23 +2705,96 @@ function CallCommandPageContent() {
                     />
                   ) : null}
 
+                  <UiDisclosure
+                    title="Call brief"
+                    subtitle="Recipient, path, and launch inputs"
+                    open
+                  >
+                    <ul className="va-list va-list-dense">
+                      {callBriefLines.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </UiDisclosure>
+
+                  {scriptSummaryLines.length > 0 ? (
+                    <UiDisclosure
+                      title="Selected script"
+                      subtitle={`${selectedScriptName || `Script #${effectiveScriptId}`}`}
+                    >
+                      {selectedScript && toTextValue(selectedScript.description) ? (
+                        <p className="va-muted">{toTextValue(selectedScript.description)}</p>
+                      ) : null}
+                      <ul className="va-list va-list-dense">
+                        {scriptSummaryLines.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    </UiDisclosure>
+                  ) : null}
+
+                  {(resolvedScriptPromptValue || resolvedScriptFirstMessageValue) ? (
+                    <UiDisclosure
+                      title="Resolved script content"
+                      subtitle="Final prompt content after variable replacement"
+                    >
+                      <ul className="va-list va-list-dense">
+                        {resolvedScriptPromptValue ? <li>Prompt: {resolvedScriptPromptValue}</li> : null}
+                        {resolvedScriptFirstMessageValue ? <li>First message: {resolvedScriptFirstMessageValue}</li> : null}
+                      </ul>
+                    </UiDisclosure>
+                  ) : null}
+
                   {warningList.length > 0 ? (
-                    <>
-                      <p className="va-card-eyebrow">Warnings</p>
+                    <UiDisclosure
+                      title="Warnings"
+                      subtitle={`${warningList.length} item${warningList.length === 1 ? '' : 's'} to review`}
+                      tone="warning"
+                    >
                       <ul className="va-list va-list-dense">
                         {warningList.map((warning) => (
                           <li key={warning}>{warning}</li>
                         ))}
                       </ul>
-                    </>
+                    </UiDisclosure>
                   ) : null}
                 </UiCard>
               </div>
+
+              <UiActionBar
+                title={actionBarTitle}
+                description={actionBarDescription}
+                actions={(
+                  <>
+                    <UiButton
+                      variant="primary"
+                      disabled={!canSubmit}
+                      onClick={() => {
+                        void submitCall();
+                      }}
+                    >
+                      {submitting ? 'Starting call...' : 'Start Call'}
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
+                      disabled={submitting && !submitResult}
+                      onClick={() => {
+                        setSubmitResult(null);
+                        setSubmitError('');
+                        setSubmitCode('');
+                        clearCallConsoleState({ clearPersistedSid: true });
+                      }}
+                    >
+                      Clear Result
+                    </UiButton>
+                  </>
+                )}
+              />
             </Section>
 
             <Section
               header="Live call console"
-              footer="This console stays attached to the active call SID after launch, restores that SID after Mini App refresh for the same Telegram session, can reattach to the latest still-active call owned by that Telegram session, and keeps polling the same call detail and call-status contracts that the bot-backed investigation surfaces use, including the webhook-backed live console snapshot."
+              footer="This console stays attached to the active call SID after launch, restores that SID after Mini App refresh for the same Telegram session, can reattach to the latest still-active call for that session, and keeps polling the same call detail and call-status contracts used by the live operations console."
             >
               <div className="va-grid">
                 <UiCard>
@@ -2843,7 +2924,7 @@ function CallCommandPageContent() {
 
         <Section
           header="Quick actions"
-          footer="These shortcuts stay aligned to existing Mini App parity routes so the call page remains part of the bot-owned workflow graph."
+          footer="These shortcuts keep the call page connected to the rest of the available Mini App workflows."
         >
           {(['CALLLOG', 'HELP', 'GUIDE', 'MENU'] as const).map((actionId) => {
             const action = MINIAPP_COMMAND_ACTION_CONTRACTS[actionId];
@@ -2874,7 +2955,7 @@ function CallCommandPageContent() {
         >
           <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
             <Cell subtitle="Open the admin dashboard shell and route launcher.">
-              Dashboard root
+              Admin console
             </Cell>
           </Link>
         </Section>
@@ -2950,6 +3031,19 @@ function SmsCommandPageContent() {
     + Number(recentMessages.length > 0)
     + Number(conversationMessages.length > 0)
     + Number(bulkOperations.length > 0);
+  const smsComposerReady = sendRecipientValid && Boolean(sendMessage) && canManageSms;
+  const smsActionBarTitle = sendResult
+    ? 'SMS request accepted'
+    : (smsComposerReady ? 'Ready to send' : 'Complete send details');
+  const smsActionBarDescription = sendResult
+    ? sendResult
+    : (smsComposerReady
+      ? `Send now to ${sendRecipient}. Scheduling is ${sendScheduleAtInput ? 'available' : 'waiting for a send time'}.`
+      : (!canManageSms
+        ? 'SMS bulk management capability is required for send and diagnostics actions.'
+        : (!sendRecipientValid
+          ? 'Add a valid E.164 recipient before sending.'
+          : 'Add a message body before sending.')));
 
   const runSendNow = async (): Promise<void> => {
     if (!sendRecipientValid || !sendMessage || !canManageSms) return;
@@ -3126,7 +3220,7 @@ function SmsCommandPageContent() {
     }
     const actionResolution = resolveDashboardAction(rawCallbackAction);
     if (!actionResolution.actionId || !actionResolution.supported) {
-      setActionError(`Unsupported callback action "${rawCallbackAction}" recovered safely. Use Dashboard root or refresh the command session.`);
+      setActionError(`Unsupported callback action "${rawCallbackAction}" recovered safely. Use the admin console or refresh the command session.`);
       setCallbackResult('');
       return;
     }
@@ -3356,7 +3450,7 @@ function SmsCommandPageContent() {
             {describeAccessLevel(accessLevel)}
           </Cell>
           <Cell
-            subtitle={error ? `Bootstrap fallback active. ${error}` : 'Mini App session is ready for command-owned SMS workflows.'}
+            subtitle={error ? `Session needs attention. ${error}` : 'SMS workspace is ready.'}
             after={<Navigation>{error ? 'Retry' : 'Ready'}</Navigation>}
             onClick={() => {
               void reload();
@@ -3365,7 +3459,7 @@ function SmsCommandPageContent() {
             Session status
           </Cell>
           {errorCode ? (
-            <Cell subtitle="Latest bootstrap blocking or recovery code">
+            <Cell subtitle="Latest session issue code">
               {errorCode}
             </Cell>
           ) : null}
@@ -3374,27 +3468,31 @@ function SmsCommandPageContent() {
         {!canOperate ? (
           <Section
             header="Access required"
-            footer="The live /sms bot command is restricted to authorized users. The Mini App enforces the same rule."
+            footer="SMS execution is restricted to authorized users. The Mini App enforces the same rule."
           >
             <UiStatePanel
               title="Authorized access required"
-              description="Open the main bot to request access or use /help and /guide for non-execution guidance."
+              description="Request access from an admin or use Help and Guide for non-execution guidance."
               tone="warning"
             />
           </Section>
         ) : (
           <Section
             header="SMS command workflows"
-            footer="This command page executes SMS diagnostics through shared action contracts while preserving /smssender ownership for bulk sends."
+            footer="This page executes SMS diagnostics through shared action contracts while keeping bulk sends in the dedicated sender workspace."
           >
             <div className="va-grid">
               <UiCard>
-                <p className="va-card-eyebrow">Live /sms launcher parity</p>
-                <Text>
-                  Choose an SMS action below. The Mini App keeps the same bot button order and reuses
-                  the same callback-owned workflow families, while replacing the bot conversation with
-                  the inputs and diagnostics on this page.
-                </Text>
+                <p className="va-card-eyebrow">Workspace overview</p>
+                <div className={`va-overview-metrics ${actionReadyCount > 0 || sendResult ? 'is-healthy' : 'is-degraded'}`}>
+                  <UiMetricTile label="Access" value={isAdminAccess ? 'Admin' : 'Authorized'} />
+                  <UiMetricTile label="Composer" value={smsComposerReady ? 'Ready' : 'Needs input'} />
+                  <UiMetricTile label="Diagnostics" value={actionReadyCount > 0 ? `${actionReadyCount} loaded` : 'Idle'} />
+                  <UiMetricTile label="Activity" value={activeBusy ? 'Working' : (sendResult ? 'Queued' : 'Standing by')} />
+                </div>
+                <p className="va-muted">
+                  Send one message, inspect delivery state, or move into bulk tools without leaving this page.
+                </p>
                 <div className="va-inline-tools">
                   <UiButton
                     variant="primary"
@@ -3474,27 +3572,41 @@ function SmsCommandPageContent() {
                       openGuidedSmsRoute(MINIAPP_COMMAND_ROUTE_CONTRACTS.MENU);
                     }}
                   >
-                    Main Menu
+                    All Workflows
                   </UiButton>
                 </div>
                 <UiStatePanel
                   compact
                   title={isAdminAccess ? 'Admin tools are included' : 'Admin-only tools are hidden'}
                   description={isAdminAccess
-                    ? 'Conversation, Recent SMS, SMS Stats, and bulk sender handoff remain visible because this session has admin access, matching the live bot menu.'
-                    : 'The live bot hides Conversation, Recent SMS, SMS Stats, and bulk sender handoff until admin access is present. The Mini App follows the same rule.'}
+                    ? 'Conversation, Recent SMS, SMS Stats, and the bulk sender handoff remain visible because this session has admin access.'
+                    : 'Conversation, Recent SMS, SMS Stats, and the bulk sender handoff stay hidden until admin access is present.'}
                   tone="info"
                 />
                 <UiStatePanel
                   compact
                   title="Form-backed workflow execution"
-                  description="The bot opens a conversation after each button press. This Mini App page runs the same backend action family by using the input fields below as the conversation payload."
+                  description="This page runs the same backend action family by using the input fields below as the structured workflow payload."
                   tone="info"
                 />
+                <UiDisclosure
+                  title="Operational notes"
+                  subtitle="Action routing, bulk handoff, and parity coverage"
+                >
+                  <ul className="va-list va-list-dense">
+                    <li>Single-recipient send and schedule use the same backend SMS action family as the wider admin console.</li>
+                    <li>
+                      {isAdminAccess
+                        ? 'Conversation, recent activity, stats, and the sender handoff stay available in this session.'
+                        : 'Conversation, recent activity, stats, and the sender handoff remain hidden until admin access is present.'}
+                    </li>
+                    <li>Direct callback execution remains available below for structured parity checks when needed.</li>
+                  </ul>
+                </UiDisclosure>
               </UiCard>
 
               <UiCard>
-                <p className="va-card-eyebrow">Single-recipient send & schedule</p>
+                <p className="va-card-eyebrow">Single-recipient send</p>
                 <UiInput
                   aria-label="SMS recipient"
                   placeholder="+15551230001"
@@ -3522,26 +3634,6 @@ function SmsCommandPageContent() {
                     onChange={(event) => setSendScheduleAtInput(event.target.value)}
                   />
                 </div>
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="primary"
-                    disabled={!sendRecipientValid || !sendMessage || !canManageSms || activeBusy}
-                    onClick={() => {
-                      void runSendNow();
-                    }}
-                  >
-                    {sendBusy ? 'Submitting...' : 'Send Now'}
-                  </UiButton>
-                  <UiButton
-                    variant="secondary"
-                    disabled={!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canManageSms || activeBusy}
-                    onClick={() => {
-                      void runSchedule();
-                    }}
-                  >
-                    {sendBusy ? 'Submitting...' : 'Schedule'}
-                  </UiButton>
-                </div>
                 {!sendRecipientValid && sendRecipientInput.trim() ? (
                   <UiStatePanel
                     compact
@@ -3558,113 +3650,153 @@ function SmsCommandPageContent() {
                     tone="success"
                   />
                 ) : null}
-
-                <p className="va-card-eyebrow">Bot callback parity execution</p>
-                <UiInput
-                  aria-label="SMS callback action"
-                  placeholder="SMS_SEND or SMS_RECENT_PAGE:2"
-                  value={callbackActionInput}
-                  onChange={(event) => setCallbackActionInput(event.target.value)}
-                />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="secondary"
-                    disabled={(!canManageSms && !canManageProvider) || activeBusy}
-                    onClick={() => {
-                      void runCallbackAction();
-                    }}
-                  >
-                    Run Callback Action
-                  </UiButton>
-                </div>
-                <ul className="va-list va-list-dense">
-                  {SMS_CALLBACK_PARITY_ROWS.map((row) => (
-                    <li key={row.callbackAction}>
-                      {row.callbackAction}{' -> '}{row.dashboardAction} ({row.summary})
-                    </li>
-                  ))}
-                </ul>
-                {callbackResult ? (
-                  <UiStatePanel
-                    compact
-                    title="Callback execution completed"
-                    description={callbackResult}
-                    tone="success"
-                  />
-                ) : null}
-
-                <p className="va-card-eyebrow">Message status & conversation</p>
-                <div className="va-inline-tools">
-                  <UiInput
-                    aria-label="SMS message SID"
-                    placeholder="Message SID"
-                    value={statusSidInput}
-                    onChange={(event) => setStatusSidInput(event.target.value)}
-                  />
-                  <UiButton
-                    variant="secondary"
-                    disabled={!statusSid || !canManageSms || activeBusy}
-                    onClick={() => {
-                      void runStatusLookup();
-                    }}
-                  >
-                    {statusBusy ? 'Loading...' : 'Check Status'}
-                  </UiButton>
-                </div>
-                <div className="va-inline-tools">
-                  <UiInput
-                    aria-label="Conversation phone"
-                    placeholder="+15551230001"
-                    value={conversationPhoneInput}
-                    onChange={(event) => setConversationPhoneInput(event.target.value)}
-                  />
-                  <UiButton
-                    variant="secondary"
-                    disabled={!conversationPhoneValid || !canManageSms || activeBusy}
-                    onClick={() => {
-                      void runConversationLookup();
-                    }}
-                  >
-                    {conversationBusy ? 'Loading...' : 'Load Conversation'}
-                  </UiButton>
-                </div>
-                {!conversationPhoneValid && conversationPhoneInput.trim() ? (
-                  <UiStatePanel
-                    compact
-                    title="Conversation phone format required"
-                    description="Use E.164 format with the + prefix and country code, for example +18005551234."
-                    tone="warning"
-                  />
-                ) : null}
                 {!canManageSms ? (
                   <UiStatePanel
                     compact
                     title="SMS actions unavailable"
-                    description="Your account needs SMS bulk management capability to run /sms execution actions in the Mini App."
+                    description="Your account needs SMS bulk management capability to run these execution actions in the Mini App."
                     tone="warning"
                   />
                 ) : null}
 
-                {statusSnapshot ? (
-                  <ul className="va-list va-list-dense">
-                    <li>SID: {toText(statusSnapshot.message_sid, toText(statusSnapshot.sid, statusSid || 'n/a'))}</li>
-                    <li>Status: {toText(statusSnapshot.status, 'unknown')}</li>
-                    <li>To: {toText(statusSnapshot.to_number, toText(statusSnapshot.to, 'n/a'))}</li>
-                    <li>From: {toText(statusSnapshot.from_number, toText(statusSnapshot.from, 'n/a'))}</li>
-                    <li>Provider: {toText(statusSnapshot.provider, 'unknown')}</li>
-                  </ul>
-                ) : (
-                  <UiStatePanel
-                    compact
-                    title="No status snapshot"
-                    description="Run a SID lookup to inspect single-message delivery state."
-                    tone="info"
+                <UiActionBar
+                  title={smsActionBarTitle}
+                  description={smsActionBarDescription}
+                  actions={(
+                    <>
+                      <UiButton
+                        variant="primary"
+                        disabled={!sendRecipientValid || !sendMessage || !canManageSms || activeBusy}
+                        onClick={() => {
+                          void runSendNow();
+                        }}
+                      >
+                        {sendBusy ? 'Submitting...' : 'Send Now'}
+                      </UiButton>
+                      <UiButton
+                        variant="secondary"
+                        disabled={!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canManageSms || activeBusy}
+                        onClick={() => {
+                          void runSchedule();
+                        }}
+                      >
+                        {sendBusy ? 'Submitting...' : 'Schedule'}
+                      </UiButton>
+                    </>
+                  )}
+                />
+
+                <UiDisclosure
+                  title="Direct action testing"
+                  subtitle="Run structured callback actions against the current inputs"
+                >
+                  <UiInput
+                    aria-label="SMS callback action"
+                    placeholder="SMS_SEND or SMS_RECENT_PAGE:2"
+                    value={callbackActionInput}
+                    onChange={(event) => setCallbackActionInput(event.target.value)}
                   />
-                )}
+                  <div className="va-inline-tools">
+                    <UiButton
+                      variant="secondary"
+                      disabled={(!canManageSms && !canManageProvider) || activeBusy}
+                      onClick={() => {
+                        void runCallbackAction();
+                      }}
+                    >
+                      Run Callback Action
+                    </UiButton>
+                  </div>
+                  <ul className="va-list va-list-dense">
+                    {SMS_CALLBACK_PARITY_ROWS.map((row) => (
+                      <li key={row.callbackAction}>
+                        {row.callbackAction}{' -> '}{row.dashboardAction} ({row.summary})
+                      </li>
+                    ))}
+                  </ul>
+                  {callbackResult ? (
+                    <UiStatePanel
+                      compact
+                      title="Callback execution completed"
+                      description={callbackResult}
+                      tone="success"
+                    />
+                  ) : null}
+                </UiDisclosure>
+
+                <UiDisclosure
+                  title="Status and conversation tools"
+                  subtitle="Inspect one message or load a conversation thread"
+                >
+                  <div className="va-inline-tools">
+                    <UiInput
+                      aria-label="SMS message SID"
+                      placeholder="Message SID"
+                      value={statusSidInput}
+                      onChange={(event) => setStatusSidInput(event.target.value)}
+                    />
+                    <UiButton
+                      variant="secondary"
+                      disabled={!statusSid || !canManageSms || activeBusy}
+                      onClick={() => {
+                        void runStatusLookup();
+                      }}
+                    >
+                      {statusBusy ? 'Loading...' : 'Check Status'}
+                    </UiButton>
+                  </div>
+                  <div className="va-inline-tools">
+                    <UiInput
+                      aria-label="Conversation phone"
+                      placeholder="+15551230001"
+                      value={conversationPhoneInput}
+                      onChange={(event) => setConversationPhoneInput(event.target.value)}
+                    />
+                    <UiButton
+                      variant="secondary"
+                      disabled={!conversationPhoneValid || !canManageSms || activeBusy}
+                      onClick={() => {
+                        void runConversationLookup();
+                      }}
+                    >
+                      {conversationBusy ? 'Loading...' : 'Load Conversation'}
+                    </UiButton>
+                  </div>
+                  {!conversationPhoneValid && conversationPhoneInput.trim() ? (
+                    <UiStatePanel
+                      compact
+                      title="Conversation phone format required"
+                      description="Use E.164 format with the + prefix and country code, for example +18005551234."
+                      tone="warning"
+                    />
+                  ) : null}
+                  {statusSnapshot ? (
+                    <ul className="va-list va-list-dense">
+                      <li>SID: {toText(statusSnapshot.message_sid, toText(statusSnapshot.sid, statusSid || 'n/a'))}</li>
+                      <li>Status: {toText(statusSnapshot.status, 'unknown')}</li>
+                      <li>To: {toText(statusSnapshot.to_number, toText(statusSnapshot.to, 'n/a'))}</li>
+                      <li>From: {toText(statusSnapshot.from_number, toText(statusSnapshot.from, 'n/a'))}</li>
+                      <li>Provider: {toText(statusSnapshot.provider, 'unknown')}</li>
+                    </ul>
+                  ) : (
+                    <UiStatePanel
+                      compact
+                      title="No status snapshot"
+                      description="Run a SID lookup to inspect single-message delivery state."
+                      tone="info"
+                    />
+                  )}
+                </UiDisclosure>
               </UiCard>
 
               <UiCard>
-                <p className="va-card-eyebrow">Recent messages, bulk jobs & delivery stats</p>
+                <p className="va-card-eyebrow">Diagnostics and history</p>
+                <div className="va-inline-metrics">
+                  <UiBadge>{providerSnapshot ? 'Provider loaded' : 'Provider idle'}</UiBadge>
+                  <UiBadge>{recentMessages.length > 0 ? `Recent ${recentMessages.length}` : 'Recent idle'}</UiBadge>
+                  <UiBadge>{statsSnapshot ? 'Stats loaded' : 'Stats idle'}</UiBadge>
+                  <UiBadge>{bulkOperations.length > 0 ? `Bulk ${bulkOperations.length}` : 'Bulk idle'}</UiBadge>
+                </div>
                 <div className="va-inline-tools">
                   <UiButton
                     variant="secondary"
@@ -3730,9 +3862,26 @@ function SmsCommandPageContent() {
                   </UiButton>
                 </div>
 
+                {recentMessages.length === 0
+                  && conversationMessages.length === 0
+                  && !statsSnapshot
+                  && !bulkSummary
+                  && bulkOperations.length === 0
+                  && !providerSnapshot ? (
+                  <UiStatePanel
+                    compact
+                    title="No SMS diagnostics loaded"
+                    description="Run recent, stats, provider precheck, or bulk status actions to populate diagnostics."
+                    tone="info"
+                  />
+                ) : null}
+
                 {providerSnapshot ? (
-                  <>
-                    <p className="va-card-eyebrow">Provider readiness</p>
+                  <UiDisclosure
+                    title="Provider readiness"
+                    subtitle={providerSnapshot.ready === true ? 'Ready for SMS delivery' : 'Configuration needs attention'}
+                    open
+                  >
                     <ul className="va-list va-list-dense">
                       <li>Channel: {toText(providerSnapshot.channel, 'sms')}</li>
                       <li>Provider: {toText(providerSnapshot.provider, 'unknown')}</li>
@@ -3747,12 +3896,14 @@ function SmsCommandPageContent() {
                         tone={providerSnapshot.ready === true ? 'success' : 'warning'}
                       />
                     ) : null}
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {recentMessages.length > 0 ? (
-                  <>
-                    <p className="va-card-eyebrow">Recent messages</p>
+                  <UiDisclosure
+                    title="Recent messages"
+                    subtitle={`${recentMessages.length} item${recentMessages.length === 1 ? '' : 's'} loaded`}
+                  >
                     <ul className="va-list va-list-dense">
                       {recentMessages.slice(0, 6).map((message, index) => (
                         <li key={`${toText(message.message_sid, toText(message.sid, 'sms'))}-${index}`}>
@@ -3760,12 +3911,14 @@ function SmsCommandPageContent() {
                         </li>
                       ))}
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {conversationMessages.length > 0 ? (
-                  <>
-                    <p className="va-card-eyebrow">Conversation snapshot</p>
+                  <UiDisclosure
+                    title="Conversation snapshot"
+                    subtitle={`${conversationMessages.length} item${conversationMessages.length === 1 ? '' : 's'} loaded`}
+                  >
                     <ul className="va-list va-list-dense">
                       {conversationMessages.slice(0, 6).map((message, index) => (
                         <li key={`${toText(message.message_sid, toText(message.sid, 'convo'))}-${index}`}>
@@ -3773,12 +3926,14 @@ function SmsCommandPageContent() {
                         </li>
                       ))}
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {statsSnapshot ? (
-                  <>
-                    <p className="va-card-eyebrow">Message stats</p>
+                  <UiDisclosure
+                    title="Message stats"
+                    subtitle="24-hour delivery snapshot"
+                  >
                     <ul className="va-list va-list-dense">
                       <li>Total: {toInt(statsSnapshot.total_messages ?? statsSnapshot.total, 0)}</li>
                       <li>Sent: {toInt(statsSnapshot.sent_messages, 0)}</li>
@@ -3787,24 +3942,29 @@ function SmsCommandPageContent() {
                       <li>Failed: {toInt(statsSnapshot.failed_count, 0)}</li>
                       <li>Success rate: {toText(statsSnapshot.success_rate, '0')}%</li>
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {bulkSummary ? (
-                  <>
-                    <p className="va-card-eyebrow">Bulk job summary</p>
+                  <UiDisclosure
+                    title="Bulk summary"
+                    subtitle="Recent bulk SMS performance"
+                    open
+                  >
                     <UiStatePanel
                       compact
                       title="Bulk SMS summary"
                       description={summarizeBulkSmsStats(bulkSummary)}
                       tone="info"
                     />
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {bulkOperations.length > 0 ? (
-                  <>
-                    <p className="va-card-eyebrow">Bulk SMS jobs</p>
+                  <UiDisclosure
+                    title="Bulk jobs"
+                    subtitle={`${bulkOperations.length} job${bulkOperations.length === 1 ? '' : 's'} loaded`}
+                  >
                     <ul className="va-list va-list-dense">
                       {bulkOperations.slice(0, 6).map((operation, index) => (
                         <li key={`${toText(operation.id, 'bulk-sms')}-${index}`}>
@@ -3812,21 +3972,7 @@ function SmsCommandPageContent() {
                         </li>
                       ))}
                     </ul>
-                  </>
-                ) : null}
-
-                {recentMessages.length === 0
-                  && conversationMessages.length === 0
-                  && !statsSnapshot
-                  && !bulkSummary
-                  && bulkOperations.length === 0
-                  && !providerSnapshot ? (
-                  <UiStatePanel
-                    compact
-                    title="No SMS diagnostics loaded"
-                    description="Run recent, stats, provider precheck, or bulk status actions to populate diagnostics."
-                    tone="info"
-                  />
+                  </UiDisclosure>
                 ) : null}
               </UiCard>
             </div>
@@ -3845,7 +3991,7 @@ function SmsCommandPageContent() {
 
         {canOperate ? (
           <Section header="Workflow snapshot">
-            <Cell subtitle="How many command-owned action slices currently hold data in this session.">
+            <Cell subtitle="How many workflow panels currently hold data in this session.">
               Loaded slices: {actionReadyCount}
             </Cell>
           </Section>
@@ -3853,7 +3999,7 @@ function SmsCommandPageContent() {
 
         <Section
           header="Quick actions"
-          footer="These shortcuts stay aligned to existing Mini App parity routes so the /sms page remains part of the bot-owned workflow graph."
+          footer="These shortcuts keep the SMS page connected to the rest of the available Mini App workflows."
         >
           {(['BULK_SMS', 'CALLLOG', 'HELP', 'GUIDE', 'MENU', 'PROVIDER_STATUS'] as const).map((actionId) => {
             const action = MINIAPP_COMMAND_ACTION_CONTRACTS[actionId];
@@ -3884,7 +4030,7 @@ function SmsCommandPageContent() {
         >
           <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
             <Cell subtitle="Open the admin dashboard shell and route launcher.">
-              Dashboard root
+              Admin console
             </Cell>
           </Link>
         </Section>
@@ -3970,6 +4116,19 @@ function EmailCommandPageContent() {
     + Number(Boolean(statsSnapshot))
     + Number(historyRows.length > 0)
     + Number(templateRows.length > 0);
+  const emailComposerReady = sendRecipientValid && sendHasContent && canManageEmail;
+  const emailActionBarTitle = sendResult
+    ? 'Email request accepted'
+    : (emailComposerReady ? 'Ready to send' : 'Complete send details');
+  const emailActionBarDescription = sendResult
+    ? sendResult
+    : (emailComposerReady
+      ? `Send now to ${sendRecipient}. Scheduling is ${sendScheduleAtInput ? 'available' : 'waiting for a send time'}.`
+      : (!canManageEmail
+        ? 'Email bulk management capability is required for send and diagnostics actions.'
+        : (!sendRecipientValid
+          ? 'Add a valid recipient email before sending.'
+          : 'Provide a template ID or message content before sending.')));
 
   const parseVariablesPayload = (): Record<string, unknown> => {
     if (!previewVariablesInput.trim()) {
@@ -4174,7 +4333,7 @@ function EmailCommandPageContent() {
     }
     const actionResolution = resolveDashboardAction(rawCallbackAction);
     if (!actionResolution.actionId || !actionResolution.supported) {
-      setActionError(`Unsupported callback action "${rawCallbackAction}" recovered safely. Use Dashboard root or refresh the command session.`);
+      setActionError(`Unsupported callback action "${rawCallbackAction}" recovered safely. Use the admin console or refresh the command session.`);
       setCallbackResult('');
       return;
     }
@@ -4369,7 +4528,7 @@ function EmailCommandPageContent() {
             {describeAccessLevel(accessLevel)}
           </Cell>
           <Cell
-            subtitle={error ? `Bootstrap fallback active. ${error}` : 'Mini App session is ready for command-owned email workflows.'}
+            subtitle={error ? `Session needs attention. ${error}` : 'Email workspace is ready.'}
             after={<Navigation>{error ? 'Retry' : 'Ready'}</Navigation>}
             onClick={() => {
               void reload();
@@ -4378,7 +4537,7 @@ function EmailCommandPageContent() {
             Session status
           </Cell>
           {errorCode ? (
-            <Cell subtitle="Latest bootstrap blocking or recovery code">
+            <Cell subtitle="Latest session issue code">
               {errorCode}
             </Cell>
           ) : null}
@@ -4387,26 +4546,29 @@ function EmailCommandPageContent() {
         {!canOperate ? (
           <Section
             header="Access required"
-            footer="The live /email bot command is restricted to authorized users. The Mini App enforces the same rule."
+            footer="Email execution is restricted to authorized users. The Mini App enforces the same rule."
           >
             <UiStatePanel
               title="Authorized access required"
-              description="Open the main bot to request access or use /help and /guide for non-execution guidance."
+              description="Request access from an admin or use Help and Guide for non-execution guidance."
               tone="warning"
             />
           </Section>
         ) : (
           <Section
             header="Email command workflows"
-            footer="This command page executes the same backend-owned actions as the bot: send/schedule, template preview, status/timeline, templates, bulk history, bulk-job status, and bulk stats."
+            footer="This page executes send, preview, status, template, and history actions through the existing backend contracts."
           >
             <div className="va-grid">
               <UiCard>
-                <p className="va-card-eyebrow">Live /email launcher parity</p>
+                <p className="va-card-eyebrow">Workspace overview</p>
+                <div className={`va-overview-metrics ${actionReadyCount > 0 || sendResult ? 'is-healthy' : 'is-degraded'}`}>
+                  <UiMetricTile label="Composer" value={emailComposerReady ? 'Ready' : 'Needs input'} />
+                  <UiMetricTile label="Preview" value={previewSnapshot ? 'Loaded' : 'Idle'} />
+                  <UiMetricTile label="Diagnostics" value={actionReadyCount > 0 ? `${actionReadyCount} loaded` : 'Idle'} />
+                </div>
                 <Text>
-                  Choose an email action below. The Mini App keeps the same bot button order and
-                  routes each selection into the same callback-owned workflow family, while using
-                  the form and diagnostics on this page in place of the bot conversation prompts.
+                  Work from one focused email workspace for sends, previews, status checks, and bulk delivery visibility.
                 </Text>
                 <div className="va-inline-tools">
                   <UiButton
@@ -4465,25 +4627,37 @@ function EmailCommandPageContent() {
                       openGuidedEmailRoute(MINIAPP_COMMAND_ROUTE_CONTRACTS.MENU);
                     }}
                   >
-                    Main Menu
+                    All Workflows
                   </UiButton>
                 </div>
                 <UiStatePanel
                   compact
                   title="Authorized access controls execution"
-                  description="The live bot only enables /email actions for authorized users. This Mini App page follows the same access gate before running any workflow."
+                  description="Email actions only run for authorized users. This page keeps the same gate before any send, preview, or diagnostics workflow runs."
                   tone="info"
                 />
                 <UiStatePanel
                   compact
-                  title="Bulk handoff stays explicit"
-                  description="Bulk email remains owned by /mailer. This page keeps the main /email menu parity and hands large-volume workflows to the canonical mailer route."
+                  title={canManageProvider ? 'Provider checks are available' : 'Provider checks stay gated'}
+                  description={canManageProvider
+                    ? 'Provider readiness checks can run here without leaving the current workspace.'
+                    : 'Provider readiness checks remain hidden until provider management capability is present.'}
                   tone="info"
                 />
+                <UiDisclosure
+                  title="Operational notes"
+                  subtitle="Execution scope, preview support, and bulk handoff"
+                >
+                  <ul className="va-list va-list-dense">
+                    <li>Single-recipient send and schedule use the same backend email action family as the wider admin console.</li>
+                    <li>Template preview uses the current template ID and merge-field JSON from the compose form below.</li>
+                    <li>Bulk Mailer remains the handoff for dedicated bulk operations, while this page stays optimized for focused sends and inspection.</li>
+                  </ul>
+                </UiDisclosure>
               </UiCard>
 
               <UiCard>
-                <p className="va-card-eyebrow">Single-recipient send & schedule</p>
+                <p className="va-card-eyebrow">Single-recipient send</p>
                 <UiInput
                   aria-label="Recipient email"
                   placeholder="recipient@example.com"
@@ -4495,6 +4669,12 @@ function EmailCommandPageContent() {
                   placeholder="Provider (optional)"
                   value={sendProviderInput}
                   onChange={(event) => setSendProviderInput(event.target.value)}
+                />
+                <UiInput
+                  aria-label="Template ID"
+                  placeholder="Template / Script ID (optional)"
+                  value={templateIdInput}
+                  onChange={(event) => setTemplateIdInput(event.target.value)}
                 />
                 <UiInput
                   aria-label="Email subject"
@@ -4516,32 +4696,19 @@ function EmailCommandPageContent() {
                   value={sendTextInput}
                   onChange={(event) => setSendTextInput(event.target.value)}
                 />
+                <UiTextarea
+                  aria-label="Template variables JSON"
+                  placeholder='{"first_name":"Alex"}'
+                  rows={4}
+                  value={previewVariablesInput}
+                  onChange={(event) => setPreviewVariablesInput(event.target.value)}
+                />
                 <UiInput
                   aria-label="Schedule email at"
                   type="datetime-local"
                   value={sendScheduleAtInput}
                   onChange={(event) => setSendScheduleAtInput(event.target.value)}
                 />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="primary"
-                    disabled={!sendRecipientValid || !sendHasContent || !canManageEmail || activeBusy}
-                    onClick={() => {
-                      void runSendNow();
-                    }}
-                  >
-                    {sendBusy ? 'Submitting...' : 'Send Now'}
-                  </UiButton>
-                  <UiButton
-                    variant="secondary"
-                    disabled={!sendRecipientValid || !sendHasContent || !sendScheduleAtInput || !canManageEmail || activeBusy}
-                    onClick={() => {
-                      void runSendScheduled();
-                    }}
-                  >
-                    {sendBusy ? 'Submitting...' : 'Schedule'}
-                  </UiButton>
-                </div>
                 {!sendRecipientValid && sendRecipientInput.trim() ? (
                   <UiStatePanel
                     compact
@@ -4566,115 +4733,150 @@ function EmailCommandPageContent() {
                     tone="success"
                   />
                 ) : null}
-
-                <p className="va-card-eyebrow">Bot callback parity execution</p>
-                <UiInput
-                  aria-label="Email callback action"
-                  placeholder="EMAIL_SEND, EMAIL_TIMELINE:message-id, BULK_EMAIL_PAGE:2"
-                  value={callbackActionInput}
-                  onChange={(event) => setCallbackActionInput(event.target.value)}
-                />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="secondary"
-                    disabled={(!canManageEmail && !canManageProvider) || activeBusy}
-                    onClick={() => {
-                      void runCallbackAction();
-                    }}
-                  >
-                    Run Callback Action
-                  </UiButton>
-                </div>
-                <ul className="va-list va-list-dense">
-                  {EMAIL_CALLBACK_PARITY_ROWS.map((row) => (
-                    <li key={row.callbackAction}>
-                      {row.callbackAction}{' -> '}{row.dashboardAction} ({row.summary})
-                    </li>
-                  ))}
-                </ul>
-                {callbackResult ? (
-                  <UiStatePanel
-                    compact
-                    title="Callback execution completed"
-                    description={callbackResult}
-                    tone="success"
-                  />
-                ) : null}
-
-                <p className="va-card-eyebrow">Template preview</p>
-                <UiInput
-                  aria-label="Template ID"
-                  placeholder="Template / Script ID"
-                  value={templateIdInput}
-                  onChange={(event) => setTemplateIdInput(event.target.value)}
-                />
-                <UiTextarea
-                  aria-label="Template variables JSON"
-                  placeholder='{"first_name":"Alex"}'
-                  rows={5}
-                  value={previewVariablesInput}
-                  onChange={(event) => setPreviewVariablesInput(event.target.value)}
-                />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="primary"
-                    disabled={!templateId || !canManageEmail || activeBusy}
-                    onClick={() => {
-                      void runPreview();
-                    }}
-                  >
-                    {previewBusy ? 'Previewing...' : 'Preview Template'}
-                  </UiButton>
-                  <UiButton
-                    variant="secondary"
-                    disabled={activeBusy}
-                    onClick={() => {
-                      setSendResult('');
-                      setCallbackResult('');
-                      setPreviewSnapshot(null);
-                      setTemplateRows([]);
-                    }}
-                  >
-                    Clear Preview
-                  </UiButton>
-                </div>
                 {!canManageEmail ? (
                   <UiStatePanel
                     compact
                     title="Email actions unavailable"
-                    description="Your account needs email bulk management capability to run /email execution actions in the Mini App."
+                    description="Your account needs email bulk management capability to run these execution actions in the Mini App."
                     tone="warning"
                   />
                 ) : null}
-                {previewSnapshot?.success === false && previewMissing.length > 0 ? (
-                  <UiStatePanel
-                    compact
-                    title="Missing template variables"
-                    description={previewMissing.join(', ')}
-                    tone="warning"
+
+                <UiActionBar
+                  title={emailActionBarTitle}
+                  description={emailActionBarDescription}
+                  actions={(
+                    <>
+                      <UiButton
+                        variant="primary"
+                        disabled={!sendRecipientValid || !sendHasContent || !canManageEmail || activeBusy}
+                        onClick={() => {
+                          void runSendNow();
+                        }}
+                      >
+                        {sendBusy ? 'Submitting...' : 'Send Now'}
+                      </UiButton>
+                      <UiButton
+                        variant="secondary"
+                        disabled={!sendRecipientValid || !sendHasContent || !sendScheduleAtInput || !canManageEmail || activeBusy}
+                        onClick={() => {
+                          void runSendScheduled();
+                        }}
+                      >
+                        {sendBusy ? 'Submitting...' : 'Schedule'}
+                      </UiButton>
+                    </>
+                  )}
+                />
+
+                <UiDisclosure
+                  title="Direct action testing"
+                  subtitle="Run structured callback actions against the current compose inputs"
+                >
+                  <UiInput
+                    aria-label="Email callback action"
+                    placeholder="EMAIL_SEND, EMAIL_TIMELINE:message-id, BULK_EMAIL_PAGE:2"
+                    value={callbackActionInput}
+                    onChange={(event) => setCallbackActionInput(event.target.value)}
                   />
-                ) : null}
-                {previewSnapshot?.success ? (
-                  <>
-                    <ul className="va-list va-list-dense">
-                      <li>Subject: {previewSubject || '(empty subject)'}</li>
-                      <li>HTML length: {previewHtml.length}</li>
-                      <li>Text length: {previewText.length}</li>
-                    </ul>
-                    {previewText ? (
-                      <UiStatePanel
-                        compact
-                        title="Rendered text preview"
-                        description={previewText}
-                        tone="success"
-                      />
-                    ) : null}
-                  </>
-                ) : null}
+                  <div className="va-inline-tools">
+                    <UiButton
+                      variant="secondary"
+                      disabled={(!canManageEmail && !canManageProvider) || activeBusy}
+                      onClick={() => {
+                        void runCallbackAction();
+                      }}
+                    >
+                      Run Callback Action
+                    </UiButton>
+                  </div>
+                  <ul className="va-list va-list-dense">
+                    {EMAIL_CALLBACK_PARITY_ROWS.map((row) => (
+                      <li key={row.callbackAction}>
+                        {row.callbackAction}{' -> '}{row.dashboardAction} ({row.summary})
+                      </li>
+                    ))}
+                  </ul>
+                  {callbackResult ? (
+                    <UiStatePanel
+                      compact
+                      title="Callback execution completed"
+                      description={callbackResult}
+                      tone="success"
+                    />
+                  ) : null}
+                </UiDisclosure>
+
+                <UiDisclosure
+                  title="Template preview"
+                  subtitle="Render the current template and merge fields before sending"
+                >
+                  <div className="va-inline-tools">
+                    <UiButton
+                      variant="primary"
+                      disabled={!templateId || !canManageEmail || activeBusy}
+                      onClick={() => {
+                        void runPreview();
+                      }}
+                    >
+                      {previewBusy ? 'Previewing...' : 'Preview Template'}
+                    </UiButton>
+                    <UiButton
+                      variant="secondary"
+                      disabled={activeBusy}
+                      onClick={() => {
+                        setSendResult('');
+                        setCallbackResult('');
+                        setPreviewSnapshot(null);
+                        setTemplateRows([]);
+                      }}
+                    >
+                      Clear Preview
+                    </UiButton>
+                  </div>
+                  {previewSnapshot?.success === false && previewMissing.length > 0 ? (
+                    <UiStatePanel
+                      compact
+                      title="Missing template variables"
+                      description={previewMissing.join(', ')}
+                      tone="warning"
+                    />
+                  ) : null}
+                  {previewSnapshot?.success ? (
+                    <>
+                      <ul className="va-list va-list-dense">
+                        <li>Subject: {previewSubject || '(empty subject)'}</li>
+                        <li>HTML length: {previewHtml.length}</li>
+                        <li>Text length: {previewText.length}</li>
+                      </ul>
+                      {previewText ? (
+                        <UiStatePanel
+                          compact
+                          title="Rendered text preview"
+                          description={previewText}
+                          tone="success"
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <UiStatePanel
+                      compact
+                      title="No preview loaded"
+                      description="Set a template ID and merge fields, then preview the rendered email before sending."
+                      tone="info"
+                    />
+                  )}
+                </UiDisclosure>
               </UiCard>
 
               <UiCard>
-                <p className="va-card-eyebrow">Message status, bulk diagnostics, templates & history</p>
+                <p className="va-card-eyebrow">Diagnostics and history</p>
+                <div className="va-inline-metrics">
+                  <UiBadge>{messageSnapshot ? 'Status loaded' : 'Status idle'}</UiBadge>
+                  <UiBadge>{providerSnapshot ? 'Provider loaded' : 'Provider idle'}</UiBadge>
+                  <UiBadge>{historyRows.length > 0 ? `History ${historyRows.length}` : 'History idle'}</UiBadge>
+                  <UiBadge>{templateRows.length > 0 ? `Templates ${templateRows.length}` : 'Templates idle'}</UiBadge>
+                </div>
                 <div className="va-inline-tools">
                   <UiInput
                     aria-label="Email message ID"
@@ -4699,6 +4901,15 @@ function EmailCommandPageContent() {
                     }}
                   >
                     {historyBusy ? 'Loading...' : 'Load History'}
+                  </UiButton>
+                  <UiButton
+                    variant="secondary"
+                    disabled={!canManageEmail || activeBusy}
+                    onClick={() => {
+                      void runGuidedEmailMenuAction('EMAIL_TEMPLATES');
+                    }}
+                  >
+                    {templatesBusy ? 'Loading...' : 'Load Templates'}
                   </UiButton>
                 </div>
                 <div className="va-inline-tools">
@@ -4753,29 +4964,46 @@ function EmailCommandPageContent() {
                   </UiButton>
                 </div>
 
-                {messageSnapshot ? (
-                  <ul className="va-list va-list-dense">
-                    <li>Status: {messageStatus || 'unknown'}</li>
-                    <li>Provider: {messageProvider || 'unknown'}</li>
-                    <li>To: {messageTo || 'n/a'}</li>
-                    <li>Script: {messageScriptId || 'n/a'}</li>
-                    <li>Created: {messageCreatedAt || 'n/a'}</li>
-                    <li>Events: {messageEvents.length}</li>
-                  </ul>
-                ) : null}
-
-                {messageEvents.length > 0 ? (
+                {!messageSnapshot && !bulkJobSnapshot && historyRows.length === 0 && templateRows.length === 0 && !statsSnapshot ? (
                   <UiStatePanel
                     compact
-                    title="Recent message event"
-                    description={toJsonText(messageEvents[0])}
+                    title="No email diagnostics loaded"
+                    description="Run status/timeline, bulk job, templates, history, or stats actions to populate diagnostics."
                     tone="info"
                   />
                 ) : null}
 
+                {messageSnapshot ? (
+                  <UiDisclosure
+                    title="Message status"
+                    subtitle={messageStatus || 'Delivery state snapshot'}
+                    open
+                  >
+                    <ul className="va-list va-list-dense">
+                      <li>Status: {messageStatus || 'unknown'}</li>
+                      <li>Provider: {messageProvider || 'unknown'}</li>
+                      <li>To: {messageTo || 'n/a'}</li>
+                      <li>Script: {messageScriptId || 'n/a'}</li>
+                      <li>Created: {messageCreatedAt || 'n/a'}</li>
+                      <li>Events: {messageEvents.length}</li>
+                    </ul>
+                    {messageEvents.length > 0 ? (
+                      <UiStatePanel
+                        compact
+                        title="Recent message event"
+                        description={toJsonText(messageEvents[0])}
+                        tone="info"
+                      />
+                    ) : null}
+                  </UiDisclosure>
+                ) : null}
+
                 {bulkJobSnapshot ? (
-                  <>
-                    <p className="va-card-eyebrow">Bulk job snapshot</p>
+                  <UiDisclosure
+                    title="Bulk job snapshot"
+                    subtitle={toText(bulkJobSnapshot.status, 'unknown')}
+                    open
+                  >
                     <ul className="va-list va-list-dense">
                       <li>Job ID: {toText(bulkJobSnapshot.job_id, toText(bulkJobSnapshot.id, 'n/a'))}</li>
                       <li>Status: {toText(bulkJobSnapshot.status, 'unknown')}</li>
@@ -4784,12 +5012,14 @@ function EmailCommandPageContent() {
                       <li>Sent: {toInt(bulkJobSnapshot.sent_count, 0)}</li>
                       <li>Failed: {toInt(bulkJobSnapshot.failed_count, 0)}</li>
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {providerSnapshot ? (
-                  <>
-                    <p className="va-card-eyebrow">Bulk precheck provider readiness</p>
+                  <UiDisclosure
+                    title="Provider readiness"
+                    subtitle={providerSnapshot.ready === true ? 'Ready for email delivery' : 'Configuration needs attention'}
+                  >
                     <ul className="va-list va-list-dense">
                       <li>Channel: {toText(providerSnapshot.channel, 'email')}</li>
                       <li>Provider: {toText(providerSnapshot.provider, 'unknown')}</li>
@@ -4804,12 +5034,14 @@ function EmailCommandPageContent() {
                         tone={providerSnapshot.ready === true ? 'success' : 'warning'}
                       />
                     ) : null}
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {historyRows.length > 0 ? (
-                  <>
-                    <p className="va-card-eyebrow">Recent bulk jobs</p>
+                  <UiDisclosure
+                    title="Recent bulk jobs"
+                    subtitle={`${historyRows.length} job${historyRows.length === 1 ? '' : 's'} loaded`}
+                  >
                     <ul className="va-list va-list-dense">
                       {historyRows.slice(0, 6).map((job) => (
                         <li key={toTextValue(job.job_id, summarizeEmailJob(job))}>
@@ -4817,21 +5049,25 @@ function EmailCommandPageContent() {
                         </li>
                       ))}
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {statsSnapshot ? (
-                  <>
-                    <p className="va-card-eyebrow">Bulk stats snapshot</p>
+                  <UiDisclosure
+                    title="Bulk stats"
+                    subtitle="24-hour delivery snapshot"
+                  >
                     <ul className="va-list va-list-dense">
                       <li>{summarizeEmailBulkStats(statsSnapshot)}</li>
                     </ul>
-                  </>
+                  </UiDisclosure>
                 ) : null}
 
                 {templateRows.length > 0 ? (
-                  <>
-                    <p className="va-card-eyebrow">Template catalog sample</p>
+                  <UiDisclosure
+                    title="Template catalog"
+                    subtitle={`${templateRows.length} template${templateRows.length === 1 ? '' : 's'} loaded`}
+                  >
                     <ul className="va-list va-list-dense">
                       {templateRows.slice(0, 6).map((template) => (
                         <li key={toTextValue(template.template_id, toTextValue(template.id, summarizeEmailTemplate(template)))}>
@@ -4839,16 +5075,7 @@ function EmailCommandPageContent() {
                         </li>
                       ))}
                     </ul>
-                  </>
-                ) : null}
-
-                {!messageSnapshot && !bulkJobSnapshot && historyRows.length === 0 && templateRows.length === 0 && !statsSnapshot ? (
-                  <UiStatePanel
-                    compact
-                    title="No email diagnostics loaded"
-                    description="Run status/timeline, bulk job, templates, history, or stats actions to populate diagnostics."
-                    tone="info"
-                  />
+                  </UiDisclosure>
                 ) : null}
               </UiCard>
             </div>
@@ -4867,7 +5094,7 @@ function EmailCommandPageContent() {
 
         {canOperate ? (
           <Section header="Workflow snapshot">
-            <Cell subtitle="How many command-owned action slices currently hold data in this session.">
+            <Cell subtitle="How many workflow panels currently hold data in this session.">
               Loaded slices: {actionReadyCount}
             </Cell>
           </Section>
@@ -4875,7 +5102,7 @@ function EmailCommandPageContent() {
 
         <Section
           header="Quick actions"
-          footer="These shortcuts stay aligned to existing Mini App parity routes so the /email page remains part of the bot-owned workflow graph."
+          footer="These shortcuts keep the email page connected to the rest of the available Mini App workflows."
         >
           {(['BULK_EMAIL', 'HELP', 'GUIDE', 'MENU', 'PROVIDER_STATUS'] as const).map((actionId) => {
             const action = MINIAPP_COMMAND_ACTION_CONTRACTS[actionId];
@@ -4906,7 +5133,7 @@ function EmailCommandPageContent() {
         >
           <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT}>
             <Cell subtitle="Open the admin dashboard shell and route launcher.">
-              Dashboard root
+              Admin console
             </Cell>
           </Link>
         </Section>

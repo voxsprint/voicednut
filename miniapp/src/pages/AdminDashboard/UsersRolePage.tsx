@@ -4,7 +4,15 @@ import type { DashboardVm, UserRow } from './types';
 import { selectUsersRolePageVm } from './vmSelectors';
 import { selectUsersRowsMemoized, type UserRoleFilter } from './tableSelectors';
 import { downloadCsv } from './csvExport';
-import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiBadge,
+  UiButton,
+  UiCard,
+  UiInput,
+  UiSelect,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 
 type UsersRolePageProps = {
   visible: boolean;
@@ -35,6 +43,19 @@ function isTypingTarget(target: EventTarget | null): target is HTMLElement {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName.toLowerCase();
   return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+}
+
+function roleFilterLabel(roleFilter: UserRoleFilter): string {
+  switch (roleFilter) {
+    case 'admin':
+      return 'Admins';
+    case 'operator':
+      return 'Operators';
+    case 'viewer':
+      return 'Viewers';
+    default:
+      return 'All roles';
+  }
 }
 
 export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
@@ -189,6 +210,34 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   const pageUsers = filteredAndSortedUsers.slice(pageStart, pageStart + effectivePageSize);
   const showingStart = filteredAndSortedUsers.length === 0 ? 0 : pageStart + 1;
   const showingEnd = Math.min(filteredAndSortedUsers.length, pageStart + pageUsers.length);
+  const totalTrackedUsers = toInt(usersPayload.total, usersRows.length);
+  const trimmedUserSearch = userSearch.trim();
+  const hasActiveFilters = roleFilter !== 'all' || trimmedUserSearch.length > 0;
+  const usersSummaryTone = filteredAndSortedUsers.length === 0
+    ? 'warning'
+    : hasActiveFilters
+      ? 'info'
+      : 'success';
+  const usersSummaryStatus = filteredAndSortedUsers.length === 0
+    ? totalTrackedUsers === 0
+      ? 'Awaiting roster'
+      : 'No matches'
+    : hasActiveFilters
+      ? 'Filtered'
+      : 'Ready';
+  const usersSummaryDescription = filteredAndSortedUsers.length === 0
+    ? totalTrackedUsers === 0
+      ? 'Refresh the roster once Telegram admin records are available.'
+      : 'Adjust search or role filters to bring matching operators back into view.'
+    : hasActiveFilters
+      ? 'Review the filtered roster, confirm the access reason, and apply changes with an audit trail.'
+      : 'Review access posture, capture an approval reason, and update roles without leaving the console.';
+  const emptyStateTitle = totalTrackedUsers === 0
+    ? 'No users are available yet'
+    : 'No users matched this view';
+  const emptyStateDescription = totalTrackedUsers === 0
+    ? 'Refresh the roster after Telegram admin records finish syncing into the dashboard.'
+    : 'Adjust search, role filters, or sort settings to bring matching operators back into view.';
   const exportUsersCsv = (): void => {
     const rows = filteredAndSortedUsers.map((user) => [
       toText(user.telegram_id, ''),
@@ -209,14 +258,29 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   };
 
   return (
-    <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
-      <UiCard>
-        <h3>User & Role Admin</h3>
-        <div className="va-inline-metrics">
-          <UiBadge>Total {toInt(usersPayload.total, usersRows.length)}</UiBadge>
-          <UiBadge>Filtered {filteredAndSortedUsers.length}</UiBadge>
-          <UiBadge>Showing {showingStart}-{showingEnd}</UiBadge>
-        </div>
+    <>
+      <section className="va-page-intro">
+        <p className="va-kicker">Governance</p>
+        <h2 className="va-page-title">Users &amp; Roles</h2>
+        <p className="va-muted">Review roster coverage, confirm access reasons, and manage role changes with a clear audit trail.</p>
+      </section>
+
+      <UiWorkspacePulse
+        title="Access governance"
+        description={usersSummaryDescription}
+        status={usersSummaryStatus}
+        tone={usersSummaryTone}
+        items={[
+          { label: 'Tracked users', value: totalTrackedUsers },
+          { label: 'Filtered', value: filteredAndSortedUsers.length },
+          { label: 'Showing', value: `${showingStart}-${showingEnd}` },
+          { label: 'Scope', value: roleFilterLabel(roleFilter) },
+        ]}
+      />
+
+      <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
+        <UiCard>
+          <h3>User &amp; Role Admin</h3>
         <div className="va-filter-grid" role="toolbar" aria-label="User filters and actions">
           <UiInput
             ref={userSearchInputRef}
@@ -311,11 +375,6 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
         <p className="va-muted">
           Policy: admin elevation requires two-step approval phrase after reason confirmation.
         </p>
-        <p className="va-muted">
-          Total tracked: <strong>{toInt(usersPayload.total, usersRows.length)}</strong>
-          {' '}| Filtered: <strong>{filteredAndSortedUsers.length}</strong>
-          {' '}| Showing: <strong>{showingStart}-{showingEnd}</strong>
-        </p>
         <ul className="va-list">
           {pageUsers.map((user: UserRow, index: number) => {
             const telegramId = toText(user.telegram_id, '');
@@ -368,10 +427,25 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
           })}
         </ul>
         {pageUsers.length === 0 ? (
-          <UiStatePanel
+          <UiSurfaceState
+            cardTone="subcard"
+            eyebrow="Roster view"
+            status={totalTrackedUsers === 0 ? 'Waiting for data' : 'Adjust filters'}
+            statusVariant="warning"
+            title={emptyStateTitle}
+            description={emptyStateDescription}
+            tone="warning"
             compact
-            title="No users matched your filters"
-            description="Adjust search, role filter, or sort settings to broaden results."
+            actions={(
+              <UiButton
+                variant="secondary"
+                onClick={(event) => {
+                  handleUsersRefresh(event.currentTarget);
+                }}
+              >
+                Refresh Users
+              </UiButton>
+            )}
           />
         ) : null}
         {advancedTablesEnabled ? (
@@ -389,7 +463,8 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             </UiButton>
           </div>
         ) : null}
-      </UiCard>
-    </section>
+        </UiCard>
+      </section>
+    </>
   );
 }

@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ActionTelemetry } from '@/hooks/admin-dashboard/useDashboardActions';
 import type { DashboardAuthTelemetry } from '@/hooks/admin-dashboard/useDashboardSyncLoaders';
-import { UiBadge, UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiButton,
+  UiDisclosure,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import type { DashboardReliabilityState } from '@/services/admin-dashboard/dashboardReliabilityState';
 import { describeDashboardRefreshFailure } from '@/services/admin-dashboard/dashboardSessionErrors';
 
@@ -157,6 +162,86 @@ function noticeTitle(tone: DashboardStatusRailProps['noticeTone']): string {
   }
 }
 
+function resolveStatusSummaryTone(options: {
+  error: string;
+  noticeTone: DashboardStatusRailProps['noticeTone'];
+  syncHealthState: DashboardReliabilityState;
+  pollFailureCount: number;
+  streamFailureCount: number;
+  bridgeHardFailures: number;
+  bridgeSoftFailures: number;
+  authDegraded: boolean;
+  busyAction: string;
+  actionTelemetry: ActionTelemetry;
+}): 'info' | 'success' | 'warning' | 'error' {
+  if (
+    options.error
+    || options.noticeTone === 'error'
+    || options.syncHealthState === 'blocked'
+    || options.syncHealthState === 'offline'
+    || options.bridgeHardFailures > 0
+    || options.actionTelemetry.status === 'error'
+  ) {
+    return 'error';
+  }
+  if (
+    options.noticeTone === 'warning'
+    || options.syncHealthState !== 'healthy'
+    || options.pollFailureCount > 0
+    || options.streamFailureCount > 0
+    || options.bridgeSoftFailures > 0
+    || options.authDegraded
+  ) {
+    return 'warning';
+  }
+  if (
+    options.busyAction
+    || options.actionTelemetry.status === 'running'
+    || options.noticeTone === 'info'
+  ) {
+    return 'info';
+  }
+  return 'success';
+}
+
+function resolveStatusSummaryLabel(
+  tone: ReturnType<typeof resolveStatusSummaryTone>,
+): string {
+  switch (tone) {
+    case 'error':
+      return 'Needs attention';
+    case 'warning':
+      return 'Watching';
+    case 'info':
+      return 'Updating';
+    default:
+      return 'Healthy';
+  }
+}
+
+function resolveStatusSummaryDescription(options: {
+  error: string;
+  refreshFailureDescription: string;
+  actionTelemetry: ActionTelemetry;
+  busyAction: string;
+  notice: string;
+  syncHealthMessage: string;
+}): string {
+  if (options.error) {
+    return options.refreshFailureDescription;
+  }
+  if (options.actionTelemetry.status === 'error' && options.actionTelemetry.error) {
+    return options.actionTelemetry.error;
+  }
+  if (options.busyAction) {
+    return `Working on ${options.busyAction}.`;
+  }
+  if (options.notice) {
+    return options.notice;
+  }
+  return options.syncHealthMessage;
+}
+
 function formatTelemetryTimestamp(value: number | null): string {
   if (!Number.isFinite(value) || value === null) return 'n/a';
   const timestamp = new Date(value);
@@ -261,11 +346,36 @@ export function DashboardStatusRail({
       : 'Stable';
   const lastAuthExpiryLabel = formatTelemetryTimestamp(authTelemetry.lastExpiryAt);
   const lastAuthRecoveryLabel = formatTelemetryTimestamp(authTelemetry.lastRecoveryAt);
-  const syncBadgeVariant = syncHealthState === 'healthy'
-    ? 'success'
-    : (syncHealthState === 'blocked' || syncHealthState === 'offline')
-      ? 'error'
-      : 'info';
+  const statusSummaryTone = resolveStatusSummaryTone({
+    error,
+    noticeTone,
+    syncHealthState,
+    pollFailureCount,
+    streamFailureCount,
+    bridgeHardFailures,
+    bridgeSoftFailures,
+    authDegraded: authTelemetry.authDegraded,
+    busyAction,
+    actionTelemetry,
+  });
+  const statusSummaryLabel = resolveStatusSummaryLabel(statusSummaryTone);
+  const statusSummaryDescription = resolveStatusSummaryDescription({
+    error,
+    refreshFailureDescription: refreshFailure.description,
+    actionTelemetry,
+    busyAction,
+    notice,
+    syncHealthMessage,
+  });
+  const activeWorkLabel = isBusy
+    ? busyAction
+    : hasActionTelemetry
+      ? `${actionTelemetry.action} · ${statusLabel(actionTelemetry.status)}`
+      : 'Monitoring';
+  const issueGroupCount = failureGroups.reduce((sum, group) => sum + group.count, 0);
+  const diagnosticsSubtitle = issueGroupCount > 0
+    ? `${issueGroupCount} recent issue signals tracked.`
+    : 'View sync, auth, trace, and recovery detail.';
   const diagnosticsSummary = useMemo(() => [
     `sync_mode=${syncModeLabel}`,
     `sync_health=${syncHealthState}`,
@@ -380,30 +490,25 @@ export function DashboardStatusRail({
       className={`va-status-rail ${isBusy ? 'is-busy' : ''}`}
       aria-label="Dashboard sync and action status"
     >
-      <UiCard tone="status">
-        <div className="va-status-chip-row">
-          <UiBadge variant={syncBadgeVariant}>Sync {syncModeLabel}</UiBadge>
-          <UiBadge>Poll failures {pollFailureCount}</UiBadge>
-          <UiBadge>Stream failures {streamFailureCount}</UiBadge>
-          <UiBadge>Bridge 5xx {bridgeHardFailures}</UiBadge>
-          <UiBadge>Bridge 4xx/5xx {bridgeSoftFailures}</UiBadge>
-          <UiBadge>Busy {busyAction || 'none'}</UiBadge>
-        </div>
-        <p className="va-status-line" role="status" aria-live="polite" aria-atomic="true">
-          {syncHealthMessage}
-        </p>
-        <p className="va-status-line" role="status" aria-live="polite" aria-atomic="true">
-          Auth stability {authHealthLabel} • Expiries {authTelemetry.expiryEvents} • Recoveries {authTelemetry.recoveryEvents}
-        </p>
-        {hasActionTelemetry ? (
-          <p className="va-status-line" role="status" aria-live="polite" aria-atomic="true">
-            Action {actionTelemetry.action} • Status {statusLabel(actionTelemetry.status)} • Trace {actionTelemetry.traceHint || 'n/a'} • Latency {actionTelemetry.latencyMs}ms
-          </p>
-        ) : null}
-        {actionTelemetry.status === 'error' && actionTelemetry.error ? (
-          <p className="va-error" role="alert" aria-live="assertive">{actionTelemetry.error}</p>
-        ) : null}
-        {shouldShowOpsDiagnostics ? (
+      <UiWorkspacePulse
+        title="Console health"
+        description={statusSummaryDescription}
+        status={statusSummaryLabel}
+        tone={statusSummaryTone}
+        items={[
+          { label: 'Sync mode', value: syncModeLabel },
+          { label: 'Auth', value: authHealthLabel },
+          { label: 'Last good sync', value: lastSuccessfulPollLabel },
+          { label: 'Active work', value: activeWorkLabel },
+        ]}
+      />
+      {shouldShowOpsDiagnostics ? (
+        <UiDisclosure
+          title="Advanced diagnostics"
+          subtitle={diagnosticsSubtitle}
+          tone={statusSummaryTone === 'success' ? 'neutral' : statusSummaryTone}
+          className="va-status-disclosure"
+        >
           <div className="va-status-diagnostics" role="note" aria-label="Operator diagnostics">
             <div className="va-status-diagnostics-head">
               <p className="va-status-diagnostics-title">Operator diagnostics</p>
@@ -520,30 +625,53 @@ export function DashboardStatusRail({
               </p>
             </div>
           </div>
-        ) : null}
-      </UiCard>
+        </UiDisclosure>
+      ) : null}
       {loading || error || notice ? (
         <div className="va-status-state-stack">
           {loading ? (
-            <UiStatePanel
+            <UiSurfaceState
               compact
+              cardTone="status"
+              eyebrow="Dashboard sync"
+              status="Loading"
+              statusVariant="info"
               title="Preparing dashboard"
               description="Loading latest telemetry, permissions, and module status."
             />
           ) : null}
           {error ? (
-            <>
-              <UiStatePanel
-                tone="error"
-                title={refreshFailure.title}
-                description={refreshFailure.description}
-              />
-            </>
+            <UiSurfaceState
+              tone="error"
+              cardTone="status"
+              compact
+              eyebrow="Dashboard sync"
+              status="Refresh failed"
+              statusVariant="error"
+              title={refreshFailure.title}
+              description={refreshFailure.description}
+            />
+          ) : null}
+          {actionTelemetry.status === 'error' && actionTelemetry.error ? (
+            <UiSurfaceState
+              tone="error"
+              cardTone="status"
+              compact
+              eyebrow="Last action"
+              status={actionTelemetry.action || 'Action error'}
+              statusVariant="error"
+              title="Latest action needs attention"
+              description={actionTelemetry.error}
+            />
           ) : null}
           {notice ? (
-            <UiStatePanel
+            <UiSurfaceState
               compact
+              cardTone="status"
               tone={noticeToneToStateTone(noticeTone)}
+              eyebrow="Dashboard notice"
+              status={noticeTitle(noticeTone)}
+              statusVariant={noticeToneToStateTone(noticeTone)}
               title={noticeTitle(noticeTone)}
               description={notice}
             />

@@ -10,7 +10,15 @@ import {
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
-import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiBadge,
+  UiButton,
+  UiCard,
+  UiInput,
+  UiSelect,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { isDashboardActionSupported, resolveDashboardActionId } from '@/services/admin-dashboard/dashboardActionGuards';
 
@@ -371,19 +379,80 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   const deleteSavedQuery = (id: string): void => {
     setSavedQueries((prev) => prev.filter((query) => query.id !== id));
   };
+  const hasAnyFilteredRecords = filteredIncidentRows.length > 0 || filteredAuditRows.length > 0;
+  const availableRunbooks = runbookRows.filter((runbook) => {
+    const action = toText(runbook.action, '');
+    const resolvedAction = resolveDashboardActionId(action);
+    const capability = toText(runbook.capability, 'dashboard_view');
+    return Boolean(action) && isDashboardActionSupported(resolvedAction) && hasCapability(capability);
+  }).length;
+  const incidentFiltersApplied = incidentQuery.trim().length > 0
+    || incidentStatusFilter !== 'all'
+    || incidentActorFilter !== 'all'
+    || incidentModuleFilter !== 'all'
+    || incidentSeverityFilter !== 'all';
+  const auditFiltersApplied = auditQuery.trim().length > 0
+    || auditActorFilter !== 'all'
+    || auditModuleFilter !== 'all'
+    || auditSeverityFilter !== 'all';
+  const auditPulseTone: 'info' | 'success' | 'warning' = busyAction.length > 0
+    ? 'info'
+    : hasAnyFilteredRecords
+      ? 'success'
+      : 'warning';
+  const auditPulseStatus = busyAction.length > 0
+    ? 'Working'
+    : hasAnyFilteredRecords
+      ? 'Ready'
+      : 'Filtered';
+  const auditPulseDescription = busyAction.length > 0
+    ? 'A refresh or runbook action is in progress.'
+    : hasAnyFilteredRecords
+      ? 'Alerts, runbooks, and audit review stay together for fast response and follow-up.'
+      : 'No alerts or audit entries match the current filters. Widen filters or refresh the feed.';
 
   return (
     <>
+      <section className="va-page-intro">
+        <p className="va-kicker">Governance</p>
+        <h2 className="va-page-title">Audit & Incident Center</h2>
+        <p className="va-muted">
+          Incident triage, audit review, and runbook actions for operational follow-up.
+        </p>
+      </section>
+
+      <UiWorkspacePulse
+        title="Audit workspace"
+        description={auditPulseDescription}
+        status={auditPulseStatus}
+        tone={auditPulseTone}
+        items={[
+          { label: 'Total alerts', value: toInt(incidentsPayload.total_alerts, incidentRows.length) },
+          { label: 'Filtered alerts', value: filteredIncidentRows.length },
+          { label: 'Audit entries', value: filteredAuditRows.length },
+          { label: 'Runbooks ready', value: availableRunbooks },
+        ]}
+      />
+
       <DashboardWorkflowContractCard moduleId="audit" />
+
+      {busyAction.length > 0 ? (
+        <div className="va-status-state-stack">
+          <UiSurfaceState
+            eyebrow="Workspace state"
+            status="In progress"
+            statusVariant="info"
+            title="A runbook action is running"
+            description="The workspace will remain available while the current response action completes."
+            tone="info"
+            compact
+          />
+        </div>
+      ) : null}
+
       <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
         <UiCard>
-        <h3>Audit & Incident Center</h3>
-        <div className="va-inline-metrics">
-          <UiBadge>Total alerts {toInt(incidentsPayload.total_alerts, incidentRows.length)}</UiBadge>
-          <UiBadge>Filtered alerts {filteredIncidentRows.length}</UiBadge>
-          <UiBadge>Filtered audit {filteredAuditRows.length}</UiBadge>
-          <UiBadge variant={busyAction ? 'info' : 'success'}>{busyAction ? 'Runbook busy' : 'Runbook idle'}</UiBadge>
-        </div>
+        <h3>Incident Response</h3>
         <div className="va-filter-grid" role="toolbar" aria-label="Audit and incident actions">
           <UiButton
             ref={refreshAlertsButtonRef}
@@ -554,10 +623,17 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           })}
         </ul>
         {incidentPageRows.length === 0 ? (
-          <UiStatePanel
-            compact
+          <UiSurfaceState
+            eyebrow="Incident filters"
+            status={incidentFiltersApplied ? 'No matches' : 'Awaiting results'}
+            statusVariant={incidentFiltersApplied ? 'warning' : 'info'}
             title="No incident alerts matched filters"
-            description="Try widening status, actor, module, or severity filters."
+            description={incidentFiltersApplied
+              ? 'Try widening status, actor, module, or severity filters.'
+              : 'Refresh alerts or start filtering to load the first incident view.'}
+            tone={incidentFiltersApplied ? 'warning' : 'info'}
+            compact
+            cardTone="subcard"
           />
         ) : null}
         {advancedTablesEnabled ? (
@@ -699,10 +775,17 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           })}
         </ul>
         {auditPageRows.length === 0 ? (
-          <UiStatePanel
-            compact
+          <UiSurfaceState
+            eyebrow="Audit filters"
+            status={auditFiltersApplied ? 'No matches' : 'Awaiting results'}
+            statusVariant={auditFiltersApplied ? 'warning' : 'info'}
             title="No audit entries matched filters"
-            description="Try widening actor, module, severity, or query filters."
+            description={auditFiltersApplied
+              ? 'Try widening actor, module, severity, or query filters.'
+              : 'Refresh the feed or adjust filters to load audit activity.'}
+            tone={auditFiltersApplied ? 'warning' : 'info'}
+            compact
+            cardTone="subcard"
           />
         ) : null}
         {advancedTablesEnabled ? (

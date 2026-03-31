@@ -4,7 +4,13 @@ import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
-import { UiBadge, UiButton, UiCard, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiButton,
+  UiCard,
+  UiStatePanel,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type PersonaManagerPageProps = {
@@ -40,6 +46,11 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
     secondaryBusyAction: investigationBusy,
   });
   const controlsBusy = requestState.isBusy;
+  const pulseTone = controlsBusy ? 'info' : custom.length > 0 ? 'success' : 'neutral';
+  const pulseStatus = controlsBusy ? 'Refreshing' : custom.length > 0 ? 'Active' : 'Built-ins only';
+  const pulseDescription = controlsBusy
+    ? `Running ${requestState.activeActionLabel || 'persona sync'}.`
+    : 'Review built-in and custom personas before they are used in call and messaging workflows.';
 
   const loadPersonas = async (): Promise<void> => {
     await runInvestigationAction(
@@ -62,12 +73,20 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
         <p className="va-kicker">Content</p>
         <h2 className="va-page-title">Persona Manager</h2>
         <p className="va-muted">Review built-in and custom persona catalogs used by call scripts and agents.</p>
-        <div className="va-inline-metrics">
-          <UiBadge>Built-in {builtin.length}</UiBadge>
-          <UiBadge>Custom {custom.length}</UiBadge>
-          <UiBadge variant={controlsBusy ? 'info' : 'success'}>{controlsBusy ? 'Refreshing' : 'Synced'}</UiBadge>
-        </div>
       </section>
+
+      <UiWorkspacePulse
+        title="Persona catalog"
+        description={pulseDescription}
+        status={pulseStatus}
+        tone={pulseTone}
+        items={[
+          { label: 'Built-in', value: builtin.length },
+          { label: 'Custom', value: custom.length },
+          { label: 'Sync state', value: controlsBusy ? 'Refreshing' : 'Ready' },
+          { label: 'Visible catalogs', value: builtin.length + custom.length > 0 ? 'Available' : 'Pending' },
+        ]}
+      />
 
       <section className="va-grid">
         <UiCard>
@@ -89,62 +108,70 @@ export function PersonaManagerPage({ visible, vm }: PersonaManagerPageProps) {
             />
           ) : null}
           <div className="va-subcard-grid va-subcard-grid-two">
-            <UiCard tone="subcard">
-              <h4>Built-in Personas ({builtin.length})</h4>
-              {builtin.length === 0 ? (
-                <UiStatePanel
-                  compact
-                  title="No built-in personas reported"
-                  description="The provider did not return any built-in persona entries."
-                />
-              ) : (
+            {builtin.length === 0 ? (
+              <UiSurfaceState
+                cardTone="subcard"
+                compact
+                eyebrow="Built-in catalog"
+                status="Empty"
+                title="No built-in personas reported"
+                description="The provider did not return any built-in persona entries."
+              />
+            ) : (
+              <UiCard tone="subcard">
+                <h4>Built-in Personas ({builtin.length})</h4>
                 <ul className="va-list va-list-dense">
                   {builtin.slice(0, 30).map((persona, index) => (
                     <li key={`persona-builtin-${index}`}>
                       <strong>{toText(persona.label, toText(persona.name, `builtin-${index + 1}`))}</strong>
                       <span>
-                        <UiBadge variant="info">{toText(persona.id, 'n/a')}</UiBadge>
+                        <span className="va-native-list-value">{toText(persona.id, 'n/a')}</span>
                       </span>
                     </li>
                   ))}
                 </ul>
-              )}
-            </UiCard>
-            <UiCard tone="subcard">
-              <h4>Custom Personas ({custom.length})</h4>
-              {custom.length === 0 ? (
-                <UiStatePanel
-                  title="No custom personas available"
-                  description="This environment currently exposes built-ins only."
-                  tone="info"
-                  compact
-                />
-              ) : (
+              </UiCard>
+            )}
+            {custom.length === 0 ? (
+              <UiSurfaceState
+                cardTone="subcard"
+                eyebrow="Custom catalog"
+                status="Built-ins only"
+                statusVariant="info"
+                title="No custom personas available"
+                description="This environment currently exposes built-ins only."
+                tone="info"
+                compact
+              />
+            ) : (
+              <UiCard tone="subcard">
+                <h4>Custom Personas ({custom.length})</h4>
                 <ul className="va-list va-list-dense">
                   {custom.slice(0, 30).map((persona, index) => (
                     <li key={`persona-custom-${index}`}>
                       <strong>{toText(persona.label, toText(persona.name, `custom-${index + 1}`))}</strong>
                       <span>
-                        <UiBadge>{toText(persona.slug, toText(persona.id, 'n/a'))}</UiBadge>
+                        <span className="va-native-list-value">{toText(persona.slug, toText(persona.id, 'n/a'))}</span>
                       </span>
                     </li>
                   ))}
                 </ul>
-              )}
-            </UiCard>
+              </UiCard>
+            )}
           </div>
         </UiCard>
       </section>
 
       {investigationError ? (
         <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Persona action failed"
-              description={investigationError}
-              tone="error"
-            />
-          </UiCard>
+          <UiSurfaceState
+            eyebrow="Catalog sync"
+            status="Action failed"
+            statusVariant="error"
+            title="Persona action failed"
+            description={investigationError}
+            tone="error"
+          />
         </section>
       ) : null}
     </>

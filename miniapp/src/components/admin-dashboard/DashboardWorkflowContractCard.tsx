@@ -24,35 +24,29 @@ export function DashboardWorkflowContractCard({ moduleId }: DashboardWorkflowCon
   const pageContract = DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS[moduleId as DashboardModuleId];
 
   return (
-    <section className="va-section-block" aria-label="Live workflow contract">
+    <section className="va-section-block" aria-label="Workspace guide">
       <header className="va-section-header">
-        <h3 className="va-section-title">Live workflow contract</h3>
+        <h3 className="va-section-title">Workspace guide</h3>
         <p className="va-muted">
-          Command ownership, execution safeguards, and degraded-state behavior derived from the live bot and dashboard action surfaces.
+          What this workspace handles, what it needs, and how it behaves when data is stale.
         </p>
       </header>
       <section className="va-grid">
         <UiCard>
-          <h3>Command ownership</h3>
+          <h3>Workspace scope</h3>
           <div className="va-inline-metrics">
-            <UiBadge>Canonical {detailContract.canonicalCommand}</UiBadge>
-            <UiBadge>Capability {detailContract.capability || 'none'}</UiBadge>
-            <UiBadge>Parity {pageContract.workflowStatus}</UiBadge>
-            <UiBadge>Fallback {detailContract.fallbackPath}</UiBadge>
-          </div>
-          <p className="va-card-eyebrow">Related commands</p>
-          <div className="va-inline-tools">
-            {detailContract.relatedCommands.map((command) => (
-              <UiBadge key={`${moduleId}-${command}`}>{command}</UiBadge>
-            ))}
+            <UiBadge>Access {detailContract.capability || 'shared'}</UiBadge>
+            <UiBadge>Coverage {pageContract.workflowStatus}</UiBadge>
+            <UiBadge>Fallback home</UiBadge>
           </div>
           <p className="va-card-eyebrow">Required inputs</p>
           {renderListItems(detailContract.requiredInputs)}
+          <p className="va-card-eyebrow">Operator notes</p>
           <p className="va-muted">{pageContract.notes}</p>
         </UiCard>
 
         <UiCard>
-          <h3>Execution safeguards</h3>
+          <h3>Before you start</h3>
           <p className="va-card-eyebrow">Validation and prechecks</p>
           {renderListItems(detailContract.validationSteps)}
           <p className="va-card-eyebrow">Confirmation rules</p>
@@ -66,7 +60,7 @@ export function DashboardWorkflowContractCard({ moduleId }: DashboardWorkflowCon
         </UiCard>
 
         <UiCard>
-          <h3>Recovery and productivity</h3>
+          <h3>Resilience and follow-up</h3>
           <p className="va-card-eyebrow">Success behavior</p>
           {renderListItems(detailContract.successBehavior)}
           <p className="va-card-eyebrow">Failure behavior</p>

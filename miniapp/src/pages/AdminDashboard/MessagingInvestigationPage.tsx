@@ -5,7 +5,16 @@ import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
-import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiActionBar,
+  UiButton,
+  UiCard,
+  UiDisclosure,
+  UiInput,
+  UiStatePanel,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type MessagingInvestigationPageProps = {
@@ -65,6 +74,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     secondaryBusyAction: investigationBusy,
   });
   const controlsBusy = requestState.isBusy;
+  const activeActionLabel = requestState.activeActionLabel;
   const statusSid = statusSidInput.trim();
   const conversationPhone = conversationPhoneInput.trim();
   const messageId = messageIdInput.trim();
@@ -91,6 +101,30 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     .filter((value) => value.length > 0).length;
   const canManageSms = hasCapability('sms_bulk_manage');
   const canManageEmail = hasCapability('email_bulk_manage');
+  const hasAnyInvestigationData = hasSmsInvestigationData || hasEmailInvestigationData;
+  const pulseTone: 'info' | 'success' | 'warning' | 'error' = investigationError
+    ? 'error'
+    : controlsBusy
+      ? 'info'
+      : !hasAnyInvestigationData || !canManageSms || !canManageEmail
+        ? 'warning'
+        : 'success';
+  const pulseStatus = investigationError
+    ? 'Needs attention'
+    : controlsBusy
+      ? 'Working'
+      : !hasAnyInvestigationData || !canManageSms || !canManageEmail
+        ? 'Needs input'
+        : 'Ready';
+  const pulseDescription = investigationError
+    ? investigationError
+    : controlsBusy
+      ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'Messaging diagnostics are in progress.'
+      : !canManageSms && !canManageEmail
+        ? 'SMS and email diagnostics are unavailable for this account.'
+        : !hasAnyInvestigationData
+          ? 'Choose an SMS or email lookup to load the first diagnostic artifact.'
+          : 'SMS and email snapshots stay available together for cross-channel investigation.';
 
   const runSmsStatusLookup = (): void => {
     if (!statusSid) return;
@@ -140,60 +174,48 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         <p className="va-kicker">Messaging</p>
         <h2 className="va-page-title">Messaging Investigation</h2>
         <p className="va-muted">Unified diagnostics for SMS and email delivery events, status, and history.</p>
-        <div className="va-inline-metrics">
-          <UiBadge>SMS recent {recentMessages.length}</UiBadge>
-          <UiBadge>SMS conversation {conversationMessages.length}</UiBadge>
-          <UiBadge>Email jobs {historySnapshot.length}</UiBadge>
-          <UiBadge>Filters {activeFilterCount}</UiBadge>
-          <UiBadge variant={investigationError ? 'error' : controlsBusy ? 'info' : 'success'}>
-            {investigationError ? 'State error' : controlsBusy ? 'State busy' : 'State ready'}
-          </UiBadge>
-        </div>
       </section>
+
+      <UiWorkspacePulse
+        title="Messaging workspace"
+        description={pulseDescription}
+        status={pulseStatus}
+        tone={pulseTone}
+        items={[
+          { label: 'SMS artifacts', value: smsArtifactsCount },
+          { label: 'Email artifacts', value: emailArtifactsCount },
+          { label: 'Active filters', value: activeFilterCount },
+          { label: 'Channel access', value: `${canManageSms ? 'SMS' : 'No SMS'} / ${canManageEmail ? 'Email' : 'No email'}` },
+        ]}
+      />
 
       <DashboardWorkflowContractCard moduleId="messaging" />
 
-      <section className={`va-overview-metrics va-investigation-metrics ${investigationError ? 'is-degraded' : 'is-healthy'}`} aria-label="Investigation summary">
-        <article className="va-overview-metric-card">
-          <span>SMS artifacts</span>
-          <strong>{smsArtifactsCount}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Email artifacts</span>
-          <strong>{emailArtifactsCount}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Active filters</span>
-          <strong>{activeFilterCount}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Request state</span>
-          <strong>{investigationError ? 'Attention required' : controlsBusy ? 'In progress' : 'Ready'}</strong>
-        </article>
-      </section>
-
-      {investigationError ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Messaging investigation failed"
+      {investigationError || requestState.isBusy ? (
+        <div className="va-status-state-stack">
+          {investigationError ? (
+            <UiSurfaceState
+              eyebrow="Investigation state"
+              status="Needs attention"
+              statusVariant="error"
+              title="Messaging investigation needs attention"
               description={investigationError}
               tone="error"
-            />
-          </UiCard>
-        </section>
-      ) : null}
-
-      {requestState.isBusy ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
               compact
-              title="Request in progress"
-              description={`Running ${requestState.activeActionLabel || 'Request'}...`}
             />
-          </UiCard>
-        </section>
+          ) : null}
+          {requestState.isBusy ? (
+            <UiSurfaceState
+              eyebrow="Investigation state"
+              status="In progress"
+              statusVariant="info"
+              title="Messaging request is running"
+              description={`Running ${activeActionLabel || 'request'}...`}
+              tone="info"
+              compact
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <section className="va-section-block">
@@ -220,6 +242,28 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
               tone="info"
             />
           ) : null}
+          <UiActionBar
+            title="Load SMS diagnostics"
+            description="Check a single message, inspect a phone conversation, or pull recent and stats snapshots."
+            actions={(
+              <>
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy || !canManageSms}
+                  onClick={runSmsRecentLookup}
+                >
+                  Recent
+                </UiButton>
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy || !canManageSms}
+                  onClick={runSmsStatsLookup}
+                >
+                  Stats
+                </UiButton>
+              </>
+            )}
+          />
           <div className="va-inline-tools">
             <UiInput
               placeholder="Message SID"
@@ -247,167 +291,163 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             >
               Load Conversation
             </UiButton>
-            <UiButton
-              variant="secondary"
-              disabled={controlsBusy || !canManageSms}
-              onClick={runSmsRecentLookup}
-            >
-              Recent
-            </UiButton>
-            <UiButton
-              variant="secondary"
-              disabled={controlsBusy || !canManageSms}
-              onClick={runSmsStatsLookup}
-            >
-              Stats
-            </UiButton>
           </div>
-          <div className="va-subcard-grid va-subcard-grid-two">
-            <UiCard tone="subcard">
-              <h4>Status Snapshot</h4>
-              {statusSnapshot ? (
-                <ul className="va-native-list">
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Message SID</strong>
-                      <span className="va-native-list-value">{pickDisplayText([statusSnapshot.message_sid, statusSidInput], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Status</strong>
-                      <span className="va-native-list-value">{pickDisplayText([statusSnapshot.status], 'unknown')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>To</strong>
-                      <span className="va-native-list-value">{pickDisplayText([statusSnapshot.to_number], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>From</strong>
-                      <span className="va-native-list-value">{pickDisplayText([statusSnapshot.from_number], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Provider</strong>
-                      <span className="va-native-list-value">{pickDisplayText([statusSnapshot.provider], 'n/a')}</span>
-                    </div>
-                  </li>
-                </ul>
-              ) : (
-                <UiStatePanel
-                  compact
-                  title="No status snapshot"
-                  description="Run a SID lookup to load status details."
-                />
-              )}
-            </UiCard>
-            <UiCard tone="subcard">
-              <h4>Recent Messages</h4>
-              {recentMessages.length === 0 ? (
-                <UiStatePanel
-                  compact
-                  title="No recent messages loaded"
-                  description="Run a recent-message query to populate this list."
-                />
-              ) : (
-                <ul className="va-native-list">
-                  {recentMessages.slice(0, 10).map((message, index) => (
-                    <li key={`msg-investigation-recent-${index}`} className="va-native-list-row">
+          <UiDisclosure
+            title="SMS artifacts"
+            subtitle={
+              hasSmsInvestigationData
+                ? `${smsArtifactsCount} diagnostic artifact${smsArtifactsCount === 1 ? '' : 's'} loaded`
+                : 'Snapshots, conversation history, and stats'
+            }
+            open={hasSmsInvestigationData}
+          >
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
+                <h4>Status Snapshot</h4>
+                {statusSnapshot ? (
+                  <ul className="va-native-list">
+                    <li className="va-native-list-row">
                       <div className="va-native-list-head">
-                        <strong>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</strong>
-                        <span className="va-native-list-value">{pickDisplayText([message.status], 'unknown')}</span>
-                      </div>
-                      <div className="va-native-list-meta">
-                        <span>{pickDisplayText([message.to_number, message.from_number], 'n/a')}</span>
-                        <span>{pickDisplayText([message.provider], 'provider:n/a')}</span>
+                        <strong>Message SID</strong>
+                        <span className="va-native-list-value">{pickDisplayText([statusSnapshot.message_sid, statusSidInput], 'n/a')}</span>
                       </div>
                     </li>
-                  ))}
-                </ul>
-              )}
-            </UiCard>
-          </div>
-          <div className="va-subcard-grid va-subcard-grid-two">
-            <UiCard tone="subcard">
-              <h4>Conversation</h4>
-              {conversationMessages.length === 0 ? (
-                <UiStatePanel
-                  compact
-                  title="No conversation loaded"
-                  description="Load a phone number to inspect conversation history."
-                />
-              ) : (
-                <ul className="va-native-list">
-                  {conversationMessages.slice(0, 12).map((message, index) => (
-                    <li key={`msg-investigation-convo-${index}`} className="va-native-list-row">
+                    <li className="va-native-list-row">
                       <div className="va-native-list-head">
-                        <strong>{pickDisplayText([message.direction], 'unknown')}</strong>
-                        <span className="va-native-list-value">{pickDisplayText([message.status], 'unknown')}</span>
-                      </div>
-                      <div className="va-native-list-meta">
-                        <span>{pickDisplayText([message.body], '').slice(0, 120) || 'No body'}</span>
-                        <span>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</span>
+                        <strong>Status</strong>
+                        <span className="va-native-list-value">{pickDisplayText([statusSnapshot.status], 'unknown')}</span>
                       </div>
                     </li>
-                  ))}
-                </ul>
-              )}
-            </UiCard>
-            <UiCard tone="subcard">
-              <h4>SMS Stats Snapshot</h4>
-              {smsStatsSnapshot ? (
-                <ul className="va-native-list">
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Total</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.total_messages, smsStatsSnapshot.total], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Sent</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.sent_messages], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Received</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.received_messages], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Delivered</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.delivered_count], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Failed</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.failed_count], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Success Rate</strong>
-                      <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.success_rate], '0')}%</span>
-                    </div>
-                  </li>
-                </ul>
-              ) : (
-                <UiStatePanel
-                  compact
-                  title="No SMS stats loaded"
-                  description="Run a stats lookup to inspect current SMS posture."
-                />
-              )}
-            </UiCard>
-          </div>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>To</strong>
+                        <span className="va-native-list-value">{pickDisplayText([statusSnapshot.to_number], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>From</strong>
+                        <span className="va-native-list-value">{pickDisplayText([statusSnapshot.from_number], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Provider</strong>
+                        <span className="va-native-list-value">{pickDisplayText([statusSnapshot.provider], 'n/a')}</span>
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <UiStatePanel
+                    compact
+                    title="No status snapshot"
+                    description="Run a SID lookup to load status details."
+                  />
+                )}
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>Recent Messages</h4>
+                {recentMessages.length === 0 ? (
+                  <UiStatePanel
+                    compact
+                    title="No recent messages loaded"
+                    description="Run a recent-message query to populate this list."
+                  />
+                ) : (
+                  <ul className="va-native-list">
+                    {recentMessages.slice(0, 10).map((message, index) => (
+                      <li key={`msg-investigation-recent-${index}`} className="va-native-list-row">
+                        <div className="va-native-list-head">
+                          <strong>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</strong>
+                          <span className="va-native-list-value">{pickDisplayText([message.status], 'unknown')}</span>
+                        </div>
+                        <div className="va-native-list-meta">
+                          <span>{pickDisplayText([message.to_number, message.from_number], 'n/a')}</span>
+                          <span>{pickDisplayText([message.provider], 'provider:n/a')}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </UiCard>
+            </div>
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
+                <h4>Conversation</h4>
+                {conversationMessages.length === 0 ? (
+                  <UiStatePanel
+                    compact
+                    title="No conversation loaded"
+                    description="Load a phone number to inspect conversation history."
+                  />
+                ) : (
+                  <ul className="va-native-list">
+                    {conversationMessages.slice(0, 12).map((message, index) => (
+                      <li key={`msg-investigation-convo-${index}`} className="va-native-list-row">
+                        <div className="va-native-list-head">
+                          <strong>{pickDisplayText([message.direction], 'unknown')}</strong>
+                          <span className="va-native-list-value">{pickDisplayText([message.status], 'unknown')}</span>
+                        </div>
+                        <div className="va-native-list-meta">
+                          <span>{pickDisplayText([message.body], '').slice(0, 120) || 'No body'}</span>
+                          <span>{pickDisplayText([message.message_sid], `message-${index + 1}`)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>SMS Stats Snapshot</h4>
+                {smsStatsSnapshot ? (
+                  <ul className="va-native-list">
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Total</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.total_messages, smsStatsSnapshot.total], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Sent</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.sent_messages], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Received</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.received_messages], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Delivered</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.delivered_count], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Failed</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.failed_count], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Success Rate</strong>
+                        <span className="va-native-list-value">{pickDisplayText([smsStatsSnapshot.success_rate], '0')}%</span>
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <UiStatePanel
+                    compact
+                    title="No SMS stats loaded"
+                    description="Run a stats lookup to inspect current SMS posture."
+                  />
+                )}
+              </UiCard>
+            </div>
+          </UiDisclosure>
           </UiCard>
         </section>
       </section>
@@ -436,6 +476,19 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
               tone="info"
             />
           ) : null}
+          <UiActionBar
+            title="Load email diagnostics"
+            description="Check a single message, inspect a bulk job, or pull recent email history."
+            actions={(
+              <UiButton
+                variant="secondary"
+                disabled={controlsBusy || !canManageEmail}
+                onClick={runEmailHistoryLookup}
+              >
+                Load History
+              </UiButton>
+            )}
+          />
           <div className="va-inline-tools">
             <UiInput
               placeholder="Message ID"
@@ -463,127 +516,130 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             >
               Job Status
             </UiButton>
-            <UiButton
-              variant="secondary"
-              disabled={controlsBusy || !canManageEmail}
-              onClick={runEmailHistoryLookup}
-            >
-              Load History
-            </UiButton>
           </div>
-          <div className="va-subcard-grid va-subcard-grid-two">
+          <UiDisclosure
+            title="Email artifacts"
+            subtitle={
+              hasEmailInvestigationData
+                ? `${emailArtifactsCount} diagnostic artifact${emailArtifactsCount === 1 ? '' : 's'} loaded`
+                : 'Message status, bulk jobs, and recent history'
+            }
+            open={hasEmailInvestigationData}
+          >
+            <div className="va-subcard-grid va-subcard-grid-two">
+              <UiCard tone="subcard">
+                <h4>Message Snapshot</h4>
+                {messageSnapshot ? (
+                  <ul className="va-native-list">
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Message ID</strong>
+                        <span className="va-native-list-value">{pickDisplayText([messageSnapshot.message_id, messageIdInput], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Status</strong>
+                        <span className="va-native-list-value">{pickDisplayText([messageSnapshot.status], 'unknown')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Recipient</strong>
+                        <span className="va-native-list-value">{pickDisplayText([messageSnapshot.recipient_email, messageSnapshot.to], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Provider</strong>
+                        <span className="va-native-list-value">{pickDisplayText([messageSnapshot.provider], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Last Attempt</strong>
+                        <span className="va-native-list-value">{pickDisplayText([messageSnapshot.last_attempt_at], 'n/a')}</span>
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <UiStatePanel
+                    compact
+                    title="No message snapshot"
+                    description="Run message status lookup to inspect delivery details."
+                  />
+                )}
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>Bulk Job Snapshot</h4>
+                {jobSnapshot ? (
+                  <ul className="va-native-list">
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Job ID</strong>
+                        <span className="va-native-list-value">{pickDisplayText([jobSnapshot.job_id, jobIdInput], 'n/a')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Status</strong>
+                        <span className="va-native-list-value">{pickDisplayText([jobSnapshot.status], 'unknown')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Sent</strong>
+                        <span className="va-native-list-value">{pickDisplayText([jobSnapshot.sent], '0')} / {pickDisplayText([jobSnapshot.total], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Delivered</strong>
+                        <span className="va-native-list-value">{pickDisplayText([jobSnapshot.delivered], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Failed</strong>
+                        <span className="va-native-list-value">{pickDisplayText([jobSnapshot.failed], '0')}</span>
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <UiStatePanel
+                    compact
+                    title="No bulk job snapshot"
+                    description="Run job status lookup to inspect send progress."
+                  />
+                )}
+              </UiCard>
+            </div>
             <UiCard tone="subcard">
-              <h4>Message Snapshot</h4>
-              {messageSnapshot ? (
-                <ul className="va-native-list">
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Message ID</strong>
-                      <span className="va-native-list-value">{pickDisplayText([messageSnapshot.message_id, messageIdInput], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Status</strong>
-                      <span className="va-native-list-value">{pickDisplayText([messageSnapshot.status], 'unknown')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Recipient</strong>
-                      <span className="va-native-list-value">{pickDisplayText([messageSnapshot.recipient_email, messageSnapshot.to], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Provider</strong>
-                      <span className="va-native-list-value">{pickDisplayText([messageSnapshot.provider], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Last Attempt</strong>
-                      <span className="va-native-list-value">{pickDisplayText([messageSnapshot.last_attempt_at], 'n/a')}</span>
-                    </div>
-                  </li>
-                </ul>
-              ) : (
+              <h4>Recent History</h4>
+              {historySnapshot.length === 0 ? (
                 <UiStatePanel
                   compact
-                  title="No message snapshot"
-                  description="Run message status lookup to inspect delivery details."
+                  title="No history loaded"
+                  description="Load email bulk history to inspect recent jobs."
                 />
-              )}
-            </UiCard>
-            <UiCard tone="subcard">
-              <h4>Bulk Job Snapshot</h4>
-              {jobSnapshot ? (
-                <ul className="va-native-list">
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Job ID</strong>
-                      <span className="va-native-list-value">{pickDisplayText([jobSnapshot.job_id, jobIdInput], 'n/a')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Status</strong>
-                      <span className="va-native-list-value">{pickDisplayText([jobSnapshot.status], 'unknown')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Sent</strong>
-                      <span className="va-native-list-value">{pickDisplayText([jobSnapshot.sent], '0')} / {pickDisplayText([jobSnapshot.total], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Delivered</strong>
-                      <span className="va-native-list-value">{pickDisplayText([jobSnapshot.delivered], '0')}</span>
-                    </div>
-                  </li>
-                  <li className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>Failed</strong>
-                      <span className="va-native-list-value">{pickDisplayText([jobSnapshot.failed], '0')}</span>
-                    </div>
-                  </li>
-                </ul>
               ) : (
-                <UiStatePanel
-                  compact
-                  title="No bulk job snapshot"
-                  description="Run job status lookup to inspect send progress."
-                />
+                <ul className="va-native-list">
+                  {historySnapshot.slice(0, 12).map((job, index) => (
+                    <li key={`msg-investigation-email-history-${index}`} className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>{pickDisplayText([job.job_id], `job-${index + 1}`)}</strong>
+                        <span className="va-native-list-value">{pickDisplayText([job.status], 'unknown')}</span>
+                      </div>
+                      <div className="va-native-list-meta">
+                        <span>{pickDisplayText([job.sent], '0')} / {pickDisplayText([job.total], '0')} sent</span>
+                        <span>{pickDisplayText([job.provider], 'provider:n/a')}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </UiCard>
-          </div>
-          <UiCard tone="subcard">
-            <h4>Recent History</h4>
-            {historySnapshot.length === 0 ? (
-              <UiStatePanel
-                compact
-                title="No history loaded"
-                description="Load email bulk history to inspect recent jobs."
-              />
-            ) : (
-              <ul className="va-native-list">
-                {historySnapshot.slice(0, 12).map((job, index) => (
-                  <li key={`msg-investigation-email-history-${index}`} className="va-native-list-row">
-                    <div className="va-native-list-head">
-                      <strong>{pickDisplayText([job.job_id], `job-${index + 1}`)}</strong>
-                      <span className="va-native-list-value">{pickDisplayText([job.status], 'unknown')}</span>
-                    </div>
-                    <div className="va-native-list-meta">
-                      <span>{pickDisplayText([job.sent], '0')} / {pickDisplayText([job.total], '0')} sent</span>
-                      <span>{pickDisplayText([job.provider], 'provider:n/a')}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </UiCard>
+          </UiDisclosure>
           </UiCard>
         </section>
       </section>

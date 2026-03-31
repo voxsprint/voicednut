@@ -2,7 +2,16 @@ import { buildProviderRequestState } from './moduleRequestState';
 import type { DashboardVm, ProviderMatrixRow } from './types';
 import { selectProviderPageVm } from './vmSelectors';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
-import { UiButton, UiCard, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiActionBar,
+  UiBadge,
+  UiButton,
+  UiCard,
+  UiDisclosure,
+  UiSelect,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 
 type ProviderControlPageProps = {
   visible: boolean;
@@ -43,9 +52,62 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
   const supportedProviderTotal = (['call', 'sms', 'email'] as const)
     .reduce((total, channel) => total + (providerSupportedByChannel[channel]?.length || 0), 0);
   const plannerConfigured = supportedProviderTotal > 0;
+  const providerSummaryTone = providerBusy
+    ? 'info'
+    : !plannerConfigured || providerDegradedCount > 0
+      ? 'warning'
+      : 'success';
+  const providerSummaryStatus = providerBusy
+    ? 'Syncing'
+    : !plannerConfigured
+      ? 'Needs setup'
+      : providerDegradedCount > 0
+        ? 'Watching'
+        : 'Healthy';
+  const providerSummaryDescription = providerBusy
+    ? `Running ${providerRequestState.activeActionLabel || 'provider checks'}.`
+    : !plannerConfigured
+      ? 'Provider support metadata is still warming up. Refresh once bootstrap data is available.'
+      : 'Use preflight and staged switching to validate changes before applying them.';
+  const matrixStateTitle = loading ? 'Compatibility matrix warming up' : 'No matrix data available';
+  const matrixStateDescription = loading
+    ? 'Readiness compatibility rows will appear after the current sync cycle.'
+    : 'Run preflight or refresh matrix to repopulate provider readiness rows.';
+
+  const stageBadgeVariant = (stage: string): 'meta' | 'info' | 'success' | 'warning' => {
+    switch (stage) {
+      case 'confirmed':
+        return 'success';
+      case 'simulated':
+        return 'info';
+      case 'failed':
+        return 'warning';
+      default:
+        return 'meta';
+    }
+  };
 
   return (
     <>
+      <section className="va-page-intro">
+        <p className="va-kicker">Messaging</p>
+        <h2 className="va-page-title">Provider Control</h2>
+        <p className="va-muted">Review channel readiness, run preflight checks, and stage safe provider switches.</p>
+      </section>
+
+      <UiWorkspacePulse
+        title="Provider reliability"
+        description={providerSummaryDescription}
+        status={providerSummaryStatus}
+        tone={providerSummaryTone}
+        items={[
+          { label: 'Ready providers', value: `${providerReadinessTotals.ready}/${providerReadinessTotals.total}` },
+          { label: 'Degraded', value: providerDegradedCount },
+          { label: 'Coverage', value: `${providerReadinessPercent}%` },
+          { label: 'Targets', value: supportedProviderTotal || 'Pending' },
+        ]}
+      />
+
       <LoadingTelemetryCard
         visible={providerRequestState.isLoading && !matrixReady}
         title="Loading provider diagnostics"
@@ -55,29 +117,34 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
       <section className="va-grid">
         <UiCard>
           <h3>Provider Preflight Matrix</h3>
-          <p>
-            Ready providers: <strong>{providerReadinessTotals.ready}/{providerReadinessTotals.total}</strong>
-            {' '}| Degraded: <strong>{providerDegradedCount}</strong>
-          </p>
-          <pre>{textBar(providerReadinessPercent)}</pre>
-          <div className="va-inline-tools">
-            <UiButton
-              variant="secondary"
-              disabled={providerBusy || !plannerConfigured}
-              onClick={() => { void preflightActiveProviders(); }}
-            >
-              Preflight Active Providers
-            </UiButton>
-            <UiButton
-              variant="secondary"
-              disabled={loading || providerBusy}
-              onClick={handleRefresh}
-            >
-              Refresh Matrix
-            </UiButton>
-          </div>
+          <UiActionBar
+            title="Run provider checks"
+            description="Validate active channels before switching traffic, or refresh the matrix after configuration changes."
+            actions={(
+              <>
+                <UiButton
+                  variant="secondary"
+                  disabled={providerBusy || !plannerConfigured}
+                  onClick={() => { void preflightActiveProviders(); }}
+                >
+                  Preflight Active Providers
+                </UiButton>
+                <UiButton
+                  variant="secondary"
+                  disabled={loading || providerBusy}
+                  onClick={handleRefresh}
+                >
+                  Refresh Matrix
+                </UiButton>
+              </>
+            )}
+          />
           {!plannerConfigured ? (
-            <UiStatePanel
+            <UiSurfaceState
+              cardTone="subcard"
+              eyebrow="Provider setup"
+              status="Needs metadata"
+              statusVariant="warning"
               title="Provider plan is not configured"
               description="No channel provider metadata is available yet. Refresh bootstrap data to hydrate provider support."
               tone="warning"
@@ -85,33 +152,41 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
             />
           ) : null}
           {!matrixReady ? (
-            <UiStatePanel
-              title={loading ? 'Compatibility matrix warming up' : 'No matrix data available'}
-              description={loading
-                ? 'Readiness compatibility rows will appear after the current sync cycle.'
-                : 'Run preflight or refresh matrix to repopulate provider readiness rows.'}
+            <UiSurfaceState
+              cardTone="subcard"
+              eyebrow="Compatibility details"
+              status={loading ? 'Syncing' : 'Needs refresh'}
+              statusVariant={loading ? 'info' : 'warning'}
+              title={matrixStateTitle}
+              description={matrixStateDescription}
               tone={loading ? 'info' : 'warning'}
               compact
             />
           ) : (
-            <ul className="va-list va-matrix-list">
-              {providerMatrixRows.map((row: ProviderMatrixRow) => (
-                <li key={`matrix-${row.channel}-${row.provider}`}>
-                  <strong>{row.channel.toUpperCase()} · {row.provider}</strong>
-                  <span>
-                    Ready: <strong>{row.ready ? 'yes' : 'no'}</strong>
-                    {' '}| Degraded: <strong>{row.degraded ? 'yes' : 'no'}</strong>
-                  </span>
-                  <span>
-                    Flows: <strong>{row.flowCount}</strong>
-                    {' '}| Parity gaps: <strong>{row.parityGapCount}</strong>
-                  </span>
-                  {row.channel === 'call' ? (
-                    <span>Payment mode: <strong>{row.paymentMode}</strong></span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            <UiDisclosure
+              title="Compatibility details"
+              subtitle="Review readiness, degraded signals, and parity gaps by provider."
+            >
+              <pre>{textBar(providerReadinessPercent)}</pre>
+              <ul className="va-list va-matrix-list">
+                {providerMatrixRows.map((row: ProviderMatrixRow) => (
+                  <li key={`matrix-${row.channel}-${row.provider}`}>
+                    <strong>{row.channel.toUpperCase()} · {row.provider}</strong>
+                    <span>
+                      Ready: <strong>{row.ready ? 'yes' : 'no'}</strong>
+                      {' '}| Degraded: <strong>{row.degraded ? 'yes' : 'no'}</strong>
+                    </span>
+                    <span>
+                      Flows: <strong>{row.flowCount}</strong>
+                      {' '}| Parity gaps: <strong>{row.parityGapCount}</strong>
+                    </span>
+                    {row.channel === 'call' ? (
+                      <span>Payment mode: <strong>{row.paymentMode}</strong></span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </UiDisclosure>
           )}
         </UiCard>
       </section>
@@ -122,7 +197,11 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
             Safe flow: simulate target readiness, confirm intent, apply switch, then review health check.
           </p>
           {!plannerConfigured ? (
-            <UiStatePanel
+            <UiSurfaceState
+              cardTone="subcard"
+              eyebrow="Switch planner"
+              status="Unavailable"
+              statusVariant="warning"
               title="Planner unavailable"
               description="Provider targets are not ready yet. Refresh matrix after bootstrap completes."
               tone="warning"
@@ -136,7 +215,12 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
               const plan = providerSwitchPlanByChannel[channel];
               return (
                 <li key={`provider-plan-${channel}`}>
-                  <strong>{channel.toUpperCase()} plan</strong>
+                  <div className="va-entity-head">
+                    <strong>{channel.toUpperCase()} plan</strong>
+                    <UiBadge variant={stageBadgeVariant(plan.stage)}>
+                      {plan.stage}
+                    </UiBadge>
+                  </div>
                   <span>Current: {current}</span>
                   <div className="va-inline-tools">
                     <UiSelect
@@ -179,14 +263,18 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
                     </UiButton>
                   </div>
                   {supported.length === 0 ? (
-                    <UiStatePanel
+                    <UiSurfaceState
+                      cardTone="subcard"
+                      eyebrow={`${channel.toUpperCase()} channel`}
+                      status="No targets"
+                      statusVariant="warning"
                       title={`${channel.toUpperCase()} provider data unavailable`}
                       description="No supported targets were reported for this channel. Retry bootstrap/preflight."
                       tone="warning"
                       compact
                     />
                   ) : null}
-                  <span>Stage: <strong>{plan.stage}</strong> | Post-check: <strong>{plan.postCheck}</strong></span>
+                  <span>Post-check: <strong>{plan.postCheck}</strong></span>
                   {plan.rollbackSuggestion ? (
                     <span>Rollback suggestion: <strong>{plan.rollbackSuggestion}</strong></span>
                   ) : null}

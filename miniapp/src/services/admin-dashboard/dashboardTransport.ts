@@ -4,6 +4,7 @@ export interface SessionCacheEntry {
 }
 
 const SESSION_EXPIRY_SKEW_SECONDS = 20;
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type ReadSessionCacheOptions = {
   allowExpired?: boolean;
   evictExpired?: boolean;
@@ -64,40 +65,119 @@ export function isSessionCacheEntryExpired(
   return entry.exp <= (nowSeconds + Math.max(0, skewSeconds));
 }
 
+function getLocalStorage(): StorageLike | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getSessionStorage(): StorageLike | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function parseSessionCacheEntry(raw: string | null): SessionCacheEntry | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<SessionCacheEntry>;
+    if (!parsed || !parsed.token) return null;
+    const exp = Number(parsed.exp);
+    return {
+      token: String(parsed.token),
+      exp: Number.isFinite(exp) ? exp : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function removeSessionCacheEntry(storageKey: string, storage: StorageLike | null): void {
+  if (!storage) return;
+  try {
+    storage.removeItem(storageKey);
+  } catch {
+    // Ignore storage cleanup errors and continue.
+  }
+}
+
+function writeSessionCacheEntry(
+  storageKey: string,
+  entry: SessionCacheEntry,
+  storage: StorageLike | null,
+): boolean {
+  if (!storage) return false;
+  try {
+    storage.setItem(storageKey, JSON.stringify(entry));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function readSessionCache(
   storageKey: string,
   options: ReadSessionCacheOptions = {},
 ): SessionCacheEntry | null {
   const allowExpired = options.allowExpired === true;
   const evictExpired = options.evictExpired !== false;
-  try {
-    const raw = sessionStorage.getItem(storageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SessionCacheEntry>;
-    if (!parsed || !parsed.token) return null;
-    const exp = Number(parsed.exp);
-    const entry: SessionCacheEntry = {
-      token: String(parsed.token),
-      exp: Number.isFinite(exp) ? exp : null,
-    };
+  const localStorage = getLocalStorage();
+  const sessionStorage = getSessionStorage();
+  const storages: Array<{ storage: StorageLike | null; legacy: boolean }> = [
+    { storage: localStorage, legacy: false },
+    { storage: sessionStorage, legacy: true },
+  ];
+
+  for (const { storage, legacy } of storages) {
+    if (!storage) continue;
+    let raw: string | null = null;
+    try {
+      raw = storage.getItem(storageKey);
+    } catch {
+      continue;
+    }
+    if (!raw) continue;
+    const entry = parseSessionCacheEntry(raw);
+    if (!entry) {
+      removeSessionCacheEntry(storageKey, storage);
+      continue;
+    }
+    if (legacy && localStorage) {
+      writeSessionCacheEntry(storageKey, entry, localStorage);
+      removeSessionCacheEntry(storageKey, sessionStorage);
+    }
     if (isSessionCacheEntryExpired(entry)) {
       if (evictExpired) {
-        sessionStorage.removeItem(storageKey);
+        removeSessionCacheEntry(storageKey, localStorage);
+        removeSessionCacheEntry(storageKey, sessionStorage);
       }
       return allowExpired ? entry : null;
     }
     return entry;
-  } catch {
-    return null;
   }
+
+  return null;
 }
 
 export function writeSessionCache(storageKey: string, entry: SessionCacheEntry | null): void {
   if (!entry) {
-    sessionStorage.removeItem(storageKey);
+    removeSessionCacheEntry(storageKey, getLocalStorage());
+    removeSessionCacheEntry(storageKey, getSessionStorage());
     return;
   }
-  sessionStorage.setItem(storageKey, JSON.stringify(entry));
+  const localStorage = getLocalStorage();
+  const didPersistDurably = writeSessionCacheEntry(storageKey, entry, localStorage);
+  if (!didPersistDurably) {
+    writeSessionCacheEntry(storageKey, entry, getSessionStorage());
+    return;
+  }
+  removeSessionCacheEntry(storageKey, getSessionStorage());
 }
 
 export function buildApiUrl(path: string, apiBaseUrl: string): string {

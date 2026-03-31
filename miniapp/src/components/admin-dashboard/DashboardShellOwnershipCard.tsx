@@ -1,7 +1,5 @@
-import { Cell, Navigation } from '@telegram-apps/telegram-ui';
-
 import { Link } from '@/components/Link/Link.tsx';
-import { UiBadge, UiCard } from '@/components/ui/AdminPrimitives';
+import { UiBadge, UiCard, UiDisclosure } from '@/components/ui/AdminPrimitives';
 import {
   DASHBOARD_PAGE_WORKFLOW_CONTRACTS,
   DASHBOARD_STATIC_ROUTE_CONTRACTS,
@@ -18,64 +16,55 @@ export function DashboardShellOwnershipCard() {
   }
 
   return (
-    <section className="va-section-block" aria-label="Dashboard shell contract">
-      <header className="va-section-header">
-        <h3 className="va-section-title">Dashboard shell contract</h3>
-        <p className="va-muted">
-          The dashboard root is an admin-owned shell. It can launch command workflows and composed
-          workspaces, but it does not replace backend command validation or execution semantics.
-        </p>
-      </header>
-      <section className="va-grid">
-        <UiCard>
-          <h3>Shell ownership</h3>
-          <div className="va-inline-metrics">
-            <UiBadge>Canonical {dashboardHomeContract.canonicalCommand}</UiBadge>
-            <UiBadge>Parity {dashboardHomeContract.workflowStatus}</UiBadge>
-            <UiBadge>Fallback {dashboardHomeContract.fallbackPath}</UiBadge>
-          </div>
-          <p className="va-card-eyebrow">Related commands</p>
-          <div className="va-inline-tools">
-            {dashboardHomeContract.relatedCommands.map((command) => (
-              <UiBadge key={`dashboard-shell-${command}`}>{command}</UiBadge>
-            ))}
-          </div>
-          <p className="va-muted">{dashboardHomeContract.notes}</p>
-        </UiCard>
+    <section className="va-section-block va-shell-guide-block" aria-label="Console guide">
+      <UiDisclosure
+        title="Guide and shortcuts"
+        subtitle="Open the onboarding, launcher, or settings surfaces only when you need them."
+      >
+        <div className="va-grid">
+          <UiCard>
+            <h3>Console scope</h3>
+            <div className="va-inline-metrics">
+              <UiBadge>Home shell</UiBadge>
+              <UiBadge>Coverage {dashboardHomeContract.workflowStatus}</UiBadge>
+              <UiBadge>Fallback home</UiBadge>
+            </div>
+            <p className="va-muted">{dashboardHomeContract.notes}</p>
+          </UiCard>
 
-        <UiCard>
-          <h3>Allowed shell handoffs</h3>
-          <p className="va-muted">
-            Use the shell to launch real command-native pages or approved composed workspaces. If a
-            feature is unavailable for the current role, the shell must fall back safely instead of
-            inventing a dashboard-only path.
-          </p>
-          <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.START}>
-            <Cell
-              subtitle="Open the role-aware start workflow when the shell should hand off to command guidance."
-              after={<Navigation>Open</Navigation>}
-            >
-              /start command page
-            </Cell>
-          </Link>
-          <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.MENU}>
-            <Cell
-              subtitle="Open the quick-actions command surface instead of replacing its visibility rules in the shell."
-              after={<Navigation>Open</Navigation>}
-            >
-              /menu command page
-            </Cell>
-          </Link>
-          <Link to={DASHBOARD_STATIC_ROUTE_CONTRACTS.SETTINGS}>
-            <Cell
-              subtitle="Open dashboard settings and support shortcuts without bypassing admin ownership."
-              after={<Navigation>Open</Navigation>}
-            >
-              /settings shell support
-            </Cell>
-          </Link>
-        </UiCard>
-      </section>
+          <UiCard>
+            <h3>Quick shortcuts</h3>
+            <p className="va-muted">
+              Use the console to open the right workspace for the task at hand. If a feature is
+              not available for the current role, the app should route safely instead of exposing a
+              dead end.
+            </p>
+            <div className="va-shortcut-list">
+              <Link className="va-shortcut-link" to={MINIAPP_COMMAND_ROUTE_CONTRACTS.START}>
+                <span className="va-shortcut-copy">
+                  <strong>Start</strong>
+                  <span>Open onboarding, access guidance, and the main launcher.</span>
+                </span>
+                <span className="va-shortcut-action">Open</span>
+              </Link>
+              <Link className="va-shortcut-link" to={MINIAPP_COMMAND_ROUTE_CONTRACTS.MENU}>
+                <span className="va-shortcut-copy">
+                  <strong>All workflows</strong>
+                  <span>Open the quick launcher for workspaces available to this role.</span>
+                </span>
+                <span className="va-shortcut-action">Open</span>
+              </Link>
+              <Link className="va-shortcut-link" to={DASHBOARD_STATIC_ROUTE_CONTRACTS.SETTINGS}>
+                <span className="va-shortcut-copy">
+                  <strong>Settings</strong>
+                  <span>Open app preferences, support shortcuts, and session controls.</span>
+                </span>
+                <span className="va-shortcut-action">Open</span>
+              </Link>
+            </div>
+          </UiCard>
+        </div>
+      </UiDisclosure>
     </section>
   );
 }

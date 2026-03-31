@@ -165,7 +165,7 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
     capability: 'caller_flags_manage',
   },
   scriptsparity: {
-    label: 'Scripts Parity Expansion',
+    label: 'Message Templates',
     capability: 'caller_flags_manage',
   },
   messaging: {
@@ -212,7 +212,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'shell-only',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: null,
-    notes: 'Role-aware shell surface for admin navigation and module launch, with explicit on-page ownership copy that keeps /admin, /menu, and /start boundaries visible.',
+    notes: 'Admin home for navigation, access-aware launchers, and shared settings.',
   },
   {
     pageId: 'dashboard.module.ops',
@@ -224,7 +224,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'ops',
-    notes: 'Operational health and runtime posture are composed from status and health bot workflows.',
+    notes: 'Live reliability, runtime, and queue signals in one workspace.',
   },
   {
     pageId: 'dashboard.module.sms',
@@ -236,7 +236,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'sms',
-    notes: 'Bulk SMS sending preserves sender workflow while exposing Mini App batching controls.',
+    notes: 'Bulk SMS workspace for audience upload, scheduling, and delivery tracking.',
   },
   {
     pageId: 'dashboard.module.mailer',
@@ -248,7 +248,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'mailer',
-    notes: 'Bulk email workflow stays aligned to the mailer command and backend job execution path.',
+    notes: 'Bulk email workspace for audience sends, history, and delivery health.',
   },
   {
     pageId: 'dashboard.module.provider',
@@ -260,7 +260,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'provider',
-    notes: 'Provider switch, preflight, and rollback behavior mirrors the bot command contract.',
+    notes: 'Provider readiness, switching, and rollback controls for supported channels.',
   },
   {
     pageId: 'dashboard.module.content',
@@ -272,7 +272,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'content',
-    notes: 'Script lifecycle tooling is present, but full command parity still spans multiple pages.',
+    notes: 'Call script drafting, review, and simulation tools in one dedicated workspace.',
   },
   {
     pageId: 'dashboard.module.calllog',
@@ -284,7 +284,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'calllog',
-    notes: 'Call search, details, and events map directly to the calllog bot surface.',
+    notes: 'Recent calls, record details, and event history in one searchable view.',
   },
   {
     pageId: 'dashboard.module.callerflags',
@@ -296,7 +296,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'callerflags',
-    notes: 'Caller flag moderation remains a direct admin workflow translation.',
+    notes: 'Moderate inbound caller flags with shared admin validation.',
   },
   {
     pageId: 'dashboard.module.scriptsparity',
@@ -308,7 +308,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'scriptsparity',
-    notes: 'Script parity surface orchestrates SMS and email content support around the scripts command while declaring its downstream handoff boundary from the canonical /scripts entry page.',
+    notes: 'Maintain SMS scripts and email templates alongside the rest of the content toolset.',
   },
   {
     pageId: 'dashboard.module.messaging',
@@ -320,7 +320,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'messaging',
-    notes: 'Message diagnostics compose SMS and email investigation workflows into one operator view.',
+    notes: 'Investigate SMS and email delivery from a shared diagnostics workspace.',
   },
   {
     pageId: 'dashboard.module.persona',
@@ -332,7 +332,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'persona',
-    notes: 'Persona management remains command-native with shared backend validation.',
+    notes: 'Manage personas with shared validation and role-aware access.',
   },
   {
     pageId: 'dashboard.module.users',
@@ -344,7 +344,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'users',
-    notes: 'User listing and role-setting mirror the users command access model.',
+    notes: 'Review authorized users, roles, and access changes.',
   },
   {
     pageId: 'dashboard.module.audit',
@@ -356,7 +356,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'audit',
-    notes: 'Incident response and audit feeds are admin-native workflows composed into a focused page.',
+    notes: 'Review incidents, audit trails, and runbook actions in one place.',
   },
   {
     pageId: 'dashboard.settings',
@@ -368,7 +368,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'shell-only',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: null,
-    notes: 'Shell settings for navigation, diagnostics, and support shortcuts tied to admin access.',
+    notes: 'App settings, diagnostics, and support shortcuts for the current session.',
   },
 ] as const;
 
@@ -564,7 +564,7 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
     validationSteps: [
       'Keep SMS script and email template actions behind caller_flags_manage capability.',
       'Require explicit selected assets before update actions.',
-      'Refresh parity lists after create or update so the operator sees the authoritative result.',
+      'Refresh both content lists after create or update so the operator sees the authoritative result.',
     ],
     confirmationRules: [
       'Create and update actions remain explicit operator-triggered mutations.',
@@ -579,20 +579,20 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
       'emailtemplate.update',
     ],
     successBehavior: [
-      'Refresh SMS script and email template lists while preserving the active parity workspace.',
+      'Refresh SMS script and email template lists while preserving the active workspace.',
       'Keep the currently selected script or template visible after successful updates.',
     ],
     failureBehavior: [
-      'Preserve draft content and selected assets when parity mutations fail.',
+      'Preserve draft content and selected assets when content updates fail.',
       'Show request-specific errors inline without clearing the opposing channel workspace.',
     ],
     degradedBehavior: [
-      'Allow SMS and email parity workspaces to degrade independently when one content family is unavailable.',
+      'Allow SMS and email workspaces to degrade independently when one content family is unavailable.',
       'Retain the most recent fetched list for one channel while the other channel refresh fails.',
     ],
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     productivityEnhancements: [
-      'One parity workspace for SMS and email content ownership under the scripts command.',
+      'One workspace for SMS and email content ownership.',
       'Parallel refresh and maintenance of adjacent content families.',
       'Selection-preserving updates that reduce operator context switching between channels.',
     ],
@@ -760,7 +760,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.START,
     minAccess: 'guest',
     availability: 'aligned',
-    notes: 'Mounted as a command-native /start parity surface with role-aware workflow guidance.',
+    notes: 'Role-aware entry point for launchers, access guidance, and next steps.',
   },
   CALL: {
     actionId: 'CALL',
@@ -770,7 +770,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.CALL,
     minAccess: 'authorized',
     availability: 'partial',
-    notes: 'Mounted Mini App route executes both custom and script-backed outbound calls, now mirrors the live bot phase order for recipient capture, mode selection, script-or-custom configuration, provider posture review, and launch, resolves script placeholders in-page, and keeps a webhook-backed live call console visible after launch through the shared call details and call-status contracts, restoring the active call SID after Mini App refresh for the same Telegram session and reattaching to the latest still-active call for that session when available from the backend. Script catalog browsing remains capability-gated, and the bot conversational waits and voice-picker pagination are still flattened into the command page.',
+    notes: 'Supports custom and script-backed outbound calls with guided setup, launch review, and live call follow-up. Active calls restore on refresh for the same Telegram session.',
   },
   SMS: {
     actionId: 'SMS',
@@ -780,7 +780,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.SMS,
     minAccess: 'authorized',
     availability: 'partial',
-    notes: 'Mounted as a command-native /sms center route that now mirrors the live bot launcher order for send, schedule, status, conversation, recent, and stats actions, executes single-recipient send/schedule plus diagnostics, provider-readiness precheck, and bulk-status actions, and maps bot callback actions through shared contracts while preserving /smssender bulk ownership.',
+    notes: 'Supports SMS send, scheduling, delivery checks, recent activity, and quick handoff to bulk sending when needed.',
   },
   EMAIL: {
     actionId: 'EMAIL',
@@ -790,7 +790,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.EMAIL,
     minAccess: 'authorized',
     availability: 'partial',
-    notes: 'Mounted as a command-native /email center route that now mirrors the live bot launcher order for send, status, templates, and history actions, executes single-recipient send/schedule, preview, status/timeline, templates, history, bulk-job, and bulk-stats actions, and maps bot callback actions through shared contracts while preserving /mailer bulk ownership.',
+    notes: 'Supports email send, scheduling, preview, status checks, history, and quick handoff to bulk email tools when needed.',
   },
   CALLLOG: {
     actionId: 'CALLLOG',
@@ -800,7 +800,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.calllog,
     minAccess: 'authorized',
     availability: 'aligned',
-    notes: 'Mounted Mini App route maps directly to call log search and detail semantics.',
+    notes: 'Search recent calls, inspect records, and review event history.',
   },
   GUIDE: {
     actionId: 'GUIDE',
@@ -810,7 +810,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.GUIDE,
     minAccess: 'guest',
     availability: 'aligned',
-    notes: 'Mounted as a command-native guidance surface.',
+    notes: 'Short operating guidance with role-aware next steps.',
   },
   HELP: {
     actionId: 'HELP',
@@ -820,7 +820,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.HELP,
     minAccess: 'guest',
     availability: 'aligned',
-    notes: 'Mounted as a command-native help surface.',
+    notes: 'Coverage, access guidance, and shortcuts for the current role.',
   },
   MENU: {
     actionId: 'MENU',
@@ -830,7 +830,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.MENU,
     minAccess: 'guest',
     availability: 'aligned',
-    notes: 'Mounted as a command-native quick-actions surface.',
+    notes: 'Quick launcher for common operator workflows.',
   },
   HEALTH: {
     actionId: 'HEALTH',
@@ -840,7 +840,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.HEALTH,
     minAccess: 'authorized',
     availability: 'aligned',
-    notes: 'Mounted as a command-native health surface backed by the same bridged runtime health payload used by the bot-aligned ops workflow.',
+    notes: 'Runtime health snapshot backed by the same server-authoritative diagnostics used across the app.',
   },
   STATUS: {
     actionId: 'STATUS',
@@ -850,7 +850,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.STATUS,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted as a command-native status surface backed by bridged status, health, and runtime payloads already used in the admin ops workflow.',
+    notes: 'Admin status overview for live operations, incidents, and runtime posture.',
   },
   USERS: {
     actionId: 'USERS',
@@ -860,7 +860,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.users,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted Mini App route keeps users workflow parity.',
+    notes: 'Manage authorized users and role assignments.',
   },
   CALLER_FLAGS: {
     actionId: 'CALLER_FLAGS',
@@ -870,7 +870,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.callerflags,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted Mini App route keeps caller flag moderation parity.',
+    notes: 'Review and update caller flag moderation rules.',
   },
   PROVIDER_STATUS: {
     actionId: 'PROVIDER_STATUS',
@@ -880,17 +880,17 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.provider,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted Mini App route keeps provider control parity.',
+    notes: 'Inspect provider readiness and apply supported provider changes.',
   },
   SCRIPTS: {
     actionId: 'SCRIPTS',
     label: 'Scripts',
-    description: 'Manage reusable prompts, scripts, and parity tooling.',
+    description: 'Manage reusable prompts, scripts, and templates.',
     linkedCommand: BOT_PRIMARY_COMMANDS.SCRIPTS,
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS,
     minAccess: 'admin',
     availability: 'partial',
-    notes: 'Mounted as a command-native /scripts handoff surface that keeps Script Studio and Scripts Parity Expansion ownership explicit.',
+    notes: 'Entry point for scripts, templates, and linked content workspaces.',
   },
   BULK_SMS: {
     actionId: 'BULK_SMS',
@@ -900,7 +900,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.sms,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted Mini App route is the canonical bulk SMS surface.',
+    notes: 'Bulk SMS workspace for high-volume delivery operations.',
   },
   BULK_EMAIL: {
     actionId: 'BULK_EMAIL',
@@ -910,7 +910,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.mailer,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mounted Mini App route is the canonical mailer surface.',
+    notes: 'Bulk email workspace for queued sends and delivery monitoring.',
   },
   ADMIN_PANEL: {
     actionId: 'ADMIN_PANEL',
@@ -920,7 +920,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
     routePath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Mapped to the dashboard shell root.',
+    notes: 'Admin home for navigation, status, and workspace launch.',
   },
 } as const satisfies Record<string, MiniAppCommandActionContract>;
 
@@ -946,9 +946,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.START,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Role-aware welcome and launcher surface derived from the live /start bot workflow.',
+    summary: 'Welcome operators, explain access, and launch the right workspace.',
     actionIds: ['START', 'CALL', 'SMS', 'EMAIL', 'CALLLOG', 'GUIDE', 'HELP', 'MENU', 'HEALTH', 'STATUS', 'USERS', 'CALLER_FLAGS', 'SCRIPTS', 'PROVIDER_STATUS', 'BULK_SMS', 'BULK_EMAIL', 'ADMIN_PANEL'],
-    notes: 'Preserves /start intent: welcome posture, access visibility, and role-scoped command launch paths. Guest sessions keep execution locked and route to guidance instead of bypassing authorization.',
+    notes: 'Guest sessions stay read-only and are routed to guidance instead of protected tools.',
   },
   CALL: {
     pageId: 'command.call',
@@ -957,9 +957,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.CALL,
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-owned outbound call composer backed by the live /outbound-call execution path for both custom and script-backed calls, with an explicit on-page launcher that mirrors the bot setup phases and a live call console that follows, restores, and can reattach to the latest active call SID for the current Telegram session.',
+    summary: 'Set up and launch outbound calls with live follow-up in the same workspace.',
     actionIds: ['CALLLOG', 'HELP', 'GUIDE', 'MENU', 'START'],
-    notes: 'Preserves direct /outbound-call execution for both custom prompts and script-backed calls, including selected script metadata forwarding, in-page placeholder resolution, payment-flow provider guard acknowledgement, an explicit phase-by-phase launcher that mirrors the bot order for recipient capture, configuration branch, content setup, and launch review, and a webhook-backed live console that keeps polling the shared call detail and call-status contracts while the call is active, restores the active call SID after refresh for the same Telegram session, and can reattach to the latest still-active call for that Telegram session from the backend continuity route. Script catalog browsing is still constrained by the current Mini App capability contract, and the bot conversational waits and voice-selection pagination remain explicit parity gaps.',
+    notes: 'Supports custom prompts and script-backed calls, resolves placeholders before launch, restores the latest active call for the current Telegram session, and keeps live call details visible while the call is running.',
   },
   SMS: {
     pageId: 'command.sms',
@@ -968,9 +968,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.SMS,
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-native SMS center derived from the live /sms bot workflow with a role-aware guided launcher plus direct execution for send, schedule, status, conversation, recent, stats, provider-readiness precheck, and bulk-status actions.',
+    summary: 'Send, schedule, and investigate SMS work from one focused workspace.',
     actionIds: ['SMS', 'BULK_SMS', 'CALLLOG', 'HELP', 'GUIDE', 'MENU', 'PROVIDER_STATUS'],
-    notes: 'Preserves /sms menu intent: the Mini App now mirrors the live launcher order for send, schedule, status, conversation, recent, and stats actions while keeping diagnostics, provider-readiness precheck, and bulk sender visibility explicit domains. The command page executes shared action contracts for single-recipient send/schedule plus status, conversation, recent, stats, provider.get(channel=sms), and sms.bulk.status, and resolves callback IDs (including SMS_RECENT_PAGE:* and the BULK_SMS_* callback family) through shared aliases while keeping high-volume bulk ownership in /smssender.',
+    notes: 'Keeps single-recipient delivery work in-app, surfaces provider readiness before launch, and hands off high-volume sending to SMS Sender.',
   },
   HELP: {
     pageId: 'command.help',
@@ -979,9 +979,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.HELP,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Role-aware command guide and quick-action surface derived from the live /help bot workflow.',
+    summary: 'Explain available tools and route operators to the right workspace.',
     actionIds: ['START', 'CALL', 'SMS', 'EMAIL', 'MENU', 'GUIDE', 'HELP', 'USERS', 'CALLER_FLAGS', 'PROVIDER_STATUS', 'ADMIN_PANEL'],
-    notes: 'Preserves the /help structure: contextual command guidance first, then role-scoped shortcuts.',
+    notes: 'Keeps guidance short, role-aware, and action-oriented.',
   },
   EMAIL: {
     pageId: 'command.email',
@@ -990,9 +990,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.EMAIL,
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-native email center derived from the live /email bot workflow with a guided launcher plus direct execution for send/schedule, preview, status/timeline, templates, history, provider-readiness precheck, and bulk diagnostics actions.',
+    summary: 'Send, schedule, preview, and investigate email work from one focused workspace.',
     actionIds: ['EMAIL', 'BULK_EMAIL', 'HELP', 'GUIDE', 'MENU', 'PROVIDER_STATUS'],
-    notes: 'Preserves /email menu intent: the Mini App now mirrors the live launcher order for send, status, templates, and history actions while keeping provider-readiness precheck and bulk-mailer handoff explicit domains. The command page executes shared action contracts for single-recipient send/schedule, template preview, message status/history, template list retrieval, provider status for bulk precheck parity, bulk stats/job lookup, and resolves callback IDs (including EMAIL_STATUS:*, EMAIL_TIMELINE:*, EMAIL_TEMPLATES, EMAIL_BULK:*, BULK_EMAIL_PRECHECK, BULK_EMAIL_SEND, BULK_EMAIL_LIST, BULK_EMAIL_PAGE:*, and BULK_EMAIL_STATS) through shared aliases while keeping high-volume bulk ownership in /mailer.',
+    notes: 'Keeps single-recipient delivery work in-app, surfaces template and history tools nearby, and hands off high-volume sending to Mailer.',
   },
   SCRIPTS: {
     pageId: 'command.scripts',
@@ -1001,9 +1001,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.SCRIPTS,
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-native /scripts handoff surface that keeps call-script lifecycle ownership in Script Studio and SMS/email parity ownership in Scripts Parity Expansion.',
+    summary: 'Start script work here, then move into the dedicated editing workspaces.',
     actionIds: ['SCRIPTS', 'MENU', 'HELP', 'START', 'CALLER_FLAGS', 'PROVIDER_STATUS', 'ADMIN_PANEL'],
-    notes: 'Preserves /scripts command ownership by mounting a dedicated command page first, then routing operators into the existing Script Studio and Scripts Parity Expansion workspaces instead of treating those pages as standalone product surfaces.',
+    notes: 'Keeps call scripts, SMS scripts, and email templates organized through focused downstream workspaces.',
   },
   MENU: {
     pageId: 'command.menu',
@@ -1012,9 +1012,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.MENU,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Role-aware quick-action launcher derived from the live /menu bot workflow.',
+    summary: 'Quick launcher for the most useful operator workflows.',
     actionIds: ['START', 'CALL', 'SMS', 'EMAIL', 'CALLLOG', 'GUIDE', 'HELP', 'HEALTH', 'STATUS', 'USERS', 'SCRIPTS', 'CALLER_FLAGS', 'PROVIDER_STATUS', 'BULK_SMS', 'BULK_EMAIL', 'ADMIN_PANEL'],
-    notes: 'Preserves quick actions while using Mini App routes only where parity exists today.',
+    notes: 'Shows available actions for the current role and routes directly into supported workspaces.',
   },
   GUIDE: {
     pageId: 'command.guide',
@@ -1023,9 +1023,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.GUIDE,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Operating guide surface derived from the live /guide bot workflow.',
+    summary: 'Short operating guide with the next best actions for the current role.',
     actionIds: ['START', 'HELP', 'MENU', 'CALL', 'SMS', 'EMAIL'],
-    notes: 'Preserves guide-first content and then exposes the same role-aware next-step actions as the bot.',
+    notes: 'Keeps setup and operating guidance concise, then points to the right next action.',
   },
   HEALTH: {
     pageId: 'command.health',
@@ -1034,9 +1034,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.HEALTH,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-native health surface backed by the bridged runtime health snapshot already used by the live bot and ops bootstrap.',
+    summary: 'Live runtime health and system posture for authorized operators.',
     actionIds: ['START', 'MENU', 'HELP', 'GUIDE', 'STATUS'],
-    notes: 'Preserves the health command intent: quick runtime posture for authorized operators, with degraded states surfaced clearly and without inventing dashboard-only execution semantics.',
+    notes: 'Keeps degraded states visible and grounded in the same server-authoritative runtime data used elsewhere in the app.',
   },
   STATUS: {
     pageId: 'command.status',
@@ -1045,9 +1045,9 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
     canonicalCommand: BOT_PRIMARY_COMMANDS.STATUS,
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
-    summary: 'Command-native admin status surface backed by bridged status, health, and voice-runtime payloads from the existing Mini App bootstrap.',
+    summary: 'Admin status overview for live operations, incidents, and runtime posture.',
     actionIds: ['START', 'HEALTH', 'PROVIDER_STATUS', 'ADMIN_PANEL', 'MENU'],
-    notes: 'Preserves the admin-only status workflow while reusing the server-authoritative health and runtime data already collected by the Mini App bridge.',
+    notes: 'Reuses the same live status, health, and runtime data that powers the rest of the console.',
   },
 } as const satisfies Record<'START' | 'CALL' | 'SMS' | 'HELP' | 'EMAIL' | 'SCRIPTS' | 'MENU' | 'GUIDE' | 'HEALTH' | 'STATUS', MiniAppCommandPageContract>;
 

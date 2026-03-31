@@ -4,7 +4,16 @@ import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
-import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiActionBar,
+  UiButton,
+  UiCard,
+  UiDisclosure,
+  UiInput,
+  UiSelect,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type CallerFlagsModerationPageProps = {
@@ -43,6 +52,13 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
     secondaryBusyAction: investigationBusy,
   });
   const controlsBusy = requestState.isBusy;
+  const pulseTone = controlsBusy ? 'info' : flags.length === 0 ? 'neutral' : 'warning';
+  const pulseStatus = controlsBusy ? 'Updating' : flags.length === 0 ? 'Ready to review' : 'Monitoring';
+  const pulseDescription = controlsBusy
+    ? `Running ${requestState.activeActionLabel || 'caller flag update'}.`
+    : 'Review inbound caller policy, filter by status, and update moderation records from one place.';
+  const visibleFlags = flags.slice(0, 60);
+  const hasRows = visibleFlags.length > 0;
 
   const loadFlags = async (): Promise<void> => {
     const status = statusFilter === 'all' ? undefined : statusFilter;
@@ -65,16 +81,33 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
         <p className="va-kicker">Governance</p>
         <h2 className="va-page-title">Caller Flags Moderation</h2>
         <p className="va-muted">Allow, block, and spam controls for inbound caller classification.</p>
-        <div className="va-inline-metrics">
-          <UiBadge>Flags {flags.length}</UiBadge>
-          <UiBadge>Filter {statusFilter}</UiBadge>
-          <UiBadge variant={controlsBusy ? 'info' : 'success'}>{controlsBusy ? 'Updating' : 'Idle'}</UiBadge>
-        </div>
       </section>
+
+      <UiWorkspacePulse
+        title="Caller policy"
+        description={pulseDescription}
+        status={pulseStatus}
+        tone={pulseTone}
+        items={[
+          { label: 'Flags', value: flags.length },
+          { label: 'Filter', value: statusFilter },
+          { label: 'Form state', value: controlsBusy ? 'Busy' : 'Ready' },
+          { label: 'Selected status', value: statusInput },
+        ]}
+      />
 
       <section className="va-grid">
         <UiCard>
           <h3>Moderation Controls</h3>
+          <UiActionBar
+            title="Keep caller policy current"
+            description="Filter the moderation queue, then update or add one caller record at a time."
+            actions={(
+              <UiButton variant="secondary" disabled={controlsBusy} onClick={() => { void loadFlags(); }}>
+                Refresh Flags
+              </UiButton>
+            )}
+          />
           <div className="va-inline-tools">
             <UiSelect
               value={statusFilter}
@@ -85,9 +118,6 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
               <option value="blocked">Blocked</option>
               <option value="spam">Spam</option>
             </UiSelect>
-            <UiButton variant="secondary" disabled={controlsBusy} onClick={() => { void loadFlags(); }}>
-              Refresh Flags
-            </UiButton>
           </div>
           <div className="va-inline-tools">
             <UiInput
@@ -133,35 +163,44 @@ export function CallerFlagsModerationPage({ visible, vm }: CallerFlagsModeration
               Upsert Flag
             </UiButton>
           </div>
-          {flags.length === 0 ? (
-            <UiStatePanel
+          {hasRows ? (
+            <UiDisclosure
+              title="Loaded caller flags"
+              subtitle={`Showing ${visibleFlags.length} moderation records from the current queue.`}
+            >
+              <ul className="va-list va-list-dense">
+                {visibleFlags.map((flag, index) => (
+                  <li key={`caller-flag-row-${index}`}>
+                    <strong>{toText(flag.phone_number, 'n/a')}</strong>
+                    <span>{toText(flag.status, 'unknown')}</span>
+                    <span>{toText(flag.note, 'no note')}</span>
+                  </li>
+                ))}
+              </ul>
+            </UiDisclosure>
+          ) : (
+            <UiSurfaceState
+              cardTone="subcard"
               compact
+              eyebrow="Moderation queue"
+              status="No rows"
               title="No caller flags loaded"
               description="Refresh flags or upsert a caller record to populate moderation rows."
             />
-          ) : (
-            <ul className="va-list va-list-dense">
-              {flags.slice(0, 60).map((flag, index) => (
-                <li key={`caller-flag-row-${index}`}>
-                  <strong>{toText(flag.phone_number, 'n/a')}</strong>
-                  <span>{toText(flag.status, 'unknown')}</span>
-                  <span>{toText(flag.note, 'no note')}</span>
-                </li>
-              ))}
-            </ul>
           )}
         </UiCard>
       </section>
 
       {investigationError ? (
         <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
-              title="Caller flags action failed"
-              description={investigationError}
-              tone="error"
-            />
-          </UiCard>
+          <UiSurfaceState
+            eyebrow="Moderation sync"
+            status="Action failed"
+            statusVariant="error"
+            title="Caller flags action failed"
+            description={investigationError}
+            tone="error"
+          />
         </section>
       ) : null}
     </>

@@ -24,7 +24,6 @@ type DashboardTopShellProps = {
   featureFlagsCount: number | string;
   activeModuleLabel: string;
   activeModuleSubtitle: string;
-  onBackToDashboard: () => void;
   onOpenSettings: () => void;
   error: string;
   errorCode: string;
@@ -51,8 +50,6 @@ type DashboardTopShellProps = {
   actionTelemetry: ActionTelemetry;
 };
 
-const MODULE_DETAIL_DEFAULT = 'Choose a workspace to continue.';
-
 export function DashboardTopShell({
   settingsOpen,
   showOverviewMode,
@@ -67,7 +64,6 @@ export function DashboardTopShell({
   featureFlagsCount,
   activeModuleLabel,
   activeModuleSubtitle,
-  onBackToDashboard,
   onOpenSettings,
   error,
   errorCode,
@@ -97,9 +93,19 @@ export function DashboardTopShell({
     return null;
   }
 
+  const showNoticeRail = notice.trim().length > 0 && noticeTone !== 'info';
+  const overviewDetail = loading
+    ? 'Checking console status.'
+    : busyAction.length > 0
+      ? `Updating ${busyAction}.`
+      : notice.trim().length > 0
+        ? notice
+        : isDashboardDegraded
+          ? 'Attention needed in console health.'
+          : 'Healthy console. Choose a workspace.';
   const showStatusRail = !sessionBlocked
     && showOverviewMode
-    && (loading || error || notice || busyAction.length > 0 || isDashboardDegraded);
+    && (error || busyAction.length > 0 || isDashboardDegraded || showNoticeRail);
 
   return (
     <>
@@ -113,7 +119,7 @@ export function DashboardTopShell({
             sessionRoleSource={sessionRoleSource}
             settingsStatusLabel={settingsStatusLabel}
             featureFlagsCount={featureFlagsCount}
-            moduleDetail={MODULE_DETAIL_DEFAULT}
+            moduleDetail={overviewDetail}
             activeModuleGlyph="⌂"
             loading={loading}
             compact
@@ -126,7 +132,6 @@ export function DashboardTopShell({
             userAvatarUrl={userAvatarUrl}
             userAvatarFallback={userAvatarFallback}
             loading={loading}
-            onBackToDashboard={onBackToDashboard}
             onOpenSettings={onOpenSettings}
           />
         )}

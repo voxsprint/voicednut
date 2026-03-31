@@ -1,4 +1,4 @@
-import { UiButton, UiCard, UiSkeletonLine, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiCard, UiSkeletonLine, UiSurfaceState } from '@/components/ui/AdminPrimitives';
 import { describeSessionBlockedReason } from '@/services/admin-dashboard/dashboardSessionErrors';
 
 type ModuleErrorFallbackCardProps = {
@@ -38,22 +38,24 @@ export function ModuleErrorFallbackCard({
   reloadDisabled,
 }: ModuleErrorFallbackCardProps) {
   return (
-    <UiCard tone="fallback">
-      <UiStatePanel
-        tone="warning"
-        title={`${moduleLabel} is temporarily unavailable`}
-        description="This module hit a render-time error. Refresh data and reopen the module."
-        actions={(
-          <UiButton
-            variant="secondary"
-            onClick={onReload}
-            disabled={reloadDisabled}
-          >
-            Reload Module Data
-          </UiButton>
-        )}
-      />
-    </UiCard>
+    <UiSurfaceState
+      cardTone="fallback"
+      tone="warning"
+      eyebrow="Workspace recovery"
+      status="Needs reload"
+      statusVariant="warning"
+      title={`${moduleLabel} is temporarily unavailable`}
+      description="This module hit a render-time error. Refresh data and reopen the module."
+      actions={(
+        <UiButton
+          variant="secondary"
+          onClick={onReload}
+          disabled={reloadDisabled}
+        >
+          Reload Module Data
+        </UiButton>
+      )}
+    />
   );
 }
 
@@ -68,37 +70,39 @@ export function SessionBlockedCard({
   const reason = describeSessionBlockedReason(normalizedCode);
   return (
     <section className="va-grid">
-      <UiCard tone="blocked">
-        <UiStatePanel
-          tone="error"
-          title="Mini App session blocked"
-          description={(
-            <>
-              Code <strong>{normalizedCode}</strong>. {reason}
-            </>
-          )}
-          actions={(
-            <>
+      <UiSurfaceState
+        cardTone="blocked"
+        tone="error"
+        eyebrow="Session access"
+        status="Blocked"
+        statusVariant="error"
+        title="Mini App session blocked"
+        description={(
+          <>
+            Code <strong>{normalizedCode}</strong>. {reason}
+          </>
+        )}
+        actions={(
+          <>
+            <UiButton
+              variant="secondary"
+              onClick={onRetrySession}
+              disabled={retryDisabled}
+            >
+              Retry Session
+            </UiButton>
+            {onCloseMiniApp ? (
               <UiButton
-                variant="secondary"
-                onClick={onRetrySession}
-                disabled={retryDisabled}
+                variant="primary"
+                onClick={onCloseMiniApp}
+                disabled={closeDisabled}
               >
-                Retry Session
+                Close Mini App
               </UiButton>
-              {onCloseMiniApp ? (
-                <UiButton
-                  variant="primary"
-                  onClick={onCloseMiniApp}
-                  disabled={closeDisabled}
-                >
-                  Close Mini App
-                </UiButton>
-              ) : null}
-            </>
-          )}
-        />
-      </UiCard>
+            ) : null}
+          </>
+        )}
+      />
     </section>
   );
 }
@@ -109,21 +113,24 @@ export function EmptyModulesCard({
 }: EmptyModulesCardProps) {
   return (
     <section className="va-grid">
-      <UiCard tone="empty">
-        <UiStatePanel
-          title="No modules available"
-          description="This role has no enabled modules yet. Ask an administrator to grant access, then refresh."
-          actions={(
-            <UiButton
-              variant="primary"
-              onClick={onRefreshAccess}
-              disabled={refreshDisabled}
-            >
-              Refresh Access
-            </UiButton>
-          )}
-        />
-      </UiCard>
+      <UiSurfaceState
+        cardTone="empty"
+        tone="info"
+        eyebrow="Workspace access"
+        status="No modules yet"
+        statusVariant="info"
+        title="No modules available"
+        description="This role has no enabled modules yet. Ask an administrator to grant access, then refresh."
+        actions={(
+          <UiButton
+            variant="primary"
+            onClick={onRefreshAccess}
+            disabled={refreshDisabled}
+          >
+            Refresh Access
+          </UiButton>
+        )}
+      />
     </section>
   );
 }
@@ -153,13 +160,14 @@ export function LoadingTelemetryCard({
   if (!visible) return null;
   return (
     <section className="va-grid">
-      <UiCard>
-        <UiStatePanel
-          title={title}
-          description={description}
-          tone="info"
-        />
-      </UiCard>
+      <UiSurfaceState
+        eyebrow="Workspace sync"
+        status="Loading"
+        statusVariant="info"
+        title={title}
+        description={description}
+        tone="info"
+      />
     </section>
   );
 }

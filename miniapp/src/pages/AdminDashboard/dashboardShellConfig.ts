@@ -69,8 +69,8 @@ export const MODULE_CONTEXT: Record<DashboardModule, { subtitle: string; detail:
     detail: 'Caller policy operations.',
   },
   scriptsparity: {
-    subtitle: 'SMS scripts and email template parity tooling.',
-    detail: 'Outbound script content workspace.',
+    subtitle: 'SMS scripts and email templates in one workspace.',
+    detail: 'Outbound messaging content workspace.',
   },
   messaging: {
     subtitle: 'Unified SMS and email diagnostics workspace.',

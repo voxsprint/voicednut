@@ -5,7 +5,14 @@ import type { CallLogRow, DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
-import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import {
+  UiButton,
+  UiCard,
+  UiInput,
+  UiStatePanel,
+  UiSurfaceState,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 
 type CallLogExplorerPageProps = {
   visible: boolean;
@@ -117,43 +124,65 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
         <p className="va-kicker">Operations</p>
         <h2 className="va-page-title">Call Log Explorer</h2>
         <p className="va-muted">Search and inspect call records, state transitions, and runtime details.</p>
-        <div className="va-inline-metrics">
-          <UiBadge>Rows {rows.length}</UiBadge>
-          <UiBadge>Recent logs {callLogs.length}</UiBadge>
-          <UiBadge>Selected SID {callSid.trim() ? 'set' : 'none'}</UiBadge>
-          <UiBadge>Events {recentStates.length}</UiBadge>
-        </div>
       </section>
 
-      <section className={`va-overview-metrics va-investigation-metrics ${error ? 'is-degraded' : 'is-healthy'}`} aria-label="Explorer summary">
-        <article className="va-overview-metric-card">
-          <span>Loaded rows</span>
-          <strong>{loadedRowsCount}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Total call logs</span>
-          <strong>{callLogsTotal}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Details state</span>
-          <strong>{hasDetails ? 'Loaded' : activeSid ? 'Pending' : 'Not selected'}</strong>
-        </article>
-        <article className="va-overview-metric-card">
-          <span>Events state</span>
-          <strong>{hasEvents ? 'Loaded' : activeSid ? 'Pending' : 'Not selected'}</strong>
-        </article>
-      </section>
+      <UiWorkspacePulse
+        title="Call log workspace"
+        description={error
+          ? error
+          : controlsBusy
+            ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'Call log requests are in progress.'
+            : loading && rows.length === 0 && callLogs.length === 0
+              ? 'Syncing latest call records and explorer metadata.'
+              : activeSid
+                ? 'Search results, details, and recent states stay in one place for faster call tracing.'
+                : 'Load recent calls or search by SID, number, or status to start an investigation.'}
+        status={error ? 'Needs attention' : controlsBusy || loading ? 'Working' : activeSid ? 'Ready' : 'Needs input'}
+        tone={error ? 'error' : controlsBusy || loading ? 'info' : activeSid ? 'success' : 'warning'}
+        items={[
+          { label: 'Loaded rows', value: loadedRowsCount },
+          { label: 'Recent logs', value: callLogsTotal },
+          { label: 'Details', value: hasDetails ? 'Loaded' : activeSid ? 'Pending' : 'Not selected' },
+          { label: 'Events', value: hasEvents ? 'Loaded' : activeSid ? 'Pending' : 'Not selected' },
+        ]}
+      />
 
-      {loading && rows.length === 0 && callLogs.length === 0 ? (
-        <section className="va-grid">
-          <UiCard>
-            <UiStatePanel
+      {(loading && rows.length === 0 && callLogs.length === 0) || error || controlsBusy ? (
+        <div className="va-status-state-stack">
+          {loading && rows.length === 0 && callLogs.length === 0 ? (
+            <UiSurfaceState
+              eyebrow="Explorer sync"
+              status="Loading"
+              statusVariant="info"
               title="Loading call telemetry"
               description="Syncing latest call records and explorer metadata."
               tone="info"
+              compact
             />
-          </UiCard>
-        </section>
+          ) : null}
+          {controlsBusy ? (
+            <UiSurfaceState
+              eyebrow="Explorer state"
+              status="In progress"
+              statusVariant="info"
+              title="Call explorer request is running"
+              description={`Running ${activeActionLabel || 'request'}...`}
+              tone="info"
+              compact
+            />
+          ) : null}
+          {error ? (
+            <UiSurfaceState
+              eyebrow="Explorer state"
+              status="Needs attention"
+              statusVariant="error"
+              title="Call explorer needs attention"
+              description={error}
+              tone="error"
+              compact
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <section className="va-section-block">
@@ -178,21 +207,6 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
               {query.trim().length >= 2 ? 'Search' : 'Load Recent'}
             </UiButton>
           </div>
-          {controlsBusy ? (
-            <UiStatePanel
-              compact
-              title="Request in progress"
-              description={`Running ${activeActionLabel || 'request'}...`}
-            />
-          ) : null}
-          {error ? (
-            <UiStatePanel
-              title="Call explorer request failed"
-              description={error}
-              tone="error"
-              compact
-            />
-          ) : null}
           {rows.length === 0 ? (
             <UiStatePanel
               compact

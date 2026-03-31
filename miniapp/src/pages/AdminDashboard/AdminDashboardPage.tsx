@@ -1389,7 +1389,6 @@ export function AdminDashboardPage() {
           featureFlagsCount={Object.keys(featureFlags).length || 'default'}
           activeModuleLabel={activeModuleLabel}
           activeModuleSubtitle={activeModuleMeta.subtitle}
-          onBackToDashboard={() => navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT)}
           onOpenSettings={() => toggleSettings(true)}
           error={error}
           errorCode={errorCode}

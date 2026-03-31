@@ -148,7 +148,6 @@ export function DashboardViewStage({
               queueBacklogTotal={queueBacklogTotal}
               lastSuccessfulPollLabel={lastSuccessfulPollLabel}
             />
-            <DashboardShellOwnershipCard />
             {visibleModulesCount === 0 ? (
               <EmptyModulesCard
                 onRefreshAccess={onRefreshAccess}
@@ -165,6 +164,7 @@ export function DashboardViewStage({
                 onSelectModule={onSelectModule}
               />
             ) : null}
+            <DashboardShellOwnershipCard />
           </>
         ) : null}
 

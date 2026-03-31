@@ -6,7 +6,17 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectMailerPageVm } from './vmSelectors';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
-import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
+import {
+  UiActionBar,
+  UiButton,
+  UiCard,
+  UiDisclosure,
+  UiInput,
+  UiStatePanel,
+  UiSurfaceState,
+  UiTextarea,
+  UiWorkspacePulse,
+} from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { asRecord, pickDisplayText } from '@/services/admin-dashboard/dashboardPrimitives';
 
@@ -101,6 +111,51 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
   });
   const controlsBusy = mailerRequestState.isBusy;
   const activeActionLabel = mailerRequestState.activeActionLabel;
+  const domainHealthStatusLabel = pickDisplayText([mailerDomainHealthStatus], 'Unknown');
+  const domainHealthNeedsAttention = /warning|degraded|failed|error|unhealthy|suppressed/i.test(domainHealthStatusLabel);
+  const pulseTone: 'info' | 'success' | 'warning' | 'error' = investigationError || mailerTemplatePreviewError
+    ? 'error'
+    : mailerRequestState.status === 'busy'
+      ? 'info'
+      : (!mailerCanSubmit && (
+        mailerRecipientsInput.trim()
+        || mailerSubjectInput.trim()
+        || mailerTextInput.trim()
+        || mailerHtmlInput.trim()
+        || mailerTemplateIdInput.trim()
+      )) || domainHealthNeedsAttention
+        ? 'warning'
+        : 'success';
+  const pulseStatus = investigationError || mailerTemplatePreviewError
+    ? 'Needs attention'
+    : mailerRequestState.status === 'busy'
+      ? 'Working'
+      : (!mailerCanSubmit && (
+        mailerRecipientsInput.trim()
+        || mailerSubjectInput.trim()
+        || mailerTextInput.trim()
+        || mailerHtmlInput.trim()
+        || mailerTemplateIdInput.trim()
+      )) || domainHealthNeedsAttention
+        ? 'Needs review'
+        : 'Ready';
+  const pulseDescription = investigationError
+    ? investigationError
+    : mailerTemplatePreviewError
+      ? mailerTemplatePreviewError
+      : mailerRequestState.status === 'busy'
+        ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'Mailer actions are in progress.'
+        : !mailerCanSubmit && (
+          mailerRecipientsInput.trim()
+          || mailerSubjectInput.trim()
+          || mailerTextInput.trim()
+          || mailerHtmlInput.trim()
+          || mailerTemplateIdInput.trim()
+        )
+          ? `Before queueing, ${mailerMissingRequirements.join(', ')}.`
+          : domainHealthNeedsAttention
+            ? mailerDomainHealthDetail
+            : 'Audience, content, and deliverability controls are ready for the next send.';
 
   return (
     <>
@@ -110,14 +165,20 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
         <p className="va-muted">
           Build and schedule campaigns, validate template variables, and track deliverability performance.
         </p>
-        <div className="va-inline-metrics">
-          <UiBadge>Audience {mailerRecipientsParsed.length}</UiBadge>
-          <UiBadge>Invalid {mailerInvalidRecipients.length}</UiBadge>
-          <UiBadge>Duplicates {mailerDuplicateCount}</UiBadge>
-          <UiBadge>Delivered {emailDelivered}</UiBadge>
-          <UiBadge>Suppressed {emailSuppressed}</UiBadge>
-        </div>
       </section>
+
+      <UiWorkspacePulse
+        title="Email workspace"
+        description={pulseDescription}
+        status={pulseStatus}
+        tone={pulseTone}
+        items={[
+          { label: 'Audience', value: mailerRecipientsParsed.length },
+          { label: 'Invalid', value: mailerInvalidRecipients.length },
+          { label: 'Delivered', value: emailDelivered },
+          { label: 'Domain', value: domainHealthStatusLabel },
+        ]}
+      />
 
       <LoadingTelemetryCard
         visible={mailerRequestState.isLoading && mailerRecipientsParsed.length === 0}
@@ -133,14 +194,23 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
         <section className="va-grid">
           <UiCard>
             <h3>Mailer Console</h3>
-            {!mailerRecipientsInput.trim() && !mailerSubjectInput.trim() && !mailerTextInput.trim() ? (
-              <UiStatePanel
-                title="Start a new mailer batch"
-                description="Add recipients and draft the campaign subject/body, or upload a CSV/TXT list."
-                tone="info"
-                compact
-              />
-            ) : null}
+            <UiActionBar
+              title="Prepare the next mailer job"
+              description={
+                mailerCanSubmit
+                  ? 'Review timing and template variables, then queue the job.'
+                  : 'Add recipients and draft content, or load a template before queueing.'
+              }
+              actions={(
+                <UiButton
+                  variant="primary"
+                  disabled={controlsBusy || !mailerCanSubmit}
+                  onClick={() => { void sendMailerFromConsole(); }}
+                >
+                  Queue Mailer Job
+                </UiButton>
+              )}
+            />
             <p className="va-card-eyebrow">Audience</p>
             <UiTextarea
               id="va-mailer-recipients"
@@ -225,13 +295,6 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                   onChange={(event) => setMailerScheduleAt(event.target.value)}
                 />
               </label>
-              <UiButton
-                variant="primary"
-                disabled={controlsBusy || !mailerCanSubmit}
-                onClick={() => { void sendMailerFromConsole(); }}
-              >
-                Queue Mailer Job
-              </UiButton>
             </div>
             {!mailerCanSubmit ? (
               <UiStatePanel
@@ -257,19 +320,32 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 compact
               />
             ) : null}
-            <UiCard tone="subcard">
-              <h4>Template Render Preview</h4>
-              <p className="va-muted">Subject preview: <strong>{mailerTemplatePreviewSubject}</strong></p>
-              <p className="va-muted">Body preview: {mailerTemplatePreviewBody}</p>
-              {mailerTemplatePreviewError ? (
-                <UiStatePanel
-                  title="Template render issue"
-                  description={mailerTemplatePreviewError}
-                  tone="error"
-                  compact
-                />
-              ) : null}
-            </UiCard>
+            <UiDisclosure
+              title="Template preview"
+              subtitle={
+                mailerTemplatePreviewError
+                  ? 'Needs attention before queueing'
+                  : mailerVariableKeys.length
+                    ? `${mailerVariableKeys.length} variable${mailerVariableKeys.length === 1 ? '' : 's'} detected`
+                    : 'No template variables detected'
+              }
+              tone={mailerTemplatePreviewError ? 'warning' : 'neutral'}
+              open={Boolean(mailerTemplatePreviewError)}
+            >
+              <UiCard tone="subcard">
+                <h4>Template Render Preview</h4>
+                <p className="va-muted">Subject preview: <strong>{mailerTemplatePreviewSubject}</strong></p>
+                <p className="va-muted">Body preview: {mailerTemplatePreviewBody}</p>
+                {mailerTemplatePreviewError ? (
+                  <UiStatePanel
+                    title="Template render issue"
+                    description={mailerTemplatePreviewError}
+                    tone="error"
+                    compact
+                  />
+                ) : null}
+              </UiCard>
+            </UiDisclosure>
           </UiCard>
           <UiCard>
             <h3>Deliverability Monitor</h3>
@@ -284,49 +360,58 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             <pre>{textBar(emailDeliveredPercent)}</pre>
             <pre>{textBar(emailBouncePercent)}</pre>
             <pre>{textBar(emailComplaintPercent)}</pre>
-            <UiCard tone="subcard">
-              <h4>Domain Health</h4>
-              <p className="va-muted">Status: <strong>{mailerDomainHealthStatus}</strong></p>
-              <p className="va-muted">{mailerDomainHealthDetail}</p>
-            </UiCard>
-            <UiCard tone="subcard">
-              <h4>Bounce/Complaint Trend</h4>
-              {mailerTrendBars.length === 0 ? (
+            <UiDisclosure
+              title="Deliverability detail"
+              subtitle={
+                emailJobs.length > 0
+                  ? `${Math.min(emailJobs.length, 6)} recent job${emailJobs.length === 1 ? '' : 's'} loaded`
+                  : 'Domain health, trend, and recent jobs'
+              }
+            >
+              <UiCard tone="subcard">
+                <h4>Domain Health</h4>
+                <p className="va-muted">Status: <strong>{mailerDomainHealthStatus}</strong></p>
+                <p className="va-muted">{mailerDomainHealthDetail}</p>
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>Bounce/Complaint Trend</h4>
+                {mailerTrendBars.length === 0 ? (
+                  <UiStatePanel
+                    title="No trend data yet"
+                    description="Bounce/complaint trend bars will appear once recent jobs are available."
+                    tone="info"
+                    compact
+                  />
+                ) : (
+                  <ul className="va-list va-list-dense">
+                    {mailerTrendBars.map((bar, index) => (
+                      <li key={`mailer-trend-${index}`}><pre>{bar}</pre></li>
+                    ))}
+                  </ul>
+                )}
+              </UiCard>
+              {emailJobs.length > 0 ? (
+                <ul className="va-list va-list-dense">
+                  {emailJobs.slice(0, 6).map((job: EmailJob, index: number) => (
+                    <li key={`mailer-job-${index}`}>
+                      <strong>{toText(job.job_id, `job-${index + 1}`)}</strong>
+                      <span>{toText(job.status, 'unknown')}</span>
+                      <span>{toInt(job.sent)}/{toInt(job.total)} sent</span>
+                      <span>
+                        Fail: {toInt(job.failed)} | Deliv: {toInt(job.delivered)} | Bounce: {toInt(job.bounced)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
                 <UiStatePanel
-                  title="No trend data yet"
-                  description="Bounce/complaint trend bars will appear once recent jobs are available."
+                  title="No recent mailer jobs"
+                  description="Queued and completed jobs will appear here once deliveries are processed."
                   tone="info"
                   compact
                 />
-              ) : (
-                <ul className="va-list va-list-dense">
-                  {mailerTrendBars.map((bar, index) => (
-                    <li key={`mailer-trend-${index}`}><pre>{bar}</pre></li>
-                  ))}
-                </ul>
               )}
-            </UiCard>
-            {emailJobs.length > 0 ? (
-              <ul className="va-list va-list-dense">
-                {emailJobs.slice(0, 6).map((job: EmailJob, index: number) => (
-                  <li key={`mailer-job-${index}`}>
-                    <strong>{toText(job.job_id, `job-${index + 1}`)}</strong>
-                    <span>{toText(job.status, 'unknown')}</span>
-                    <span>{toInt(job.sent)}/{toInt(job.total)} sent</span>
-                    <span>
-                      Fail: {toInt(job.failed)} | Deliv: {toInt(job.delivered)} | Bounce: {toInt(job.bounced)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <UiStatePanel
-                title="No recent mailer jobs"
-                description="Queued and completed jobs will appear here once deliveries are processed."
-                tone="info"
-                compact
-              />
-            )}
+            </UiDisclosure>
           </UiCard>
         </section>
       </section>
@@ -336,6 +421,32 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
           <h3 className="va-section-title">Investigation & Tracking</h3>
           <p className="va-muted">Lookup individual message status, bulk jobs, and recent history.</p>
         </header>
+        {investigationError || mailerRequestState.status === 'busy' ? (
+          <div className="va-status-state-stack">
+            {investigationError ? (
+              <UiSurfaceState
+                eyebrow="Lookup status"
+                status="Needs attention"
+                statusVariant="error"
+                title="Email investigation needs attention"
+                description={investigationError}
+                tone="error"
+                compact
+              />
+            ) : null}
+            {mailerRequestState.status === 'busy' ? (
+              <UiSurfaceState
+                eyebrow="Lookup status"
+                status="In progress"
+                statusVariant="info"
+                title="Email investigation is running"
+                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
+                tone="info"
+                compact
+              />
+            ) : null}
+          </div>
+        ) : null}
         <section className="va-grid">
           <UiCard>
             <h3>Email Diagnostics Console</h3>
@@ -394,22 +505,6 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 Load History
               </UiButton>
             </div>
-            {investigationError ? (
-              <UiStatePanel
-                title="Email investigation failed"
-                description={investigationError}
-                tone="error"
-                compact
-              />
-            ) : null}
-            {mailerRequestState.status === 'busy' ? (
-              <UiStatePanel
-                title="Email request in progress"
-                description={activeActionLabel ? `${activeActionLabel} is running.` : 'Request is running.'}
-                tone="info"
-                compact
-              />
-            ) : null}
             <div className="va-subcard-grid va-subcard-grid-two">
               <UiCard tone="subcard">
                 <h4>Message Snapshot</h4>

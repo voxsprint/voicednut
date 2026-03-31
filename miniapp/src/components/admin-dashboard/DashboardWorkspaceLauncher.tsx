@@ -33,40 +33,53 @@ export function DashboardWorkspaceLauncher({
   return (
     <section className="va-overview-launcher" aria-labelledby="va-overview-launcher-title">
       <div className="va-overview-head">
-        <h2 id="va-overview-launcher-title" className="va-section-title">Workspace Launcher</h2>
+        <h2 id="va-overview-launcher-title" className="va-section-title">Workspaces</h2>
         <p className="va-muted">
-          Open a dedicated workspace. Each module runs in focused mode for less visual noise.
+          Open the workspace that matches the task in front of you.
         </p>
       </div>
       <div className="va-launcher-groups">
         {groupedVisibleModules.map((group) => (
           <section key={`launcher-group-${group.id}`} className="va-launcher-group">
             <div className="va-launcher-group-head">
-              <h3 className="va-launcher-group-title">{group.label}</h3>
-              <span className="va-meta-chip">{group.modules.length} modules</span>
+              <div className="va-launcher-group-copy">
+                <h3 className="va-launcher-group-title">{group.label}</h3>
+                <p className="va-muted va-launcher-group-subtitle">{group.subtitle}</p>
+              </div>
+              <span className="va-meta-chip">{group.modules.length} ready</span>
             </div>
-            <p className="va-muted va-launcher-group-subtitle">{group.subtitle}</p>
             <div className="va-launcher-grid">
               {group.modules.map((module) => {
                 const shortcutIndex = moduleShortcutIndexById[module.id] || 0;
+                const isActive = activeModule === module.id;
                 return (
                   <UiButton
                     key={`launcher-${module.id}`}
                     id={`va-launcher-module-${module.id}`}
                     variant="plain"
-                    className={`va-launcher-card ${activeModule === module.id ? 'is-active' : ''}`}
+                    className={`va-launcher-card ${isActive ? 'is-active' : ''}`}
                     aria-label={`Open ${module.label} workspace`}
-                    aria-pressed={activeModule === module.id}
+                    aria-pressed={isActive}
                     aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
                     onClick={() => onSelectModule(module.id)}
                   >
                     <span className="va-launcher-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
                     <span className="va-launcher-copy">
-                      <strong>{module.label}</strong>
-                      <span>{MODULE_CONTEXT[module.id].subtitle}</span>
-                      {shortcutIndex > 0 ? (
-                        <span className="va-launcher-shortcut">Alt + {shortcutIndex}</span>
-                      ) : null}
+                      <span className="va-launcher-copy-top">
+                        <strong>{module.label}</strong>
+                        {isActive ? (
+                          <span className="va-launcher-state">Current</span>
+                        ) : null}
+                      </span>
+                      <span>{MODULE_CONTEXT[module.id].detail}</span>
+                      <span className="va-launcher-footer">
+                        <span className="va-launcher-state-hint">
+                          {isActive ? 'Continue in this workspace' : 'Open workspace'}
+                        </span>
+                        {shortcutIndex > 0 ? (
+                          <span className="va-launcher-shortcut">Alt + {shortcutIndex}</span>
+                        ) : null}
+                      </span>
                     </span>
                   </UiButton>
                 );

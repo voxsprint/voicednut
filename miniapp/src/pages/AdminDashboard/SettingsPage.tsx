@@ -1,4 +1,4 @@
-import { UiButton, UiStatePanel } from '@/components/ui/AdminPrimitives';
+import { UiButton, UiSurfaceState } from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS } from '@/contracts/miniappParityContracts';
 
 type SettingsModule = {
@@ -191,7 +191,11 @@ export function SettingsPage({
         <div className="va-settings-group">
         {visibleModules.length === 0 ? (
           <div className="va-settings-empty">
-            <UiStatePanel
+            <UiSurfaceState
+              cardTone="empty"
+              eyebrow="Workspace access"
+              status="Unavailable"
+              statusVariant="warning"
               compact
               title="No modules available"
               description="This role currently has no enabled workspaces."
