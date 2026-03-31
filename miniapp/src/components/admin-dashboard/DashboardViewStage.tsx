@@ -2,6 +2,7 @@ import { Suspense, type CSSProperties, type TouchEventHandler } from 'react';
 
 import { DashboardFocusedModulePane } from '@/components/admin-dashboard/DashboardFocusedModulePane';
 import { DashboardOverviewMetrics } from '@/components/admin-dashboard/DashboardOverviewMetrics';
+import { DashboardShellOwnershipCard } from '@/components/admin-dashboard/DashboardShellOwnershipCard';
 import {
   EmptyModulesCard,
   ModuleSkeletonGrid,
@@ -147,6 +148,7 @@ export function DashboardViewStage({
               queueBacklogTotal={queueBacklogTotal}
               lastSuccessfulPollLabel={lastSuccessfulPollLabel}
             />
+            <DashboardShellOwnershipCard />
             {visibleModulesCount === 0 ? (
               <EmptyModulesCard
                 onRefreshAccess={onRefreshAccess}

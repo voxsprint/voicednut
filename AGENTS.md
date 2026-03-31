@@ -45,6 +45,11 @@
 - If a tool fails, continue with safe fallback and state limitation briefly.
 - Never expose secrets in logs or outputs.
 
+## Browser validation policy (required)
+- Do not add, restore, or rely on repo-local Playwright/browser validation scripts or wrappers under `miniapp/scripts` or `miniapp/package.json`.
+- Browser/runtime validation for this repository must use the `playwright` skill and MCP Playwright tools only unless the user explicitly requests another path.
+- Keep Mini App local validation scripts limited to static checks such as lint, type-check, build, and source-based smoke verification unless the user explicitly requests otherwise.
+
 ## Skill routing hints
 - Provider/API docs lookup and integration behavior validation -> use `integration-docs-kit`.
 - Feature implementation/code generation -> use `intent-codegen`.

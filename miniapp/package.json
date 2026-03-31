@@ -7,12 +7,12 @@
   "scripts": {
     "deploy": "gh-pages -d dist",
     "dev": "vite",
+    "dev:fixtures": "cross-env VITE_ADMIN_DASHBOARD_DEV_FIXTURES=1 vite",
     "dev:https": "cross-env HTTPS=true vite",
     "build": "tsc --noEmit && vite build",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0 --fix",
-    "smoke:admin-dashboard": "node scripts/smoke-admin-dashboard.mjs",
-    "validate:prod": "npm run lint && npm run build && npm run smoke:admin-dashboard",
+    "validate:prod": "npm run lint && npm run build",
     "preview": "vite preview",
     "predeploy": "npm run build"
   },

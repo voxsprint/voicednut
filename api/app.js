@@ -7253,6 +7253,7 @@ function resolveMiniAppApiRouteLabel(req, res) {
   if (path === "/miniapp/session") return "session";
   if (path === "/miniapp/logout") return "logout";
   if (path === "/miniapp/bootstrap") return "bootstrap";
+  if (path === "/miniapp/calls/active") return "call_active";
   if (path === "/miniapp/jobs/poll") return "jobs_poll";
   if (path === "/miniapp/action") return "action";
   return "";
@@ -17201,6 +17202,43 @@ async function listMiniAppCallLogs(options = {}) {
   };
 }
 
+async function getMiniAppActiveCallForTelegramUser(telegramId = "") {
+  const normalizedTelegramId = String(telegramId || "").trim();
+  if (!normalizedTelegramId || typeof db?.getLatestActiveCallForUserChatId !== "function") {
+    return {
+      success: true,
+      resumed: false,
+      call: null,
+    };
+  }
+
+  const row = await db.getLatestActiveCallForUserChatId(normalizedTelegramId).catch(() => null);
+  const call = normalizeCallRecordForApi(row) || null;
+  if (!call?.call_sid) {
+    return {
+      success: true,
+      resumed: false,
+      call: null,
+    };
+  }
+
+  return {
+    success: true,
+    resumed: true,
+    call: {
+      call_sid: call.call_sid || null,
+      phone_number: call.phone_number || null,
+      status: call.status || null,
+      status_normalized: call.status_normalized || null,
+      direction: call.direction || null,
+      provider: call.provider || call.runtime_provider || null,
+      created_at: call.created_at || null,
+      started_at: call.started_at || null,
+      updated_at: call.runtime_updated_at || call.updated_at || null,
+    },
+  };
+}
+
 async function getMiniAppCallScriptSnapshot(options = {}) {
   const limit = parseBoundedInteger(options.limit, {
     defaultValue: 80,
@@ -19124,6 +19162,41 @@ app.get("/miniapp/bootstrap", requireMiniAppSession, async (req, res) => {
       500,
       "miniapp_bootstrap_failed",
       "Failed to load Mini App bootstrap payload",
+      req.requestId || null,
+    );
+  }
+});
+
+app.get("/miniapp/calls/active", requireMiniAppSession, async (req, res) => {
+  res.locals.miniAppRoute = "call_active";
+  if (await enforceMiniAppRateLimit(req, res, "poll")) {
+    return;
+  }
+  if (!requireMiniAppCapability(req, res, "dashboard_view")) {
+    return;
+  }
+  try {
+    const telegramId = String(req.miniAppSession?.telegram_id || "").trim();
+    if (!telegramId) {
+      return sendApiError(
+        res,
+        401,
+        "miniapp_auth_invalid",
+        "Mini App session token is missing telegram_id",
+        req.requestId || null,
+      );
+    }
+    return res.json(await getMiniAppActiveCallForTelegramUser(telegramId));
+  } catch (error) {
+    console.error("miniapp_active_call_error", {
+      request_id: req.requestId || null,
+      error: buildErrorDetails(error),
+    });
+    return sendApiError(
+      res,
+      500,
+      "miniapp_active_call_failed",
+      "Failed to load Mini App active call session",
       req.requestId || null,
     );
   }

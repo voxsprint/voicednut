@@ -265,8 +265,83 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
   };
 }
 
-function resolveDashboardFixtureActionData(action: string, nowIso: string): Record<string, unknown> {
+function resolveDashboardFixtureActionData(
+  action: string,
+  nowIso: string,
+  payload: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const requestedCallSid = toText(payload.call_sid, '').trim() || 'CA_FIXTURE_CALL_001';
   switch (action) {
+    case DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_LIST:
+      return {
+        scripts: [
+          {
+            id: 1,
+            name: 'Welcome Script',
+            description: 'Default fixture script for local QA flows.',
+            prompt: 'You are a helpful assistant.',
+            first_message: 'Hello, this is the fixture flow.',
+            default_profile: 'default',
+            objective_tags: ['support'],
+            flow_type: 'default',
+            lifecycle_state: 'draft',
+            version: 1,
+          },
+        ],
+        total: 1,
+      };
+    case DASHBOARD_ACTION_CONTRACTS.CALLS_GET:
+      return {
+        call: {
+          call_sid: requestedCallSid,
+          phone_number: '+15551230000',
+          customer_name: 'Fixture Contact',
+          provider: 'twilio',
+          status: 'in-progress',
+          direction: 'outbound-api',
+          flow_state: 'collecting_context',
+          call_mode: 'custom',
+          created_at: nowIso,
+          started_at: nowIso,
+          updated_at: nowIso,
+        },
+      };
+    case DASHBOARD_ACTION_CONTRACTS.CALLS_EVENTS:
+      return {
+        call_sid: requestedCallSid,
+        recent_states: [
+          {
+            id: 'fixture-state-1',
+            event: 'call.initiated',
+            status: 'initiated',
+            timestamp: nowIso,
+            provider: 'twilio',
+          },
+          {
+            id: 'fixture-state-2',
+            event: 'call.answered',
+            status: 'in-progress',
+            timestamp: nowIso,
+            provider: 'twilio',
+          },
+        ],
+        notification_status: [
+          {
+            id: 'fixture-webhook-1',
+            event: 'webhook.status',
+            status: 'delivered',
+            timestamp: nowIso,
+            provider: 'twilio',
+          },
+        ],
+        live_console: {
+          status: 'in-progress',
+          phase: 'Collecting context',
+          provider: 'twilio',
+          preview: 'Fixture live console snapshot from webhook-backed runtime state.',
+          updated_at: nowIso,
+        },
+      };
     case DASHBOARD_ACTION_CONTRACTS.USERS_LIST:
       return {
         rows: [
@@ -322,6 +397,13 @@ export function resolveDashboardFixtureRequest(path: string, options: RequestIni
   if (path === '/miniapp/bootstrap' || path === '/miniapp/jobs/poll') {
     return createDashboardFixturePayload(nowIso);
   }
+  if (path === '/miniapp/calls/active') {
+    return {
+      success: true,
+      resumed: false,
+      call: null,
+    };
+  }
   if (path === '/miniapp/action') {
     const rawBody = typeof options.body === 'string' ? options.body : '{}';
     let parsedBody: Record<string, unknown> = {};
@@ -331,9 +413,10 @@ export function resolveDashboardFixtureRequest(path: string, options: RequestIni
       parsedBody = {};
     }
     const action = toText(parsedBody.action, '');
+    const payload = asRecord(parsedBody.payload);
     return {
       success: true,
-      data: resolveDashboardFixtureActionData(action, nowIso),
+      data: resolveDashboardFixtureActionData(action, nowIso, payload),
     };
   }
   return { success: true };

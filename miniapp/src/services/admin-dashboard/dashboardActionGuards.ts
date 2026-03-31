@@ -189,6 +189,10 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     capability: 'provider_manage',
     risk: 'safe',
   },
+  [DASHBOARD_ACTION_CONTRACTS.PROVIDER_GET]: {
+    capability: 'provider_manage',
+    risk: 'safe',
+  },
   [DASHBOARD_ACTION_CONTRACTS.RUNTIME_MAINTENANCE_ENABLE]: {
     capability: 'dashboard_view',
     risk: 'danger',
@@ -405,7 +409,19 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     capability: 'sms_bulk_manage',
     risk: 'safe',
   },
+  [DASHBOARD_ACTION_CONTRACTS.SMS_BULK_STATUS]: {
+    capability: 'sms_bulk_manage',
+    risk: 'safe',
+  },
   [DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS]: {
+    capability: 'email_bulk_manage',
+    risk: 'safe',
+  },
+  [DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_STATS]: {
+    capability: 'email_bulk_manage',
+    risk: 'safe',
+  },
+  [DASHBOARD_ACTION_CONTRACTS.EMAIL_PREVIEW]: {
     capability: 'email_bulk_manage',
     risk: 'safe',
   },
@@ -426,9 +442,12 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
 const EXTRA_SUPPORTED_ACTION_IDS = [
   ...DASHBOARD_MODULE_ACTION_IDS,
   DASHBOARD_ACTION_CONTRACTS.SMS_STATS,
+  DASHBOARD_ACTION_CONTRACTS.SMS_BULK_STATUS,
   DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS,
+  DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_STATS,
   DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_JOB,
   DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_HISTORY,
+  DASHBOARD_ACTION_CONTRACTS.PROVIDER_GET,
   DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE,
   DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PAYMENT_RECONCILE,
   DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT,
@@ -448,7 +467,15 @@ function normalizeDashboardAction(action: string): string {
 
 function normalizeDashboardActionId(action: string): string {
   const normalizedAction = normalizeDashboardAction(action);
-  return ACTION_ALIASES[normalizedAction] || normalizedAction;
+  const directAlias = ACTION_ALIASES[normalizedAction];
+  if (directAlias) return directAlias;
+
+  // Support bot callback payload patterns such as EMAIL_STATUS:<message_id>.
+  const prefixAction = normalizedAction.split(':')[0];
+  const prefixAlias = ACTION_ALIASES[prefixAction];
+  if (prefixAlias) return prefixAlias;
+
+  return normalizedAction;
 }
 
 function isSupportedDashboardActionId(actionId: string): boolean {

@@ -4,6 +4,7 @@ import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectSmsPageVm } from './vmSelectors';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
@@ -149,6 +150,8 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           </UiBadge>
         </div>
       </section>
+
+      <DashboardWorkflowContractCard moduleId="messaging" />
 
       <section className={`va-overview-metrics va-investigation-metrics ${investigationError ? 'is-degraded' : 'is-healthy'}`} aria-label="Investigation summary">
         <article className="va-overview-metric-card">

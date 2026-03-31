@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Cell, Navigation } from '@telegram-apps/telegram-ui';
 
 import type { CallScriptRow, DashboardVm } from './types';
 import { selectScriptStudioPageVm } from './vmSelectors';
+import { Link } from '@/components/Link/Link.tsx';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
-import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
+import {
+  DASHBOARD_ACTION_CONTRACTS,
+  DASHBOARD_MODULE_ROUTE_CONTRACTS,
+  MINIAPP_COMMAND_ROUTE_CONTRACTS,
+} from '@/contracts/miniappParityContracts';
 
 type ScriptStudioPageProps = {
   visible: boolean;
@@ -190,7 +197,33 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
   }, []);
 
   return (
-    <section className="va-grid">
+    <>
+      <DashboardWorkflowContractCard moduleId="content" />
+      <div className="va-card">
+        <h3>Canonical /scripts handoff</h3>
+        <p className="va-muted">
+          This workspace is downstream of the canonical <strong>/scripts</strong> command page and is
+          limited to call-script lifecycle work. SMS script and email template parity remain owned by
+          Scripts Parity Expansion.
+        </p>
+        <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS}>
+          <Cell
+            subtitle="Return to the command-native /scripts entry point before switching workflows."
+            after={<Navigation>Open</Navigation>}
+          >
+            /scripts command page
+          </Cell>
+        </Link>
+        <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.scriptsparity}>
+          <Cell
+            subtitle="Open the downstream workspace for SMS script and email template parity ownership."
+            after={<Navigation>Open</Navigation>}
+          >
+            Scripts Parity Expansion
+          </Cell>
+        </Link>
+      </div>
+      <section className="va-grid">
       <div className="va-card">
         <h3>Call Scripts</h3>
         <p className="va-muted">
@@ -805,6 +838,7 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
           />
         </div>
       ) : null}
-    </section>
+      </section>
+    </>
   );
 }

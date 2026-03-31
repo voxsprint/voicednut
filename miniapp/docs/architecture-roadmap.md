@@ -426,7 +426,7 @@ One maintained parity artifact defining, for every intended Mini App feature sur
 
 ## 4.10 Command workflow contract
 
-One shared command-workflow contract defining, for every Mini App page mapped to a bot command:
+One shared command-workflow contract defining, for every Mini App page mapped to a bot command or approved dashboard-composed route:
 
 - canonical bot command name
 - optional callback/action aliases
@@ -440,6 +440,29 @@ One shared command-workflow contract defining, for every Mini App page mapped to
 - failure-state behavior
 - post-action navigation or follow-up state
 - any approved Mini App-specific UX enhancement that does not change business semantics
+
+For dashboard-composed routes, the same contract must also declare:
+
+- why the route is allowed to aggregate more than one bot workflow
+- the command-ownership boundary between the composed route and any command-native pages
+- which action families may be executed directly on the composed route
+- which workflows must redirect or hand off to another command-owned page
+- the degraded-state and fallback path when one underlying workflow is unavailable at runtime
+
+## 4.11 Dashboard-composed route contract
+
+One shared dashboard-composed route contract defining, for every non-bot-native operational route:
+
+- route id and mounted path
+- canonical bot command owner
+- approved related commands, aliases, or callback families
+- required capability and runtime visibility gate
+- allowed read-only and mutating action families
+- workflow ownership boundaries with command-native pages
+- validation, confirmation, and execution safeguards
+- degraded-state behavior when one contributing workflow is unavailable
+- fallback path back to a command-owned route or dashboard shell
+- approved Mini App-only productivity enhancements that do not change bot/API semantics
 
 # 5. Mini App Parity Model
 
@@ -466,6 +489,26 @@ One shared command-workflow contract defining, for every Mini App page mapped to
 | `/admin` | Mini App admin console entry |
 | `/status` | deep system/admin status |
 
+## Allowed dashboard-composed route correspondence
+
+These routes are acceptable even though they are not all bot-native slash commands, but only when they remain explicitly command-owned and contract-backed.
+
+| Mini App Route | Canonical Bot Command Owner | Related Commands / Families | Required constraint |
+|---|---|---|---|
+| `/ops` | `/status` | `/health`, selected admin runtime views | Must remain an operational extension of status/health semantics and must not invent independent admin controls. |
+| `/mailer` | `/mailer` | `/email`, `/emailstatus` | Must remain the canonical high-volume email workflow surface and preserve provider precheck, queueing, status, and degradation behavior. |
+| `/messaging` | `/sms` | `/email`, message-status and conversation diagnostics | Must remain an investigation workspace over existing messaging workflows and keep cross-command orchestration explicit. |
+| `/audit` | `/admin` | selected admin/status callback families | Must remain a support and incident workspace derived from admin-owned workflows rather than a standalone business surface. |
+
+## Allowed command-split route correspondence
+
+These routes are acceptable when one canonical bot command is intentionally decomposed into more than one Mini App page, but only if the ownership boundary is explicit and shared contracts prevent overlap drift.
+
+| Mini App Route | Canonical Bot Command Owner | Related Commands / Families | Required constraint |
+|---|---|---|---|
+| `/content` | `/scripts` | `/persona`, caller-flag support flows | Must remain the primary call-script lifecycle workspace for drafting, review, promote-live, and simulation behavior without inventing script semantics that bypass the canonical `/scripts` command contract. |
+| `/scriptsparity` | `/scripts` | `/sms`, `/email`, SMS script and email template parity families | Must remain a bounded parity extension for adjacent content assets and may not duplicate or silently diverge from `/content` ownership, validation rules, or fallback behavior. |
+
 ## Required parity behavior
 
 - A Mini App route must not exist without a valid bot/API equivalent.
@@ -478,6 +521,9 @@ One shared command-workflow contract defining, for every Mini App page mapped to
 - Every implemented page must declare its canonical bot command mapping.
 - Every implemented page must preserve the main bot command workflow, not only the label or destination.
 - If a page composes multiple related bot actions, the command workflow contract must define the orchestration explicitly.
+- Every dashboard-composed route must declare its canonical command owner, related command families, and handoff boundaries.
+- Every command-split route must declare which part of the canonical command workflow it owns and which related workflows it may not absorb.
+- No dashboard-composed route may become the only place where a business workflow can be understood or executed unless it is itself the canonical command-owned surface.
 - Mini App productivity enhancements are allowed only when they remain execution-compatible with the underlying bot/API workflow.
 
 ## Required page-to-command workflow correspondence
@@ -495,6 +541,8 @@ For every implemented page, parity must include all of the following:
 - follow-up actions or next-step shortcuts where the bot already provides them
 
 The Mini App may compress or improve the operator experience, but it must not weaken or replace the underlying bot command workflow semantics.
+
+Dashboard-composed routes may aggregate investigation, diagnostics, or productivity helpers, but they must still execute the same backend actions, preserve the same permissions, and honor the same fallback rules as the bot-owned workflows they represent.
 
 # 6. Known Risk Areas to Eliminate
 
@@ -696,12 +744,15 @@ Deliverables:
 - bulk SMS parity
 - bulk email parity
 - provider/users/callerflags/persona/scripts/status parity
+- synchronized workflow contracts for dashboard-composed routes such as `/ops`, `/mailer`, `/messaging`, and `/audit`
+- synchronized ownership contracts for command-split `/scripts` routes such as `/content` and `/scriptsparity`
 
 Exit criteria:
 
 - route-to-command parity established for all intended product areas
 - workflow payload and fallback parity established for all intended product areas
 - command-workflow parity established for all implemented pages in intended product areas
+- dashboard-composed routes remain explicitly command-owned and do not drift into standalone product logic
 
 ## Phase 6 — Production hardening
 
@@ -738,6 +789,7 @@ The Mini App architecture is considered aligned only when all of the following a
 - Bootstrap, refresh, and action flows emit usable diagnostics
 - Every implemented page has an explicit bot-command workflow contract
 - Implemented pages execute command-equivalent workflows or document approved divergence
+- Dashboard-composed routes have explicit command ownership, action-family boundaries, and fallback contracts
 - Relevant tests, lint, type-check, and build pass
 - Architecture drift is documented or removed
 
@@ -795,7 +847,9 @@ When using Codex or any coding agent against this roadmap:
 - Fix shared avatar rendering consistency
 - Formalize session/auth failure handling
 - Formalize runtime-contract vs static-contract boundaries
-- Formalize page-to-command workflow contracts for implemented pages
+- Keep page-to-command workflow contracts synchronized with implemented pages
+- Keep dashboard-composed route ownership contracts synchronized with live command/action inventories
+- Keep `/scripts` split ownership contracts synchronized across `/content`, `/scriptsparity`, and the canonical `/scripts` workflow
 
 ## Next priority
 

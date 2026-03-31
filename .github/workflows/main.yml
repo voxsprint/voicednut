@@ -27,12 +27,17 @@ jobs:
             # Navigate to project root
             cd /home/ubuntu/voxly
 
-            # Keep only api + bot checked out on EC2
+            # Keep only api + bot checked out on EC2.
+            # The Telegram Mini App is deployed on Vercel and must not consume EC2 memory.
             git fetch origin main
             git sparse-checkout init --cone
             git sparse-checkout set api bot
             git checkout main
             git pull --ff-only origin main
+            git sparse-checkout reapply
+
+            # Remove any stale Mini App files left over from older full-repo deployments.
+            rm -rf miniapp
 
             # Kill PM2 daemon and delete all processes
             pm2 kill

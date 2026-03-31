@@ -4,6 +4,7 @@ import { buildMailerRequestState } from './moduleRequestState';
 import type { DashboardVm, EmailJob } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectMailerPageVm } from './vmSelectors';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
@@ -123,6 +124,7 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
         title="Loading mailer telemetry"
         description="Syncing recipient analytics, domain health, and recent delivery outcomes."
       />
+      <DashboardWorkflowContractCard moduleId="mailer" />
       <section className="va-section-block">
         <header className="va-section-header">
           <h3 className="va-section-title">Compose & Queue</h3>

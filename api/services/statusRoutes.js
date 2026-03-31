@@ -83,6 +83,11 @@ function createGetCallStatusHandler(ctx = {}) {
           timing_metrics: timingMetrics,
         },
         recent_states: recentStates,
+        live_console:
+          webhookService &&
+          typeof webhookService.getLiveConsoleSnapshot === "function"
+            ? webhookService.getLiveConsoleSnapshot(callSid)
+            : null,
         notification_status: notificationStatus,
         webhook_service_status: webhookService.getCallStatusStats(),
         enhanced_tracking: true,

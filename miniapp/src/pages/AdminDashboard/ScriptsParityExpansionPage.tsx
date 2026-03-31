@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Cell, Navigation } from '@telegram-apps/telegram-ui';
 
 import { buildModuleRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectScriptStudioPageVm } from './vmSelectors';
+import { Link } from '@/components/Link/Link.tsx';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { UiBadge, UiButton, UiCard, UiInput, UiStatePanel, UiTextarea } from '@/components/ui/AdminPrimitives';
-import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
+import {
+  DASHBOARD_ACTION_CONTRACTS,
+  DASHBOARD_MODULE_ROUTE_CONTRACTS,
+  MINIAPP_COMMAND_ROUTE_CONTRACTS,
+} from '@/contracts/miniappParityContracts';
 
 type ScriptsParityExpansionPageProps = {
   visible: boolean;
@@ -160,6 +167,32 @@ export function ScriptsParityExpansionPage({ visible, vm }: ScriptsParityExpansi
           <UiBadge>Selected template {selectedEmailTemplateId || 'none'}</UiBadge>
         </div>
       </section>
+
+      <DashboardWorkflowContractCard moduleId="scriptsparity" />
+      <div className="va-card">
+        <h3>Canonical /scripts handoff</h3>
+        <p className="va-muted">
+          This workspace is downstream of the canonical <strong>/scripts</strong> command page and
+          is limited to SMS script and email template parity work. Call-script lifecycle ownership
+          remains in Script Studio.
+        </p>
+        <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS}>
+          <Cell
+            subtitle="Return to the command-native /scripts entry point before switching to another scripts workflow."
+            after={<Navigation>Open</Navigation>}
+          >
+            /scripts command page
+          </Cell>
+        </Link>
+        <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.content}>
+          <Cell
+            subtitle="Open the downstream workspace for call-script drafting, review, simulation, and promote-live ownership."
+            after={<Navigation>Open</Navigation>}
+          >
+            Script Studio
+          </Cell>
+        </Link>
+      </div>
 
       <section className="va-grid">
         <UiCard>

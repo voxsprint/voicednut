@@ -11,6 +11,7 @@ import type {
 } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { UiButton, UiCard, UiInput, UiStatePanel } from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 
@@ -222,6 +223,8 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </div>
         </section>
       ) : null}
+
+      <DashboardWorkflowContractCard moduleId="ops" />
 
       <section className="va-section-block">
         <header className="va-section-header">

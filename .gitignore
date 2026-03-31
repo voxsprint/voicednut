@@ -59,3 +59,18 @@ bot/db/data.db
 Implementation.md
 codex.md
 ~/.npm/
+
+# Playwright / browser automation runtime artifacts
+.playwright-mcp/
+.playwright-cli/
+output/playwright/
+
+# Prettier / editor config variants
+.prettierrc
+.prettierrc.*
+.prettierignore
+prettier.config.js
+prettier.config.cjs
+prettier.config.mjs
+prettier.config.ts
+.editorconfig

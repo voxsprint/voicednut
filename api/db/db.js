@@ -14,6 +14,14 @@ const CALL_STATUS_ORDER = Object.freeze([
     'failed',
     'canceled',
 ]);
+const CALL_ACTIVE_STATUSES = Object.freeze([
+    'queued',
+    'initiated',
+    'ringing',
+    'answered',
+    'in-progress',
+    'connecting',
+]);
 function normalizeCallStatusForDb(value) {
     return String(value || '')
         .trim()
@@ -2673,6 +2681,41 @@ class EnhancedDatabase {
                     reject(err);
                 } else {
                     resolve(this.changes || 0);
+                }
+            });
+        });
+    }
+
+    async getLatestActiveCallForUserChatId(userChatId) {
+        const normalizedUserChatId = String(userChatId || '').trim();
+        if (!normalizedUserChatId) return null;
+        const placeholders = CALL_ACTIVE_STATUSES.map(() => '?').join(', ');
+        return new Promise((resolve, reject) => {
+            const sql = `
+                SELECT
+                    c.*,
+                    crs.provider AS runtime_provider,
+                    crs.interaction_count AS runtime_interaction_count,
+                    crs.flow_state AS runtime_flow_state,
+                    crs.call_mode AS runtime_call_mode,
+                    crs.digit_capture_active AS runtime_digit_capture_active,
+                    crs.snapshot AS runtime_snapshot,
+                    crs.updated_at AS runtime_updated_at
+                FROM calls c
+                LEFT JOIN call_runtime_state crs ON crs.call_sid = c.call_sid
+                WHERE TRIM(COALESCE(c.user_chat_id, '')) = ?
+                  AND COALESCE(
+                    NULLIF(REPLACE(LOWER(TRIM(c.status)), '_', '-'), ''),
+                    NULLIF(REPLACE(LOWER(TRIM(c.twilio_status)), '_', '-'), '')
+                  ) IN (${placeholders})
+                ORDER BY datetime(COALESCE(crs.updated_at, c.updated_at, c.started_at, c.created_at)) DESC
+                LIMIT 1
+            `;
+            this.db.get(sql, [normalizedUserChatId, ...CALL_ACTIVE_STATUSES], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row || null);
                 }
             });
         });

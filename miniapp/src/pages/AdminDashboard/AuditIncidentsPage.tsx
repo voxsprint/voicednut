@@ -9,6 +9,7 @@ import {
   selectIncidentRowsMemoized,
 } from './tableSelectors';
 import { downloadCsv } from './csvExport';
+import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import { UiBadge, UiButton, UiCard, UiInput, UiSelect, UiStatePanel } from '@/components/ui/AdminPrimitives';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import { isDashboardActionSupported, resolveDashboardActionId } from '@/services/admin-dashboard/dashboardActionGuards';
@@ -372,8 +373,10 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   };
 
   return (
-    <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
-      <UiCard>
+    <>
+      <DashboardWorkflowContractCard moduleId="audit" />
+      <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
+        <UiCard>
         <h3>Audit & Incident Center</h3>
         <div className="va-inline-metrics">
           <UiBadge>Total alerts {toInt(incidentsPayload.total_alerts, incidentRows.length)}</UiBadge>
@@ -721,7 +724,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             </UiButton>
           </div>
         ) : null}
-      </UiCard>
-    </section>
+        </UiCard>
+      </section>
+    </>
   );
 }
