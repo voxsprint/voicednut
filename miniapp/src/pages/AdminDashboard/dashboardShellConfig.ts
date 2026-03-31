@@ -2,12 +2,13 @@ import type { FeatureFlagRegistryEntry } from '@/hooks/admin-dashboard/useDashbo
 import {
   DASHBOARD_MODULE_IDS,
   DASHBOARD_MODULE_ROUTE_CONTRACTS,
+  DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS,
   DASHBOARD_MODULE_SCREEN_CONTRACTS,
   DASHBOARD_ROUTE_SCREEN_CONTRACTS,
   DASHBOARD_STATIC_ROUTE_CONTRACTS,
   DASHBOARD_MODULE_ACTION_CONTRACTS,
-  DASHBOARD_MODULE_COMMAND_CONTRACTS,
   type DashboardModuleId,
+  type DashboardWorkflowStatus,
 } from '@/contracts/miniappParityContracts';
 
 export type DashboardModule = DashboardModuleId;
@@ -19,6 +20,8 @@ export type DashboardModuleDefinition = {
   label: string;
   capability: string;
   command: string;
+  pageComponent: string;
+  workflowStatus: DashboardWorkflowStatus;
   actionContracts: string[];
 };
 
@@ -26,7 +29,9 @@ export const MODULE_DEFINITIONS: DashboardModuleDefinition[] = DASHBOARD_MODULE_
   id: moduleId,
   label: DASHBOARD_MODULE_SCREEN_CONTRACTS[moduleId].label,
   capability: DASHBOARD_MODULE_SCREEN_CONTRACTS[moduleId].capability,
-  command: DASHBOARD_MODULE_COMMAND_CONTRACTS[moduleId],
+  command: DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS[moduleId].canonicalCommand,
+  pageComponent: DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS[moduleId].pageComponent,
+  workflowStatus: DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS[moduleId].workflowStatus,
   actionContracts: [...DASHBOARD_MODULE_ACTION_CONTRACTS[moduleId]],
 }));
 

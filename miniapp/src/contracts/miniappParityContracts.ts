@@ -173,20 +173,204 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
   },
 };
 
-export const DASHBOARD_MODULE_COMMAND_CONTRACTS = {
-  ops: BOT_PRIMARY_COMMANDS.STATUS,
-  sms: BOT_PRIMARY_COMMANDS.SMSSENDER,
-  mailer: BOT_PRIMARY_COMMANDS.MAILER,
-  provider: BOT_PRIMARY_COMMANDS.PROVIDER,
-  content: BOT_PRIMARY_COMMANDS.SCRIPTS,
-  calllog: BOT_PRIMARY_COMMANDS.CALLLOG,
-  callerflags: BOT_PRIMARY_COMMANDS.CALLERFLAGS,
-  scriptsparity: BOT_PRIMARY_COMMANDS.SCRIPTS,
-  messaging: BOT_PRIMARY_COMMANDS.SMS,
-  persona: BOT_PRIMARY_COMMANDS.PERSONA,
-  users: BOT_PRIMARY_COMMANDS.USERS,
-  audit: BOT_PRIMARY_COMMANDS.ADMIN,
-} as const;
+export type DashboardWorkflowStatus = 'aligned' | 'partial' | 'dashboard-composed' | 'shell-only';
+
+export type DashboardPageWorkflowContract = {
+  pageId: string;
+  path: string;
+  pageComponent: string;
+  canonicalCommand: string;
+  relatedCommands: readonly string[];
+  capability: string | null;
+  workflowStatus: DashboardWorkflowStatus;
+  fallbackPath: string;
+  moduleId: DashboardModuleId | null;
+  notes: string;
+};
+
+export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowContract[] = [
+  {
+    pageId: 'dashboard.home',
+    path: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    pageComponent: 'AdminDashboardPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.ADMIN,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.MENU, BOT_PRIMARY_COMMANDS.START],
+    capability: null,
+    workflowStatus: 'shell-only',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: null,
+    notes: 'Role-aware shell surface for admin navigation and module launch.',
+  },
+  {
+    pageId: 'dashboard.module.ops',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.ops,
+    pageComponent: 'OpsDashboardPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.STATUS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.HEALTH],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.ops.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'ops',
+    notes: 'Operational health and runtime posture are composed from status and health bot workflows.',
+  },
+  {
+    pageId: 'dashboard.module.sms',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.sms,
+    pageComponent: 'SmsSenderPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.SMSSENDER,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.SMS],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.sms.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'sms',
+    notes: 'Bulk SMS sending preserves sender workflow while exposing Mini App batching controls.',
+  },
+  {
+    pageId: 'dashboard.module.mailer',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.mailer,
+    pageComponent: 'MailerPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.MAILER,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.EMAIL],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.mailer.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'mailer',
+    notes: 'Bulk email workflow stays aligned to the mailer command and backend job execution path.',
+  },
+  {
+    pageId: 'dashboard.module.provider',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.provider,
+    pageComponent: 'ProviderControlPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.PROVIDER,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.STATUS],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.provider.capability,
+    workflowStatus: 'aligned',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'provider',
+    notes: 'Provider switch, preflight, and rollback behavior mirrors the bot command contract.',
+  },
+  {
+    pageId: 'dashboard.module.content',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.content,
+    pageComponent: 'ScriptStudioPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.SCRIPTS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.PERSONA],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.content.capability,
+    workflowStatus: 'partial',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'content',
+    notes: 'Script lifecycle tooling is present, but full command parity still spans multiple pages.',
+  },
+  {
+    pageId: 'dashboard.module.calllog',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.calllog,
+    pageComponent: 'CallLogExplorerPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.CALLLOG,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.CALL],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.calllog.capability,
+    workflowStatus: 'aligned',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'calllog',
+    notes: 'Call search, details, and events map directly to the calllog bot surface.',
+  },
+  {
+    pageId: 'dashboard.module.callerflags',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.callerflags,
+    pageComponent: 'CallerFlagsModerationPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.CALLERFLAGS,
+    relatedCommands: [],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.callerflags.capability,
+    workflowStatus: 'aligned',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'callerflags',
+    notes: 'Caller flag moderation remains a direct admin workflow translation.',
+  },
+  {
+    pageId: 'dashboard.module.scriptsparity',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.scriptsparity,
+    pageComponent: 'ScriptsParityExpansionPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.SCRIPTS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.SMS, BOT_PRIMARY_COMMANDS.EMAIL],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.scriptsparity.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'scriptsparity',
+    notes: 'Script parity surface orchestrates SMS and email content support around the scripts command.',
+  },
+  {
+    pageId: 'dashboard.module.messaging',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.messaging,
+    pageComponent: 'MessagingInvestigationPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.SMS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.EMAIL],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.messaging.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'messaging',
+    notes: 'Message diagnostics compose SMS and email investigation workflows into one operator view.',
+  },
+  {
+    pageId: 'dashboard.module.persona',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.persona,
+    pageComponent: 'PersonaManagerPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.PERSONA,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.SCRIPTS],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.persona.capability,
+    workflowStatus: 'aligned',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'persona',
+    notes: 'Persona management remains command-native with shared backend validation.',
+  },
+  {
+    pageId: 'dashboard.module.users',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.users,
+    pageComponent: 'UsersRolePage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.USERS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.ADMIN],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.users.capability,
+    workflowStatus: 'aligned',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'users',
+    notes: 'User listing and role-setting mirror the users command access model.',
+  },
+  {
+    pageId: 'dashboard.module.audit',
+    path: DASHBOARD_MODULE_ROUTE_CONTRACTS.audit,
+    pageComponent: 'AuditIncidentsPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.ADMIN,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.STATUS],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.audit.capability,
+    workflowStatus: 'dashboard-composed',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: 'audit',
+    notes: 'Incident response and audit feeds are admin-native workflows composed into a focused page.',
+  },
+  {
+    pageId: 'dashboard.settings',
+    path: DASHBOARD_STATIC_ROUTE_CONTRACTS.SETTINGS,
+    pageComponent: 'SettingsPage',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.ADMIN,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.MENU, BOT_PRIMARY_COMMANDS.HELP],
+    capability: 'dashboard_view',
+    workflowStatus: 'shell-only',
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    moduleId: null,
+    notes: 'Shell settings for navigation, diagnostics, and support shortcuts tied to admin access.',
+  },
+] as const;
+
+export const DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS = Object.fromEntries(
+  DASHBOARD_PAGE_WORKFLOW_CONTRACTS
+    .filter((contract): contract is DashboardPageWorkflowContract & { moduleId: DashboardModuleId } => contract.moduleId !== null)
+    .map((contract) => [contract.moduleId, contract]),
+) as Record<DashboardModuleId, DashboardPageWorkflowContract & { moduleId: DashboardModuleId }>;
+
+export const DASHBOARD_MODULE_COMMAND_CONTRACTS: Record<DashboardModuleId, string> = Object.fromEntries(
+  DASHBOARD_MODULE_IDS.map((moduleId) => [
+    moduleId,
+    DASHBOARD_MODULE_PAGE_WORKFLOW_CONTRACTS[moduleId].canonicalCommand,
+  ]),
+) as Record<DashboardModuleId, string>;
 
 type DashboardRouteScreenContract = {
   routeId: string;
