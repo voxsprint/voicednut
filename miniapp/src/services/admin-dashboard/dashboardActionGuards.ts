@@ -394,11 +394,11 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT]: {
-    capability: 'sms_bulk_manage',
+    capability: 'users_manage',
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_CONVERSATION]: {
-    capability: 'sms_bulk_manage',
+    capability: 'users_manage',
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGE_STATUS]: {
@@ -406,11 +406,11 @@ const ACTION_POLICIES: Record<string, DashboardActionPolicy> = {
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.SMS_STATS]: {
-    capability: 'sms_bulk_manage',
+    capability: 'users_manage',
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.SMS_BULK_STATUS]: {
-    capability: 'sms_bulk_manage',
+    capability: 'users_manage',
     risk: 'safe',
   },
   [DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS]: {

@@ -466,7 +466,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           </UiButton>
           <UiButton
             variant="secondary"
-            disabled={!hasCapability('sms_bulk_manage')}
+            disabled={!hasCapability('users_manage')}
             onClick={(event) => {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, {}, event.currentTarget);
             }}
@@ -502,7 +502,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           </UiButton>
           <UiButton
             variant="secondary"
-            disabled={!hasCapability('sms_bulk_manage')}
+            disabled={!hasCapability('users_manage')}
             onClick={(event) => {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, { scope: 'failure_spike' }, event.currentTarget);
             }}

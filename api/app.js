@@ -7789,7 +7789,7 @@ async function getMiniAppIncidentSummary(options = {}) {
       {
         action: "runbook.sms.reconcile",
         label: "Reconcile stale SMS statuses",
-        capability: "sms_bulk_manage",
+        capability: "users_manage",
       },
       {
         action: "runbook.payment.reconcile",
@@ -17534,7 +17534,7 @@ const MINI_APP_DASHBOARD_MODULE_DEFINITIONS = [
   {
     id: "sms",
     label: "SMS Sender",
-    capability: "sms_bulk_manage",
+    capability: "users_manage",
     command: "/smssender",
     action_contracts: ["sms.bulk.send", "sms.schedule.send"],
     order: 1,
@@ -18335,7 +18335,7 @@ function buildMiniAppActionSpec(action, payload = {}) {
       max: 5000,
     });
     return {
-      capability: "sms_bulk_manage",
+      capability: "users_manage",
       method: "GET",
       path: "/api/sms/messages/recent",
       query: { limit, offset },
@@ -18353,7 +18353,7 @@ function buildMiniAppActionSpec(action, payload = {}) {
       max: 100,
     });
     return {
-      capability: "sms_bulk_manage",
+      capability: "users_manage",
       method: "GET",
       path: `/api/sms/messages/conversation/${encodeURIComponent(phone)}`,
       query: { limit },
@@ -18379,7 +18379,7 @@ function buildMiniAppActionSpec(action, payload = {}) {
       max: 720,
     });
     return {
-      capability: "sms_bulk_manage",
+      capability: "users_manage",
       method: "GET",
       path: "/api/sms/stats",
       query: { hours },
@@ -18449,7 +18449,7 @@ function buildMiniAppActionSpec(action, payload = {}) {
       max: 720,
     });
     return {
-      capability: "sms_bulk_manage",
+      capability: "users_manage",
       method: "GET",
       path: "/api/sms/bulk/status",
       query: { limit, hours },
@@ -18676,7 +18676,7 @@ function buildMiniAppActionSpec(action, payload = {}) {
       max: 5000,
     });
     return {
-      capability: "sms_bulk_manage",
+      capability: "users_manage",
       method: "POST",
       path: "/api/sms/reconcile",
       body: {

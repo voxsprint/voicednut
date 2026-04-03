@@ -66,7 +66,9 @@ function resolveAccessLevel(role: string, caps: string[]): MiniAppCommandAccessL
   const normalizedRole = role.trim().toLowerCase();
   if (normalizedRole === 'admin') return 'admin';
   if (normalizedRole && normalizedRole !== 'viewer') return 'authorized';
-  return caps.length > 0 ? 'authorized' : 'guest';
+  if (caps.includes('users_manage')) return 'admin';
+  if (caps.some((capability) => capability !== 'dashboard_view')) return 'authorized';
+  return 'guest';
 }
 
 export function useMiniAppCommandSession(): MiniAppCommandSessionState {

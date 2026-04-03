@@ -301,6 +301,29 @@ const CALL_PURPOSE_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'service_recovery', label: 'Service recovery' },
   { id: 'payment_collection', label: 'Payment collection' },
 ];
+const RELATIONSHIP_CALL_FLOW_TYPE_SET = new Set<string>([
+  'dating',
+  'celebrity',
+  'fan',
+  'creator',
+  'friendship',
+  'networking',
+  'community',
+  'marketplace_seller',
+  'real_estate_agent',
+]);
+const CALL_CUSTOM_FLOW_OPTIONS: ReadonlyArray<CallPersonaPurposeOption> = [
+  { id: 'general', label: 'General', emoji: '🧩' },
+  { id: 'dating', label: 'Dating', emoji: '💕' },
+  { id: 'celebrity', label: 'Celebrity fan engagement', emoji: '⭐' },
+  { id: 'fan', label: 'Fan engagement', emoji: '🎤' },
+  { id: 'creator', label: 'Creator collaboration', emoji: '🎬' },
+  { id: 'friendship', label: 'Friendship', emoji: '🤝' },
+  { id: 'networking', label: 'Networking', emoji: '🌐' },
+  { id: 'community', label: 'Community engagement', emoji: '🫶' },
+  { id: 'marketplace_seller', label: 'Marketplace seller', emoji: '🛍️' },
+  { id: 'real_estate_agent', label: 'Real estate outreach', emoji: '🏡' },
+];
 
 const CALL_MOOD_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'auto', label: 'Auto (use recommended)' },
@@ -1216,9 +1239,11 @@ function toFlowTypeLabel(script: CallScriptRecord): string {
 
 function toFlowTypes(script: CallScriptRecord | null): string[] {
   if (!script) return [];
-  const flowTypes = toTextList(script.flow_types);
+  const flowTypes = toTextList(script.flow_types)
+    .map((entry) => entry.toLowerCase())
+    .filter(Boolean);
   if (flowTypes.length > 0) return flowTypes;
-  const flowType = toTextValue(script.flow_type);
+  const flowType = toTextValue(script.flow_type).toLowerCase();
   return flowType ? [flowType] : [];
 }
 
@@ -2066,6 +2091,9 @@ function CallCommandPageContent() {
     || null
   ), [personaProfiles, selectedPersonaId]);
   const personaPurposeOptions = useMemo(() => {
+    if (selectedPersona?.custom) {
+      return CALL_CUSTOM_FLOW_OPTIONS;
+    }
     if (selectedPersona?.purposes?.length) {
       return selectedPersona.purposes;
     }
@@ -2090,6 +2118,8 @@ function CallCommandPageContent() {
     toTextValue(selectedPersona?.defaultTechnicalLevel, 'general'),
   ) || 'general';
   const purposeValue = purposeInput.trim() || 'general';
+  const normalizedPurposeValue = purposeValue.toLowerCase();
+  const purposeIsRelationshipFlow = RELATIONSHIP_CALL_FLOW_TYPE_SET.has(normalizedPurposeValue);
   const voiceModelValue = voiceModelInput.trim();
   const resolvedVoiceModelValue = voiceSelectionInput === CALL_VOICE_CUSTOM_ID
     ? voiceModelValue
@@ -2116,6 +2146,9 @@ function CallCommandPageContent() {
   const selectedScriptUrgency = toTextValue(selectedScriptPersonaConfig?.urgency);
   const selectedScriptTechnicalLevel = toTextValue(selectedScriptPersonaConfig?.technical_level);
   const selectedScriptFlowTypes = useMemo(() => toFlowTypes(selectedScript), [selectedScript]);
+  const selectedScriptRelationshipFlow = useMemo(() => (
+    selectedScriptFlowTypes.find((entry) => RELATIONSHIP_CALL_FLOW_TYPE_SET.has(entry)) || ''
+  ), [selectedScriptFlowTypes]);
   const scriptPromptValue = toTextValue(selectedScript?.prompt);
   const scriptFirstMessageValue = toTextValue(selectedScript?.first_message);
   const scriptPlaceholderTokens = useMemo(() => {
@@ -2658,7 +2691,10 @@ function CallCommandPageContent() {
                 )
                 : undefined,
               voice_model: selectedScriptVoiceModel || undefined,
-              purpose: selectedScriptPurpose || undefined,
+              purpose: selectedScriptPurpose || selectedScriptRelationshipFlow || undefined,
+              call_profile: selectedScriptRelationshipFlow || undefined,
+              conversation_profile: selectedScriptRelationshipFlow || undefined,
+              conversation_profile_lock: selectedScriptRelationshipFlow ? true : undefined,
               emotion: selectedScriptEmotion || undefined,
               urgency: selectedScriptUrgency || undefined,
               technical_level: selectedScriptTechnicalLevel || undefined,
@@ -2673,8 +2709,9 @@ function CallCommandPageContent() {
               ),
               purpose: purposeValue,
               script: selectedPersona?.custom ? 'custom' : selectedPersona?.id || 'custom',
-              conversation_profile: purposeValue !== 'general' ? purposeValue : undefined,
-              conversation_profile_lock: purposeValue !== 'general' ? true : undefined,
+              call_profile: purposeIsRelationshipFlow ? normalizedPurposeValue : undefined,
+              conversation_profile: purposeIsRelationshipFlow ? normalizedPurposeValue : undefined,
+              conversation_profile_lock: purposeIsRelationshipFlow ? true : undefined,
               voice_model: resolvedVoiceModelValue || undefined,
               emotion: emotionValue !== 'auto' ? emotionValue : undefined,
               urgency: urgencyValue !== 'auto' ? urgencyValue : undefined,
@@ -3207,6 +3244,16 @@ function CallCommandPageContent() {
                         description={`Purpose ${callPurposeLabel} | tone ${recommendedMoodLabel} | urgency ${recommendedUrgencyLabel} | technical level ${recommendedTechLevelLabel}`}
                         tone="info"
                       />
+                      {selectedPersona?.custom ? (
+                        <UiStatePanel
+                          compact
+                          title="Custom flow binding"
+                          description={purposeIsRelationshipFlow
+                            ? `${callPurposeLabel} will be locked as the conversation profile for this launch, matching bot custom-flow behavior.`
+                            : 'General flow selected. No relationship profile lock will be applied.'}
+                          tone={purposeIsRelationshipFlow ? 'info' : 'success'}
+                        />
+                      ) : null}
                       {voiceSelectionInput === CALL_VOICE_CUSTOM_ID ? (
                         <UiInput
                           aria-label="Voice model"

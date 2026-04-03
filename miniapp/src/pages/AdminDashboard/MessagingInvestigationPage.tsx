@@ -99,29 +99,32 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     + (historySnapshot.length > 0 ? 1 : 0);
   const activeFilterCount = [statusSid, conversationPhone, messageId, jobId]
     .filter((value) => value.length > 0).length;
-  const canManageSms = hasCapability('sms_bulk_manage');
+  const canCheckSmsStatus = hasCapability('sms_bulk_manage');
+  const canRunSmsDiagnostics = hasCapability('users_manage');
   const canManageEmail = hasCapability('email_bulk_manage');
   const hasAnyInvestigationData = hasSmsInvestigationData || hasEmailInvestigationData;
   const pulseTone: 'info' | 'success' | 'warning' | 'error' = investigationError
     ? 'error'
     : controlsBusy
       ? 'info'
-      : !hasAnyInvestigationData || !canManageSms || !canManageEmail
+      : !hasAnyInvestigationData || !canCheckSmsStatus || !canManageEmail
         ? 'warning'
         : 'success';
   const pulseStatus = investigationError
     ? 'Needs attention'
     : controlsBusy
       ? 'Working'
-      : !hasAnyInvestigationData || !canManageSms || !canManageEmail
+      : !hasAnyInvestigationData || !canCheckSmsStatus || !canManageEmail
         ? 'Needs input'
         : 'Ready';
   const pulseDescription = investigationError
     ? investigationError
     : controlsBusy
       ? activeActionLabel ? `${activeActionLabel} is in progress.` : 'Messaging diagnostics are in progress.'
-      : !canManageSms && !canManageEmail
+      : !canCheckSmsStatus && !canManageEmail
         ? 'SMS and email diagnostics are unavailable for this account.'
+        : !canRunSmsDiagnostics
+          ? 'SMS status checks are available. Conversation, recent history, and stats require admin access.'
         : !hasAnyInvestigationData
           ? 'Choose an SMS or email lookup to load the first diagnostic artifact.'
           : 'SMS and email snapshots stay available together for cross-channel investigation.';
@@ -185,7 +188,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           { label: 'SMS artifacts', value: smsArtifactsCount },
           { label: 'Email artifacts', value: emailArtifactsCount },
           { label: 'Active filters', value: activeFilterCount },
-          { label: 'Channel access', value: `${canManageSms ? 'SMS' : 'No SMS'} / ${canManageEmail ? 'Email' : 'No email'}` },
+          { label: 'Channel access', value: `${canCheckSmsStatus ? 'SMS status' : 'No SMS'} / ${canManageEmail ? 'Email' : 'No email'}` },
         ]}
       />
 
@@ -226,12 +229,20 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         <section className="va-grid">
           <UiCard className="va-investigation-card">
           <h3>SMS Investigation</h3>
-          {!canManageSms ? (
+          {!canCheckSmsStatus ? (
             <UiStatePanel
               compact
               title="SMS diagnostics unavailable"
-              description="Your account needs SMS bulk management capability to run SMS diagnostic actions."
+              description="Your account needs SMS bulk management capability to run SMS status checks."
               tone="warning"
+            />
+          ) : null}
+          {canCheckSmsStatus && !canRunSmsDiagnostics ? (
+            <UiStatePanel
+              compact
+              title="Admin diagnostics are locked"
+              description="Conversation history, recent messages, and stats are available to admins."
+              tone="info"
             />
           ) : null}
           {!hasSmsInvestigationData ? (
@@ -249,14 +260,14 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
               <>
                 <UiButton
                   variant="secondary"
-                  disabled={controlsBusy || !canManageSms}
+                  disabled={controlsBusy || !canRunSmsDiagnostics}
                   onClick={runSmsRecentLookup}
                 >
                   Recent
                 </UiButton>
                 <UiButton
                   variant="secondary"
-                  disabled={controlsBusy || !canManageSms}
+                  disabled={controlsBusy || !canRunSmsDiagnostics}
                   onClick={runSmsStatsLookup}
                 >
                   Stats
@@ -272,7 +283,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !statusSid || !canManageSms}
+              disabled={controlsBusy || !statusSid || !canCheckSmsStatus}
               onClick={runSmsStatusLookup}
             >
               Check Status
@@ -286,7 +297,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
             />
             <UiButton
               variant="secondary"
-              disabled={controlsBusy || !conversationPhone || !canManageSms}
+              disabled={controlsBusy || !conversationPhone || !canRunSmsDiagnostics}
               onClick={runSmsConversationLookup}
             >
               Load Conversation

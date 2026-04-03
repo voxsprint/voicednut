@@ -142,7 +142,7 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
   },
   sms: {
     label: 'SMS Sender',
-    capability: 'sms_bulk_manage',
+    capability: 'users_manage',
   },
   mailer: {
     label: 'Mailer Console',
