@@ -1,5 +1,10 @@
 import { asRecord, toText } from '@/services/admin-dashboard/dashboardPrimitives';
-import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
+import {
+  DASHBOARD_ACTION_CONTRACTS,
+  DASHBOARD_MODULE_ACTION_IDS,
+} from '@/contracts/miniappParityContracts';
+
+type DashboardFixtureRole = 'admin' | 'operator' | 'viewer';
 
 const DASHBOARD_ALL_CAPS = [
   'dashboard_view',
@@ -25,17 +30,133 @@ const DASHBOARD_ALL_MODULES = [
   'audit',
 ] as const;
 
-function createDashboardFixturePayload(nowIso: string): Record<string, unknown> {
+const DASHBOARD_FIXTURE_ROLE_QUERY_PARAM = 'fixtureRole';
+
+const DASHBOARD_CAPS_BY_ROLE: Record<DashboardFixtureRole, readonly string[]> = {
+  admin: DASHBOARD_ALL_CAPS,
+  operator: ['dashboard_view'],
+  viewer: [],
+};
+
+const DASHBOARD_SUPPORTED_ACTIONS = [...DASHBOARD_MODULE_ACTION_IDS];
+
+const CALL_PERSONA_FIXTURE_BUILTIN = [
+  {
+    id: 'general',
+    label: 'General',
+    description: 'General voice call assistant',
+    purposes: [{ id: 'general', label: 'General' }],
+    default_purpose: 'general',
+    default_emotion: 'neutral',
+    default_urgency: 'normal',
+    default_technical_level: 'general',
+  },
+  {
+    id: 'technical_support',
+    label: 'Technical Support',
+    description: 'Guides callers through troubleshooting and onboarding steps.',
+    purposes: [
+      {
+        id: 'general',
+        label: 'General Troubleshooting',
+        default_emotion: 'frustrated',
+        default_urgency: 'normal',
+        default_technical_level: 'novice',
+      },
+      {
+        id: 'installation',
+        label: 'Installation Help',
+        default_emotion: 'confused',
+        default_urgency: 'normal',
+        default_technical_level: 'general',
+      },
+      {
+        id: 'outage',
+        label: 'Service Outage',
+        default_emotion: 'urgent',
+        default_urgency: 'high',
+        default_technical_level: 'advanced',
+      },
+    ],
+    default_purpose: 'general',
+    default_emotion: 'frustrated',
+    default_urgency: 'normal',
+    default_technical_level: 'novice',
+  },
+  {
+    id: 'finance',
+    label: 'Financial Services',
+    description: 'Covers account alerts, payment reminders, and fraud reviews.',
+    purposes: [
+      {
+        id: 'security',
+        label: 'Security Alert',
+        default_emotion: 'urgent',
+        default_urgency: 'high',
+        default_technical_level: 'general',
+      },
+      {
+        id: 'payment',
+        label: 'Payment Reminder',
+        default_emotion: 'neutral',
+        default_urgency: 'normal',
+        default_technical_level: 'general',
+      },
+      {
+        id: 'fraud',
+        label: 'Fraud Investigation',
+        default_emotion: 'urgent',
+        default_urgency: 'critical',
+        default_technical_level: 'advanced',
+      },
+    ],
+    default_purpose: 'security',
+    default_emotion: 'urgent',
+    default_urgency: 'high',
+    default_technical_level: 'advanced',
+  },
+];
+
+function isDashboardFixtureRole(value: unknown): value is DashboardFixtureRole {
+  return value === 'admin' || value === 'operator' || value === 'viewer';
+}
+
+function resolveDashboardFixtureRole(): DashboardFixtureRole {
+  const envRole = String(import.meta.env.VITE_ADMIN_DASHBOARD_DEV_FIXTURE_ROLE || '')
+    .trim()
+    .toLowerCase();
+  let requestedRole = envRole;
+
+  if (typeof window !== 'undefined') {
+    const queryRole = new URLSearchParams(window.location.search)
+      .get(DASHBOARD_FIXTURE_ROLE_QUERY_PARAM)
+      ?.trim()
+      .toLowerCase();
+    if (queryRole) {
+      requestedRole = queryRole;
+    }
+  }
+
+  return isDashboardFixtureRole(requestedRole) ? requestedRole : 'admin';
+}
+
+function createDashboardFixturePayload(
+  nowIso: string,
+  role: DashboardFixtureRole,
+): Record<string, unknown> {
+  const sessionCaps = [...DASHBOARD_CAPS_BY_ROLE[role]];
   return {
     success: true,
     poll_interval_seconds: 15,
     poll_at: nowIso,
     server_time: nowIso,
+    supported_actions: DASHBOARD_SUPPORTED_ACTIONS,
+    supported_action_count: DASHBOARD_SUPPORTED_ACTIONS.length,
     session: {
       telegram_id: 1,
-      role: 'admin',
+      role,
       role_source: 'dev_fixture',
-      caps: [...DASHBOARD_ALL_CAPS],
+      caps: sessionCaps,
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
     module_layout: {
@@ -159,7 +280,7 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
       rows: [
         {
           telegram_id: 1,
-          role: 'admin',
+          role,
           role_source: 'dev_fixture',
           total_calls: 0,
           successful_calls: 0,
@@ -268,6 +389,7 @@ function createDashboardFixturePayload(nowIso: string): Record<string, unknown> 
 function resolveDashboardFixtureActionData(
   action: string,
   nowIso: string,
+  role: DashboardFixtureRole,
   payload: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const requestedCallSid = toText(payload.call_sid, '').trim() || 'CA_FIXTURE_CALL_001';
@@ -347,7 +469,7 @@ function resolveDashboardFixtureActionData(
         rows: [
           {
             telegram_id: 1,
-            role: 'admin',
+            role,
             role_source: 'dev_fixture',
             total_calls: 0,
             successful_calls: 0,
@@ -394,8 +516,16 @@ function resolveDashboardFixtureActionData(
 
 export function resolveDashboardFixtureRequest(path: string, options: RequestInit = {}): unknown {
   const nowIso = new Date().toISOString();
+  const role = resolveDashboardFixtureRole();
   if (path === '/miniapp/bootstrap' || path === '/miniapp/jobs/poll') {
-    return createDashboardFixturePayload(nowIso);
+    return createDashboardFixturePayload(nowIso, role);
+  }
+  if (path === '/api/personas') {
+    return {
+      success: true,
+      builtin: CALL_PERSONA_FIXTURE_BUILTIN,
+      custom: [],
+    };
   }
   if (path === '/miniapp/calls/active') {
     return {
@@ -416,7 +546,7 @@ export function resolveDashboardFixtureRequest(path: string, options: RequestIni
     const payload = asRecord(parsedBody.payload);
     return {
       success: true,
-      data: resolveDashboardFixtureActionData(action, nowIso, payload),
+      data: resolveDashboardFixtureActionData(action, nowIso, role, payload),
     };
   }
   return { success: true };

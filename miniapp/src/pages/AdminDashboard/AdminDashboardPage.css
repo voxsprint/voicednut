@@ -677,6 +677,10 @@
   .va-status-diagnostics-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .va-home-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .va-grid {
@@ -843,6 +847,10 @@
   .va-launcher-card:hover {
     transform: translateY(-1px);
   }
+
+  .va-home-action-card:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .va-launcher-glyph {
@@ -920,6 +928,134 @@
 
 .va-shell-guide-block {
   margin-top: calc(var(--app-space-2) * -1);
+}
+
+.va-home-briefing {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+.va-home-grid {
+  margin-bottom: 0;
+}
+
+.va-home-panel {
+  margin-bottom: 0;
+}
+
+.va-home-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-space-2);
+}
+
+.va-home-action-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 84px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 86%, rgba(255, 255, 255, 0.08));
+  border-radius: var(--app-radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 96%, transparent)),
+    color-mix(in srgb, var(--app-color-card-telegram) 90%, transparent);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--va-shadow);
+  transition:
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    border-color var(--app-motion-fast) var(--app-ease-standard),
+    background-color var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.va-home-action-card:hover {
+  border-color: color-mix(in srgb, var(--app-color-primary) 48%, var(--app-color-border));
+}
+
+.va-home-action-card:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+  box-shadow:
+    var(--va-shadow),
+    0 0 0 2px color-mix(in srgb, var(--app-color-primary) 44%, transparent);
+}
+
+.va-home-action-glyph {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #d8e6ff;
+  border: 1px solid rgba(106, 142, 209, 0.34);
+  background: rgba(58, 90, 155, 0.4);
+}
+
+.va-home-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.va-home-action-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.va-home-action-copy strong {
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.va-home-action-copy span:last-child {
+  color: var(--tg-theme-hint-color, var(--va-muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.va-home-continue-list {
+  align-self: start;
+}
+
+.va-home-admin-list {
+  align-self: start;
+}
+
+.va-home-continue-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+.va-home-admin-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+.va-home-continue-row:hover {
+  background: color-mix(in srgb, var(--app-color-primary) 8%, transparent);
+}
+
+.va-home-admin-row:hover {
+  background: color-mix(in srgb, var(--app-color-warning) 8%, transparent);
+}
+
+.va-home-continue-detail {
+  color: var(--tg-theme-hint-color, var(--va-muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.va-home-empty-panel {
+  display: grid;
+  gap: var(--app-space-2);
+  align-self: start;
 }
 
 .va-shell-guide-block .va-disclosure {

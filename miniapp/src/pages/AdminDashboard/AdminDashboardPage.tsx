@@ -388,10 +388,6 @@ export function AdminDashboardPage() {
     setNoticeTone,
   });
 
-  const resolveEventStreamUrl = useCallback((path: string): string => (
-    buildEventStreamUrl(path, API_BASE_URL)
-  ), []);
-
   const { userLabel, userAvatarUrl, userAvatarFallback } = useMemo(() => {
     const pollSession = asRecord(pollPayload?.session);
     const bootstrapSession = asRecord(bootstrap?.session);
@@ -562,6 +558,13 @@ export function AdminDashboardPage() {
     () => resolveRealtimeTransportContract(pollPayload, bootstrap),
     [bootstrap, pollPayload],
   );
+  const resolveEventStreamUrl = useCallback((path: string): string => (
+    buildEventStreamUrl(path, API_BASE_URL, {
+      authMode: realtimeTransport.authMode,
+      authQueryParam: realtimeTransport.authQueryParam,
+      token,
+    })
+  ), [realtimeTransport.authMode, realtimeTransport.authQueryParam, token]);
   const streamStaleAfterMs = Math.max(STREAM_STALE_FALLBACK_MS, serverPollIntervalMs * 3);
 
   const {
@@ -1454,6 +1457,11 @@ export function AdminDashboardPage() {
         queueBacklogTotal={queueBacklogTotal}
         lastSuccessfulPollLabel={lastSuccessfulPollLabel}
         visibleModulesCount={visibleModules.length}
+        sessionRole={sessionRole}
+        activityLog={activityLog}
+        callLogs={callLogs}
+        emailJobs={emailJobs}
+        incidentRows={incidentRows}
         onRefreshAccess={handleRefresh}
         showModuleSkeleton={showModuleSkeleton}
         groupedVisibleModules={groupedVisibleModules}

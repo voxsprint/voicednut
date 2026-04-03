@@ -103,6 +103,25 @@ function abortError(): DOMException {
   return new DOMException('The operation was aborted.', 'AbortError');
 }
 
+function mergeDashboardPayload(
+  previous: DashboardApiPayload | null,
+  next: DashboardApiPayload,
+): DashboardApiPayload {
+  const prevPayload = asRecord(previous) as DashboardApiPayload;
+  const prevDashboard = asRecord(prevPayload.dashboard);
+  const nextDashboard = asRecord(next.dashboard);
+  return {
+    ...prevPayload,
+    ...next,
+    dashboard: Object.keys(nextDashboard).length > 0
+      ? {
+        ...prevDashboard,
+        ...nextDashboard,
+      }
+      : prevPayload.dashboard,
+  };
+}
+
 function getRetryableHttpStatus(error: unknown): number | null {
   if (!(error instanceof Error)) return null;
   const status = Number((error as { httpStatus?: unknown }).httpStatus);
@@ -591,10 +610,7 @@ export function useDashboardSyncLoaders({
     if (hasSupportedActions(nextPayload)) {
       setDashboardSupportedActions(extractSupportedActions(nextPayload));
     }
-    setPollPayload((prev) => ({
-      ...(asRecord(prev) as DashboardApiPayload),
-      ...nextPayload,
-    }));
+    setPollPayload((prev) => mergeDashboardPayload(prev, nextPayload));
     setLastSuccessfulPollAt(Date.now());
     setPollFailureCount(0);
     setRefreshFailureDiagnostics(null);

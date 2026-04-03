@@ -580,6 +580,66 @@ The homepage/dashboard must not expose modules that are:
 - use shared avatar/user-profile components
 - standardize layout and spacing
 
+### Recommended homepage structure
+
+The homepage/dashboard should behave as the standard frontend home for the main bot, not as a slash-command mirror.
+
+- Header block: avatar, role, workspace status, one-line system posture. Keep the current top-shell idea from `DashboardTopShell.tsx`, but make the copy role-aware: `Limited access`, `Ready for work`, or `Admin console healthy`.
+- Primary action rail: 3-4 strongest actions only, based on the bot's real `/start` priorities from `bot/bot.js`. Suggested labels: `New Call`, `Messaging`, `Call History`, `System Health`.
+- Workspace launcher: keep the grouped launcher concept from `dashboardShellConfig.ts`, but rename groups and cards in operator language, not command language.
+- Recent activity / continue where you left off: recent call lookup, pending SMS batch, latest mailer job, open incident. This makes the homepage productive instead of just navigational.
+- Access-aware support block: for guests, show `Request Access`, `How It Works`, `Usage Guide`; for users, show `Help` and `Operational Rules`; for admins, show `Users & Access` and `Incident Center`.
+- Admin strip: only for admins, surface the things that `/start` and `/menu` currently elevate: `Bulk SMS`, `Mailer`, `Users`, `Caller Flags`, `Scripts`, `Provider`, `Status`.
+
+### Frontend translation
+
+Use this mapping internally, but do not show slash commands in the UI:
+
+| Bot command | Frontend label |
+|---|---|
+| `/start` | `Home` |
+| `/menu` | `Quick Actions` |
+| `/help` | `Help Center` |
+| `/guide` | `Usage Guide` |
+| `/health` | `System Health` |
+| `/status` | `Incident Status` |
+| `/smssender` | `Bulk SMS` |
+| `/mailer` | `Mailer` |
+| `/provider` | `Provider Control` |
+| `/users` | `Users & Roles` |
+
+### Sample homepage behavior
+
+#### Guest home
+
+- Hero: `Limited access`
+- Primary cards: `Explore Call Flow`, `Explore Messaging`, `View Call History`, all with lock messaging where execution is restricted
+- Secondary rows: `Usage Guide`, `Help Center`, `Request Access`
+- Empty-state message: `You can review workflows now. Execution unlocks after approval.`
+
+#### Authorized user home
+
+- Hero: `Ready to work`
+- Primary cards: `New Call`, `Messaging`, `Call History`, `System Health`
+- Continue section: `Resume last lookup`, `Recent delivery checks`
+- Secondary rows: `Help Center`, `Usage Guide`
+
+#### Admin home
+
+- Hero: `Admin console healthy`
+- Status strip: incidents, queue backlog, provider readiness, last healthy sync
+- Primary cards: `Operations`, `Bulk SMS`, `Mailer`, `Provider Control`
+- Admin tools list rows: `Users & Roles`, `Caller Flags`, `Scripts`, `Audit`
+- Bottom action bar: `Refresh`, `Settings`
+
+For each page improvement, the workflow will be:
+
+Inspect the relevant bot command handlers and supporting flows first.
+Map the real actions, states, role gates, validations, and fallback behavior.
+Improve the frontend page to match that behavior using standard app UI, not slash-command UI.
+Preserve parity with the real bot/API contract if design pressure conflicts with implementation.
+Validate the page against both the current frontend route and the command-backed behavior it represents.
+
 ## 6.3 UI inconsistency in shared profile/avatar rendering
 
 The dashboard avatar must match the same rounded/circular rendering model used on other pages.

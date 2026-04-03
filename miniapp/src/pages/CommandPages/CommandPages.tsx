@@ -115,6 +115,42 @@ type CallScriptListResponse = {
   total?: unknown;
 };
 
+type CallPersonaPurposeOption = {
+  id: string;
+  label: string;
+  emoji?: string;
+  defaultEmotion?: string;
+  defaultUrgency?: string;
+  defaultTechnicalLevel?: string;
+};
+
+type CallPersonaProfile = {
+  id: string;
+  label: string;
+  description: string;
+  emoji?: string;
+  purposes: CallPersonaPurposeOption[];
+  defaultPurpose: string;
+  defaultEmotion?: string;
+  defaultUrgency?: string;
+  defaultTechnicalLevel?: string;
+  custom: boolean;
+  dynamic: boolean;
+};
+
+type CallPersonaCatalogResponse = {
+  success?: boolean;
+  builtin?: unknown;
+  custom?: unknown;
+};
+
+type CallVoiceModelOption = {
+  id: string;
+  label: string;
+  gender: string;
+  style: string;
+};
+
 type EmailCommandPreviewResponse = {
   success?: boolean;
   ok?: boolean;
@@ -253,6 +289,10 @@ const CALL_WORKFLOW_MODE_OPTIONS: ReadonlyArray<{ id: CallWorkflowMode; label: s
   { id: 'script', label: 'Script template workflow' },
 ];
 
+const CALL_CUSTOM_PERSONA_ID = 'custom';
+const CALL_VOICE_AUTO_ID = 'auto';
+const CALL_VOICE_CUSTOM_ID = 'custom';
+
 const CALL_PURPOSE_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'general', label: 'General' },
   { id: 'general_outreach', label: 'General outreach' },
@@ -285,6 +325,220 @@ const CALL_TECH_LEVEL_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'general', label: 'General audience' },
   { id: 'novice', label: 'Beginner-friendly' },
   { id: 'advanced', label: 'Advanced / technical specialist' },
+];
+
+const CALL_FALLBACK_PERSONAS: ReadonlyArray<CallPersonaProfile> = [
+  {
+    id: CALL_CUSTOM_PERSONA_ID,
+    label: 'Custom Persona',
+    description: 'Manually configure prompt, first message, and tone for ad-hoc outbound calls.',
+    defaultPurpose: 'general',
+    defaultEmotion: 'neutral',
+    defaultUrgency: 'normal',
+    defaultTechnicalLevel: 'general',
+    purposes: [{ id: 'general', label: 'General' }],
+    custom: true,
+    dynamic: false,
+  },
+  {
+    id: 'technical_support',
+    label: 'Technical Support',
+    emoji: '🛠️',
+    description: 'Guides callers through troubleshooting steps and software onboarding.',
+    defaultPurpose: 'general',
+    defaultEmotion: 'frustrated',
+    defaultUrgency: 'normal',
+    defaultTechnicalLevel: 'novice',
+    purposes: [
+      {
+        id: 'general',
+        label: 'General Troubleshooting',
+        emoji: '🛠️',
+        defaultEmotion: 'frustrated',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'novice',
+      },
+      {
+        id: 'installation',
+        label: 'Installation Help',
+        emoji: '💿',
+        defaultEmotion: 'confused',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'outage',
+        label: 'Service Outage',
+        emoji: '🚨',
+        defaultEmotion: 'urgent',
+        defaultUrgency: 'high',
+        defaultTechnicalLevel: 'advanced',
+      },
+    ],
+    custom: false,
+    dynamic: false,
+  },
+  {
+    id: 'healthcare',
+    label: 'Healthcare Services',
+    emoji: '🩺',
+    description: 'Coordinates patient reminders, follow-ups, and care outreach.',
+    defaultPurpose: 'appointment',
+    defaultEmotion: 'positive',
+    defaultUrgency: 'normal',
+    defaultTechnicalLevel: 'general',
+    purposes: [
+      {
+        id: 'appointment',
+        label: 'Appointment Reminder',
+        emoji: '📅',
+        defaultEmotion: 'positive',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'follow_up',
+        label: 'Post-Visit Follow-up',
+        emoji: '📋',
+        defaultEmotion: 'empathetic',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'wellness_check',
+        label: 'Wellness Check',
+        emoji: '💙',
+        defaultEmotion: 'empathetic',
+        defaultUrgency: 'low',
+        defaultTechnicalLevel: 'general',
+      },
+    ],
+    custom: false,
+    dynamic: false,
+  },
+  {
+    id: 'finance',
+    label: 'Financial Services',
+    emoji: '💳',
+    description: 'Delivers account alerts, security notices, and payment reminders.',
+    defaultPurpose: 'security',
+    defaultEmotion: 'urgent',
+    defaultUrgency: 'high',
+    defaultTechnicalLevel: 'advanced',
+    purposes: [
+      {
+        id: 'security',
+        label: 'Security Alert',
+        emoji: '🔐',
+        defaultEmotion: 'urgent',
+        defaultUrgency: 'high',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'payment',
+        label: 'Payment Reminder',
+        emoji: '🧾',
+        defaultEmotion: 'neutral',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'fraud',
+        label: 'Fraud Investigation',
+        emoji: '🚔',
+        defaultEmotion: 'urgent',
+        defaultUrgency: 'critical',
+        defaultTechnicalLevel: 'advanced',
+      },
+    ],
+    custom: false,
+    dynamic: false,
+  },
+  {
+    id: 'hospitality',
+    label: 'Hospitality & Guest Services',
+    emoji: '🏨',
+    description: 'Handles reservations, service recovery, and VIP outreach.',
+    defaultPurpose: 'recovery',
+    defaultEmotion: 'empathetic',
+    defaultUrgency: 'normal',
+    defaultTechnicalLevel: 'general',
+    purposes: [
+      {
+        id: 'reservation',
+        label: 'Reservation Follow-up',
+        emoji: '📞',
+        defaultEmotion: 'positive',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'recovery',
+        label: 'Service Recovery',
+        emoji: '💡',
+        defaultEmotion: 'empathetic',
+        defaultUrgency: 'high',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'vip_outreach',
+        label: 'VIP Outreach',
+        emoji: '⭐',
+        defaultEmotion: 'positive',
+        defaultUrgency: 'low',
+        defaultTechnicalLevel: 'general',
+      },
+    ],
+    custom: false,
+    dynamic: false,
+  },
+  {
+    id: 'emergency_response',
+    label: 'Emergency Response',
+    emoji: '🚑',
+    description: 'Coordinates critical incident response and escalation workflows.',
+    defaultPurpose: 'incident',
+    defaultEmotion: 'urgent',
+    defaultUrgency: 'critical',
+    defaultTechnicalLevel: 'advanced',
+    purposes: [
+      {
+        id: 'incident',
+        label: 'Incident Response',
+        emoji: '⚠️',
+        defaultEmotion: 'urgent',
+        defaultUrgency: 'critical',
+        defaultTechnicalLevel: 'advanced',
+      },
+      {
+        id: 'safety_check',
+        label: 'Safety Check',
+        emoji: '🆘',
+        defaultEmotion: 'urgent',
+        defaultUrgency: 'high',
+        defaultTechnicalLevel: 'general',
+      },
+      {
+        id: 'drill',
+        label: 'Emergency Drill',
+        emoji: '🛡️',
+        defaultEmotion: 'neutral',
+        defaultUrgency: 'normal',
+        defaultTechnicalLevel: 'general',
+      },
+    ],
+    custom: false,
+    dynamic: false,
+  },
+];
+
+const CALL_FALLBACK_VOICE_MODELS: ReadonlyArray<CallVoiceModelOption> = [
+  { id: 'aura-2-andromeda-en', label: 'aura-2-andromeda-en', gender: 'female', style: 'balanced' },
+  { id: 'aura-2-helena-en', label: 'aura-2-helena-en', gender: 'female', style: 'warm' },
+  { id: 'aura-2-thalia-en', label: 'aura-2-thalia-en', gender: 'female', style: 'clear' },
+  { id: 'aura-2-arcas-en', label: 'aura-2-arcas-en', gender: 'male', style: 'grounded' },
+  { id: 'aura-2-aries-en', label: 'aura-2-aries-en', gender: 'male', style: 'confident' },
+  { id: 'aura-asteria-en', label: 'aura-asteria-en', gender: 'female', style: 'bright' },
 ];
 
 const ACTIVE_CALL_CONSOLE_STORAGE_PREFIX = 'voxly-miniapp-active-call-console';
@@ -854,6 +1108,98 @@ function parseCallbackToken(raw: string): { baseAction: string; suffix: string }
     baseAction: trimmed.slice(0, separatorIndex).trim().toUpperCase(),
     suffix: trimmed.slice(separatorIndex + 1).trim(),
   };
+}
+
+function normalizeCallPersonaPurpose(value: unknown): CallPersonaPurposeOption | null {
+  const record = asRecord(value);
+  const id = toText(record.id ?? record.slug ?? record.name, '').trim();
+  if (!id) return null;
+  return {
+    id,
+    label: toText(record.label ?? record.name, id).trim() || id,
+    emoji: toText(record.emoji, '').trim() || undefined,
+    defaultEmotion: toText(record.defaultEmotion ?? record.default_emotion, '').trim() || undefined,
+    defaultUrgency: toText(record.defaultUrgency ?? record.default_urgency, '').trim() || undefined,
+    defaultTechnicalLevel: toText(
+      record.defaultTechnicalLevel ?? record.default_technical_level,
+      '',
+    ).trim() || undefined,
+  };
+}
+
+function normalizeCallPersonaProfile(value: unknown): CallPersonaProfile | null {
+  const record = asRecord(value);
+  const id = toText(record.slug ?? record.id, '').trim();
+  if (!id) return null;
+  const purposes = Array.isArray(record.purposes)
+    ? record.purposes.map(normalizeCallPersonaPurpose).filter(Boolean) as CallPersonaPurposeOption[]
+    : [];
+  const defaultPurpose = toText(
+    record.defaultPurpose ?? record.default_purpose,
+    purposes[0]?.id || 'general',
+  ).trim() || 'general';
+  return {
+    id,
+    label: toText(record.label ?? record.name, id).trim() || id,
+    description: toText(record.description, '').trim(),
+    emoji: toText(record.emoji, '').trim() || undefined,
+    purposes,
+    defaultPurpose,
+    defaultEmotion: toText(record.defaultEmotion ?? record.default_emotion, '').trim() || undefined,
+    defaultUrgency: toText(record.defaultUrgency ?? record.default_urgency, '').trim() || undefined,
+    defaultTechnicalLevel: toText(
+      record.defaultTechnicalLevel ?? record.default_technical_level,
+      '',
+    ).trim() || undefined,
+    custom: Boolean(record.custom || id === CALL_CUSTOM_PERSONA_ID),
+    dynamic: Boolean(record.slug && id !== CALL_CUSTOM_PERSONA_ID),
+  };
+}
+
+function mergeCallPersonaProfiles(
+  primary: CallPersonaProfile[],
+  fallback: ReadonlyArray<CallPersonaProfile>,
+): CallPersonaProfile[] {
+  const merged = new Map<string, CallPersonaProfile>();
+  primary.forEach((profile) => {
+    merged.set(profile.id, profile);
+  });
+  fallback.forEach((profile) => {
+    if (profile.custom || !merged.has(profile.id)) {
+      merged.set(profile.id, merged.get(profile.id) || profile);
+    }
+  });
+  return [...merged.values()];
+}
+
+function buildCallPersonaOptionLabel(profile: CallPersonaProfile): string {
+  if (profile.custom) return 'Custom Persona';
+  return profile.emoji ? `${profile.emoji} ${profile.label}` : profile.label;
+}
+
+function buildCallVoiceOptionLabel(option: CallVoiceModelOption): string {
+  if (option.gender === 'male') return `${option.label} (male, ${option.style})`;
+  if (option.gender === 'female') return `${option.label} (female, ${option.style})`;
+  return `${option.label} (${option.style})`;
+}
+
+function buildPersonalizedCallFirstMessage(
+  baseMessage: string,
+  victimName: string,
+  personaLabel: string,
+): string {
+  if (!victimName) {
+    return baseMessage;
+  }
+  const greeting = `Hello ${victimName}!`;
+  const trimmedBase = baseMessage.trim();
+  if (!trimmedBase) {
+    const brandLabel = personaLabel || 'our team';
+    return `${greeting} Welcome to ${brandLabel}!`;
+  }
+  const withoutExistingGreeting = trimmedBase.replace(/^hello[^.!?]*[.!?]?\s*/i, '').trim();
+  const remainder = withoutExistingGreeting || trimmedBase;
+  return `${greeting} ${remainder}`;
 }
 
 function toCallScriptRows(value: unknown): CallScriptRecord[] {
@@ -1668,9 +2014,15 @@ function CallCommandPageContent() {
   const [workflowMode, setWorkflowMode] = useState<CallWorkflowMode>('custom');
   const [numberInput, setNumberInput] = useState<string>('');
   const [customerNameInput, setCustomerNameInput] = useState<string>('');
+  const [personaCatalogLoading, setPersonaCatalogLoading] = useState<boolean>(false);
+  const [personaCatalogLoaded, setPersonaCatalogLoaded] = useState<boolean>(false);
+  const [personaCatalogError, setPersonaCatalogError] = useState<string>('');
+  const [personaProfiles, setPersonaProfiles] = useState<CallPersonaProfile[]>([...CALL_FALLBACK_PERSONAS]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>(CALL_CUSTOM_PERSONA_ID);
   const [purposeInput, setPurposeInput] = useState<string>('general');
   const [promptInput, setPromptInput] = useState<string>('');
   const [firstMessageInput, setFirstMessageInput] = useState<string>('');
+  const [voiceSelectionInput, setVoiceSelectionInput] = useState<string>(CALL_VOICE_AUTO_ID);
   const [voiceModelInput, setVoiceModelInput] = useState<string>('');
   const [emotionInput, setEmotionInput] = useState<string>('auto');
   const [urgencyInput, setUrgencyInput] = useState<string>('auto');
@@ -1707,8 +2059,41 @@ function CallCommandPageContent() {
   const promptValue = promptInput.trim();
   const firstMessageValue = firstMessageInput.trim();
   const customerNameValue = customerNameInput.trim();
+  const selectedPersona = useMemo(() => (
+    personaProfiles.find((entry) => entry.id === selectedPersonaId)
+    || personaProfiles.find((entry) => entry.custom)
+    || personaProfiles[0]
+    || null
+  ), [personaProfiles, selectedPersonaId]);
+  const personaPurposeOptions = useMemo(() => {
+    if (selectedPersona?.purposes?.length) {
+      return selectedPersona.purposes;
+    }
+    return CALL_PURPOSE_OPTIONS.map((option) => ({
+      id: option.id,
+      label: option.label,
+    })) as CallPersonaPurposeOption[];
+  }, [selectedPersona]);
+  const selectedPurposeOption = useMemo(() => (
+    personaPurposeOptions.find((entry) => entry.id === purposeInput) || null
+  ), [personaPurposeOptions, purposeInput]);
+  const recommendedEmotionId = toTextValue(
+    selectedPurposeOption?.defaultEmotion,
+    toTextValue(selectedPersona?.defaultEmotion, 'neutral'),
+  ) || 'neutral';
+  const recommendedUrgencyId = toTextValue(
+    selectedPurposeOption?.defaultUrgency,
+    toTextValue(selectedPersona?.defaultUrgency, 'normal'),
+  ) || 'normal';
+  const recommendedTechnicalLevelId = toTextValue(
+    selectedPurposeOption?.defaultTechnicalLevel,
+    toTextValue(selectedPersona?.defaultTechnicalLevel, 'general'),
+  ) || 'general';
   const purposeValue = purposeInput.trim() || 'general';
   const voiceModelValue = voiceModelInput.trim();
+  const resolvedVoiceModelValue = voiceSelectionInput === CALL_VOICE_CUSTOM_ID
+    ? voiceModelValue
+    : (voiceSelectionInput === CALL_VOICE_AUTO_ID ? '' : voiceSelectionInput);
   const emotionValue = emotionInput.trim() || 'auto';
   const urgencyValue = urgencyInput.trim() || 'auto';
   const technicalLevelValue = technicalLevelInput.trim() || 'auto';
@@ -1754,6 +2139,9 @@ function CallCommandPageContent() {
   const resolvedScriptFirstMessageValue = scriptFirstMessageValue
     ? replacePlaceholders(scriptFirstMessageValue, resolvedScriptPlaceholderValues)
     : '';
+  const unresolvedScriptPlaceholderTokens = useMemo(() => (
+    scriptPlaceholderTokens.filter((token) => !resolvedScriptPlaceholderValues[token])
+  ), [resolvedScriptPlaceholderValues, scriptPlaceholderTokens]);
   const requiresPaymentProviderGuard = workflowMode === 'script'
     && selectedScriptFlowTypes.includes('payment_collection');
   const paymentProviderGuardBlocked = requiresPaymentProviderGuard
@@ -1782,16 +2170,26 @@ function CallCommandPageContent() {
     if (!firstMessageValue) {
       missingRequirements.push('First message required');
     }
+    if (voiceSelectionInput === CALL_VOICE_CUSTOM_ID && !voiceModelValue) {
+      missingRequirements.push('Custom voice ID required or switch back to auto');
+    }
   }
 
   const canSubmit = canOperate && missingRequirements.length === 0 && !submitting;
   const warningList = toWarningList(submitResult?.warnings);
+  const selectedScriptLifecycleLabel = toTextValue(selectedScript?.lifecycle_state, 'draft');
+  const scriptSelectionSourceLabel = canBrowseScripts ? 'Live script catalog' : 'Known script ID';
+  const selectedScriptFlowLabel = selectedScript ? toFlowTypeLabel(selectedScript) : '';
+  const scriptVoiceRoutingLabel = selectedScriptVoiceModel || 'Auto / provider default';
+  const scriptPlaceholderSummary = scriptPlaceholderTokens.length > 0
+    ? `${Object.keys(resolvedScriptPlaceholderValues).length}/${scriptPlaceholderTokens.length} placeholder values provided`
+    : 'No script placeholders detected';
   const scriptSummaryLines = selectedScript ? [
     `Script: ${selectedScriptName}`,
     `Script ID: ${selectedScriptId}`,
-    `Flow: ${toFlowTypeLabel(selectedScript)}`,
+    `Flow: ${selectedScriptFlowLabel}`,
     `Version: v${selectedScriptVersion || 1}`,
-    `Lifecycle: ${toTextValue(selectedScript.lifecycle_state, 'draft')}`,
+    `Lifecycle: ${selectedScriptLifecycleLabel}`,
     ...(selectedScriptBusinessId ? [`Business: ${selectedScriptBusinessId}`] : []),
     ...(selectedScriptVoiceModel ? [`Voice model: ${selectedScriptVoiceModel}`] : []),
     ...(selectedScriptPurpose ? [`Purpose: ${selectedScriptPurpose}`] : []),
@@ -1799,29 +2197,16 @@ function CallCommandPageContent() {
     ...(selectedScriptUrgency ? [`Urgency: ${selectedScriptUrgency}`] : []),
     ...(selectedScriptTechnicalLevel ? [`Technical level: ${selectedScriptTechnicalLevel}`] : []),
     ...(selectedScriptObjectiveTags.length > 0 ? [`Objective tags: ${selectedScriptObjectiveTags.join(', ')}`] : []),
+    ...(scriptPlaceholderTokens.length > 0 ? [`Placeholder coverage: ${scriptPlaceholderSummary}`] : []),
+    ...(unresolvedScriptPlaceholderTokens.length > 0
+      ? [`Unresolved placeholders remain: ${unresolvedScriptPlaceholderTokens.join(', ')}`]
+      : []),
     ...(Object.keys(resolvedScriptPlaceholderValues).length > 0
       ? [`Variables: ${Object.entries(resolvedScriptPlaceholderValues).map(([key, value]) => `${key}=${value}`).join(', ')}`]
       : []),
   ] : [];
 
-  const callBriefLines = [
-    `Number: ${numberValid ? normalizedNumber : 'Missing valid E.164 number'}`,
-    customerNameValue ? `Customer: ${customerNameValue}` : 'Customer: optional',
-    `Mode: ${workflowMode === 'script' ? 'Script-backed call' : 'Custom prompt workflow'}`,
-    ...(workflowMode === 'script'
-      ? [
-        `Script ID: ${effectiveScriptId > 0 ? effectiveScriptId : 'Missing script selection'}`,
-        ...(scriptSummaryLines.length > 0 ? scriptSummaryLines : []),
-      ]
-      : [
-        `Purpose: ${purposeValue}`,
-        `Tone: ${emotionValue}`,
-        `Urgency: ${urgencyValue}`,
-        `Technical level: ${technicalLevelValue}`,
-        `Voice model: ${voiceModelValue || 'Auto / provider default'}`,
-      ]),
-  ];
-  const callPurposeLabel = getOptionLabel(CALL_PURPOSE_OPTIONS, purposeValue, purposeValue || 'general');
+  const callPurposeLabel = getOptionLabel(personaPurposeOptions, purposeValue, purposeValue || 'general');
   const callMoodLabel = getOptionLabel(CALL_MOOD_OPTIONS, emotionValue, emotionValue || 'auto');
   const callUrgencyLabel = getOptionLabel(CALL_URGENCY_OPTIONS, urgencyValue, urgencyValue || 'auto');
   const callTechLevelLabel = getOptionLabel(
@@ -1829,6 +2214,48 @@ function CallCommandPageContent() {
     technicalLevelValue,
     technicalLevelValue || 'auto',
   );
+  const recommendedMoodLabel = getOptionLabel(CALL_MOOD_OPTIONS, recommendedEmotionId, recommendedEmotionId);
+  const recommendedUrgencyLabel = getOptionLabel(CALL_URGENCY_OPTIONS, recommendedUrgencyId, recommendedUrgencyId);
+  const recommendedTechLevelLabel = getOptionLabel(
+    CALL_TECH_LEVEL_OPTIONS,
+    recommendedTechnicalLevelId,
+    recommendedTechnicalLevelId,
+  );
+  const callToneSummary = emotionValue === 'auto'
+    ? `${callMoodLabel} (${recommendedMoodLabel})`
+    : callMoodLabel;
+  const callUrgencySummary = urgencyValue === 'auto'
+    ? `${callUrgencyLabel} (${recommendedUrgencyLabel})`
+    : callUrgencyLabel;
+  const callTechSummary = technicalLevelValue === 'auto'
+    ? `${callTechLevelLabel} (${recommendedTechLevelLabel})`
+    : callTechLevelLabel;
+  const selectedVoiceOption = CALL_FALLBACK_VOICE_MODELS.find((entry) => entry.id === resolvedVoiceModelValue) || null;
+  const selectedVoiceLabel = voiceSelectionInput === CALL_VOICE_CUSTOM_ID
+    ? (voiceModelValue || 'Custom voice ID pending')
+    : (selectedVoiceOption ? buildCallVoiceOptionLabel(selectedVoiceOption) : 'Auto / provider default');
+  const callBriefLines = [
+    `Number: ${numberValid ? normalizedNumber : 'Missing valid E.164 number'}`,
+    customerNameValue ? `Customer: ${customerNameValue}` : 'Customer: optional',
+    `Mode: ${workflowMode === 'script' ? 'Script-backed call' : 'Custom prompt workflow'}`,
+    ...(workflowMode === 'script'
+      ? [
+        `Script source: ${scriptSelectionSourceLabel}`,
+        `Script ID: ${effectiveScriptId > 0 ? effectiveScriptId : 'Missing script selection'}`,
+        ...(scriptSummaryLines.length > 0 ? scriptSummaryLines : []),
+        ...(!canBrowseScripts && effectiveScriptId > 0
+          ? ['Metadata: Script details will resolve during launch because this session cannot browse the catalog.']
+          : []),
+      ]
+      : [
+        `Persona: ${selectedPersona?.label || 'Custom Persona'}`,
+        `Purpose: ${callPurposeLabel}`,
+        `Tone: ${callToneSummary}`,
+        `Urgency: ${callUrgencySummary}`,
+        `Technical level: ${callTechSummary}`,
+        `Voice model: ${selectedVoiceLabel}`,
+      ]),
+  ];
   const activeCallSid = toTextValue(submitResult?.call_sid, persistedActiveCallSid);
   const liveConsoleLastEvents = useMemo(
     () => toEventRows(callConsoleLiveSnapshot?.last_events),
@@ -1951,8 +2378,8 @@ function CallCommandPageContent() {
             ? 'Choose a script from the live catalog, then fill any placeholder values you want to replace.'
             : 'Enter a known script ID when guided script selection is not available in this session.'))
         : (promptValue && firstMessageValue
-          ? `Prompt and first message captured | purpose ${callPurposeLabel}`
-          : 'Enter the agent prompt and the first spoken message before launch.'),
+          ? `Prompt and first message captured | persona ${selectedPersona?.label || 'Custom Persona'} | purpose ${callPurposeLabel}`
+          : 'Choose the service persona, then enter the agent prompt and first spoken message before launch.'),
     },
     {
       title: '4. Review flow posture',
@@ -1965,7 +2392,7 @@ function CallCommandPageContent() {
             ? `Payment flow selected on ${activeCallProvider || 'unknown'}; acknowledge the provider guard or choose another script.`
             : `Payment flow posture reviewed${activeCallProvider ? ` on ${activeCallProvider}` : ''}.`)
           : `Flow ${selectedScript ? toFlowTypeLabel(selectedScript) : 'not selected'}${selectedScriptVoiceModel ? ` | voice ${selectedScriptVoiceModel}` : ''}`)
-        : `Purpose ${callPurposeLabel} | tone ${callMoodLabel} | urgency ${callUrgencyLabel} | technical level ${callTechLevelLabel}`,
+        : `Persona ${selectedPersona?.label || 'Custom Persona'} | purpose ${callPurposeLabel} | tone ${callToneSummary} | urgency ${callUrgencySummary} | technical level ${callTechSummary}`,
     },
     {
       title: '5. Launch /outbound-call',
@@ -1999,6 +2426,34 @@ function CallCommandPageContent() {
       ? `This will start an outbound call to ${normalizedNumber}${workflowMode === 'script' ? ` using ${selectedScriptName || `script #${effectiveScriptId}`}` : ''}.`
       : `${missingRequirements[0] || 'Fill the remaining fields'}${remainingRequirementCount > 0 ? ` and ${remainingRequirementCount} more ${remainingRequirementCount === 1 ? 'item' : 'items'}` : ''}.`);
 
+  const refreshPersonaCatalog = useCallback(async (): Promise<void> => {
+    setPersonaCatalogLoading(true);
+    setPersonaCatalogError('');
+    try {
+      const response = await request<CallPersonaCatalogResponse>('/api/personas', {
+        method: 'GET',
+      });
+      const builtinProfiles = Array.isArray(response?.builtin)
+        ? response.builtin.map(normalizeCallPersonaProfile).filter(Boolean) as CallPersonaProfile[]
+        : [];
+      const customProfiles = Array.isArray(response?.custom)
+        ? response.custom.map(normalizeCallPersonaProfile).filter(Boolean) as CallPersonaProfile[]
+        : [];
+      const nextProfiles = [...builtinProfiles, ...customProfiles];
+      setPersonaProfiles(
+        nextProfiles.length > 0
+          ? mergeCallPersonaProfiles(nextProfiles, CALL_FALLBACK_PERSONAS)
+          : [...CALL_FALLBACK_PERSONAS],
+      );
+    } catch (nextError) {
+      setPersonaCatalogError(toErrorMessage(nextError));
+      setPersonaProfiles([...CALL_FALLBACK_PERSONAS]);
+    } finally {
+      setPersonaCatalogLoaded(true);
+      setPersonaCatalogLoading(false);
+    }
+  }, [request]);
+
   const refreshScriptCatalog = async (): Promise<void> => {
     if (!canBrowseScripts) return;
     setScriptCatalogLoading(true);
@@ -2026,6 +2481,30 @@ function CallCommandPageContent() {
       setScriptCatalogLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!canOperate || personaCatalogLoaded || personaCatalogLoading) return;
+    void refreshPersonaCatalog();
+  }, [canOperate, personaCatalogLoaded, personaCatalogLoading, refreshPersonaCatalog]);
+
+  useEffect(() => {
+    if (personaProfiles.some((entry) => entry.id === selectedPersonaId)) return;
+    const fallbackPersonaId = personaProfiles.find((entry) => entry.custom)?.id
+      || personaProfiles[0]?.id
+      || CALL_CUSTOM_PERSONA_ID;
+    setSelectedPersonaId(fallbackPersonaId);
+  }, [personaProfiles, selectedPersonaId]);
+
+  useEffect(() => {
+    if (workflowMode !== 'custom') return;
+    const defaultPurpose = selectedPersona?.defaultPurpose
+      || personaPurposeOptions[0]?.id
+      || 'general';
+    const purposeStillValid = personaPurposeOptions.some((entry) => entry.id === purposeInput);
+    if (!purposeStillValid) {
+      setPurposeInput(defaultPurpose);
+    }
+  }, [personaPurposeOptions, purposeInput, selectedPersona, workflowMode]);
 
   useEffect(() => {
     if (workflowMode !== 'script' || !canBrowseScripts) return;
@@ -2171,7 +2650,13 @@ function CallCommandPageContent() {
               script: selectedScriptName || undefined,
               business_id: selectedScriptBusinessId || undefined,
               prompt: resolvedScriptPromptValue || undefined,
-              first_message: resolvedScriptFirstMessageValue || undefined,
+              first_message: resolvedScriptFirstMessageValue
+                ? buildPersonalizedCallFirstMessage(
+                  resolvedScriptFirstMessageValue,
+                  customerNameValue,
+                  selectedScriptBusinessId || selectedScriptName || 'Custom',
+                )
+                : undefined,
               voice_model: selectedScriptVoiceModel || undefined,
               purpose: selectedScriptPurpose || undefined,
               emotion: selectedScriptEmotion || undefined,
@@ -2179,12 +2664,18 @@ function CallCommandPageContent() {
               technical_level: selectedScriptTechnicalLevel || undefined,
             }
             : {
+              business_id: selectedPersona && !selectedPersona.custom ? selectedPersona.id : undefined,
               prompt: promptValue,
-              first_message: firstMessageValue,
+              first_message: buildPersonalizedCallFirstMessage(
+                firstMessageValue,
+                customerNameValue,
+                selectedPersona?.label || 'Custom Persona',
+              ),
               purpose: purposeValue,
+              script: selectedPersona?.custom ? 'custom' : selectedPersona?.id || 'custom',
               conversation_profile: purposeValue !== 'general' ? purposeValue : undefined,
               conversation_profile_lock: purposeValue !== 'general' ? true : undefined,
-              voice_model: voiceModelValue || undefined,
+              voice_model: resolvedVoiceModelValue || undefined,
               emotion: emotionValue !== 'auto' ? emotionValue : undefined,
               urgency: urgencyValue !== 'auto' ? urgencyValue : undefined,
               technical_level: technicalLevelValue !== 'auto' ? technicalLevelValue : undefined,
@@ -2448,20 +2939,29 @@ function CallCommandPageContent() {
                     ) : (
                       <>
                         <UiSelect
-                          aria-label="Call purpose"
-                          value={purposeInput}
-                          onChange={(event) => setPurposeInput(event.target.value)}
+                          aria-label="Service persona"
+                          value={selectedPersonaId}
+                          onChange={(event) => setSelectedPersonaId(event.target.value)}
                         >
-                          {CALL_PURPOSE_OPTIONS.map((option) => (
-                            <option key={option.id} value={option.id}>{option.label}</option>
+                          {personaProfiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {buildCallPersonaOptionLabel(profile)}
+                            </option>
                           ))}
                         </UiSelect>
-                        <UiInput
-                          aria-label="Voice model"
-                          placeholder="Voice model (optional)"
-                          value={voiceModelInput}
-                          onChange={(event) => setVoiceModelInput(event.target.value)}
-                        />
+                        <UiSelect
+                          aria-label="Voice selection"
+                          value={voiceSelectionInput}
+                          onChange={(event) => setVoiceSelectionInput(event.target.value)}
+                        >
+                          <option value={CALL_VOICE_AUTO_ID}>Auto voice selection</option>
+                          {CALL_FALLBACK_VOICE_MODELS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {buildCallVoiceOptionLabel(option)}
+                            </option>
+                          ))}
+                          <option value={CALL_VOICE_CUSTOM_ID}>Custom voice ID</option>
+                        </UiSelect>
                       </>
                     )}
                   </div>
@@ -2505,15 +3005,31 @@ function CallCommandPageContent() {
                           ) : null}
                         </>
                       ) : (
-                          <UiStatePanel
-                            compact
-                            title="Catalog browsing restricted"
-                            description="This access tier cannot list call scripts here yet. Enter a known script ID when guided script browsing is unavailable in this session."
-                            tone="warning"
-                          />
+                        <UiStatePanel
+                          compact
+                          title={effectiveScriptId > 0 ? 'Known script ID staged' : 'Catalog browsing restricted'}
+                          description={effectiveScriptId > 0
+                            ? `Script #${effectiveScriptId} is ready for launch. The backend will resolve the script, placeholders, and first message at submit time because this session cannot browse the live catalog.`
+                            : 'This access tier cannot list call scripts here yet. Enter a known script ID when guided script browsing is unavailable in this session.'}
+                          tone={effectiveScriptId > 0 ? 'info' : 'warning'}
+                        />
                       )}
                       {selectedScript ? (
                         <>
+                          <UiStatePanel
+                            compact
+                            title="Selected script ready"
+                            description={`${selectedScriptName || `Script #${selectedScriptId}`} | flow ${selectedScriptFlowLabel} | lifecycle ${selectedScriptLifecycleLabel} | voice ${scriptVoiceRoutingLabel}`}
+                            tone="success"
+                          />
+                          {!resolvedScriptFirstMessageValue ? (
+                            <UiStatePanel
+                              compact
+                              title="First message missing after resolution"
+                              description="The bot flow requires a first message before launch. Edit the script or fill any missing placeholders before continuing."
+                              tone="error"
+                            />
+                          ) : null}
                           {scriptPlaceholderTokens.length > 0 ? (
                             <>
                               <p className="va-card-eyebrow">Variables</p>
@@ -2534,8 +3050,10 @@ function CallCommandPageContent() {
                               <UiStatePanel
                                 compact
                                 title="Placeholder resolution"
-                                description="Leave any variable blank to keep its original {token} placeholder during script setup."
-                                tone="info"
+                                description={unresolvedScriptPlaceholderTokens.length > 0
+                                  ? `${scriptPlaceholderSummary}. Leaving a field blank keeps its original {token} placeholder in the launch payload.`
+                                  : `${scriptPlaceholderSummary}. All detected placeholders are resolved in the in-page preview below.`}
+                                tone={unresolvedScriptPlaceholderTokens.length > 0 ? 'warning' : 'success'}
                               />
                             </>
                           ) : null}
@@ -2590,31 +3108,71 @@ function CallCommandPageContent() {
                               />
                             )
                           ) : null}
+                          <UiDisclosure
+                            title="Script preflight"
+                            subtitle="Script metadata, variable coverage, and launch posture"
+                          >
+                            <ul className="va-list va-list-dense">
+                              <li>Source: {scriptSelectionSourceLabel}</li>
+                              <li>Script: {selectedScriptName || `Script #${selectedScriptId}`}</li>
+                              <li>Flow: {selectedScriptFlowLabel}</li>
+                              <li>Lifecycle: {selectedScriptLifecycleLabel}</li>
+                              <li>Voice routing: {scriptVoiceRoutingLabel}</li>
+                              {selectedScriptBusinessId ? <li>Persona / business: {selectedScriptBusinessId}</li> : null}
+                              {selectedScriptObjectiveTags.length > 0 ? (
+                                <li>Objective tags: {selectedScriptObjectiveTags.join(', ')}</li>
+                              ) : null}
+                              <li>{scriptPlaceholderSummary}</li>
+                              {unresolvedScriptPlaceholderTokens.length > 0 ? (
+                                <li>Unresolved placeholders: {unresolvedScriptPlaceholderTokens.join(', ')}</li>
+                              ) : null}
+                              {resolvedScriptFirstMessageValue ? (
+                                <li>Resolved first message preview: {resolvedScriptFirstMessageValue}</li>
+                              ) : null}
+                            </ul>
+                          </UiDisclosure>
                         </>
                       ) : null}
                     </>
                   ) : (
                     <>
-                      <p className="va-card-eyebrow">Prompt</p>
-                      <UiTextarea
-                        aria-label="Call prompt"
-                        placeholder="Describe the persona, constraints, and goal for the outbound call."
-                        rows={6}
-                        value={promptInput}
-                        onChange={(event) => setPromptInput(event.target.value)}
+                      {personaCatalogError ? (
+                        <UiStatePanel
+                          compact
+                          title="Persona catalog fallback active"
+                          description={`${personaCatalogError} The page is using the local persona fallback list from the bot flow.`}
+                          tone="warning"
+                        />
+                      ) : null}
+                      {personaCatalogLoading ? (
+                        <UiStatePanel
+                          compact
+                          title="Refreshing persona guidance"
+                          description="Loading the latest service personas from the bot-backed persona endpoint."
+                          tone="info"
+                        />
+                      ) : null}
+                      <UiStatePanel
+                        compact
+                        title={selectedPersona?.custom ? 'Custom persona path' : `${selectedPersona?.label || 'Persona'} selected`}
+                        description={selectedPersona?.custom
+                          ? 'Write the prompt and opening line manually, then use the recommended tone settings below as a guide.'
+                          : `${selectedPersona?.description || 'Use this service persona as the starting point for tone and workflow posture.'} Recommended defaults stay available when the selectors remain on Auto.`}
+                        tone={selectedPersona?.custom ? 'info' : 'success'}
                       />
-
-                      <p className="va-card-eyebrow">First message</p>
-                      <UiTextarea
-                        aria-label="First message"
-                        placeholder="Write the first spoken line the call should use."
-                        rows={4}
-                        value={firstMessageInput}
-                        onChange={(event) => setFirstMessageInput(event.target.value)}
-                      />
-
-                      <p className="va-card-eyebrow">Tuning</p>
+                      <p className="va-card-eyebrow">Purpose and tone</p>
                       <div className="va-inline-tools">
+                        <UiSelect
+                          aria-label="Call purpose"
+                          value={purposeInput}
+                          onChange={(event) => setPurposeInput(event.target.value)}
+                        >
+                          {personaPurposeOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.emoji ? `${option.emoji} ${option.label}` : option.label}
+                            </option>
+                          ))}
+                        </UiSelect>
                         <UiSelect
                           aria-label="Emotion"
                           value={emotionInput}
@@ -2643,6 +3201,54 @@ function CallCommandPageContent() {
                           ))}
                         </UiSelect>
                       </div>
+                      <UiStatePanel
+                        compact
+                        title="Recommended posture"
+                        description={`Purpose ${callPurposeLabel} | tone ${recommendedMoodLabel} | urgency ${recommendedUrgencyLabel} | technical level ${recommendedTechLevelLabel}`}
+                        tone="info"
+                      />
+                      {voiceSelectionInput === CALL_VOICE_CUSTOM_ID ? (
+                        <UiInput
+                          aria-label="Voice model"
+                          placeholder="Voice model ID"
+                          value={voiceModelInput}
+                          onChange={(event) => setVoiceModelInput(event.target.value)}
+                        />
+                      ) : (
+                        <UiStatePanel
+                          compact
+                          title="Voice routing"
+                          description={selectedVoiceOption
+                            ? `Using ${buildCallVoiceOptionLabel(selectedVoiceOption)} from the bot fallback voice catalog.`
+                            : 'Leaving voice selection on Auto so the backend can choose the best voice for this flow.'}
+                          tone="info"
+                        />
+                      )}
+                      <p className="va-card-eyebrow">Prompt</p>
+                      <UiTextarea
+                        aria-label="Call prompt"
+                        placeholder="Describe the persona, constraints, and goal for the outbound call."
+                        rows={6}
+                        value={promptInput}
+                        onChange={(event) => setPromptInput(event.target.value)}
+                      />
+
+                      <p className="va-card-eyebrow">First message</p>
+                      <UiTextarea
+                        aria-label="First message"
+                        placeholder="Write the first spoken line the call should use."
+                        rows={4}
+                        value={firstMessageInput}
+                        onChange={(event) => setFirstMessageInput(event.target.value)}
+                      />
+                      <UiStatePanel
+                        compact
+                        title="Greeting behavior"
+                        description={customerNameValue
+                          ? `The launch payload will prepend "Hello ${customerNameValue}!" to the first message, matching the bot flow.`
+                          : 'If you add a customer name above, the first message will be personalized before launch.'}
+                        tone="info"
+                      />
                     </>
                   )}
 
@@ -2710,9 +3316,9 @@ function CallCommandPageContent() {
                     subtitle="Recipient, path, and launch inputs"
                     open
                   >
-                    <ul className="va-list va-list-dense">
-                      {callBriefLines.map((line) => (
-                        <li key={line}>{line}</li>
+                      <ul className="va-list va-list-dense">
+                      {callBriefLines.map((line, index) => (
+                        <li key={`call-brief-${index}-${line}`}>{line}</li>
                       ))}
                     </ul>
                   </UiDisclosure>
@@ -2726,8 +3332,8 @@ function CallCommandPageContent() {
                         <p className="va-muted">{toTextValue(selectedScript.description)}</p>
                       ) : null}
                       <ul className="va-list va-list-dense">
-                        {scriptSummaryLines.map((line) => (
-                          <li key={line}>{line}</li>
+                        {scriptSummaryLines.map((line, index) => (
+                          <li key={`script-summary-${index}-${line}`}>{line}</li>
                         ))}
                       </ul>
                     </UiDisclosure>
@@ -2752,8 +3358,8 @@ function CallCommandPageContent() {
                       tone="warning"
                     >
                       <ul className="va-list va-list-dense">
-                        {warningList.map((warning) => (
-                          <li key={warning}>{warning}</li>
+                        {warningList.map((warning, index) => (
+                          <li key={`warning-${index}-${warning}`}>{warning}</li>
                         ))}
                       </ul>
                     </UiDisclosure>
@@ -3003,8 +3609,10 @@ function SmsCommandPageContent() {
   const [bulkJobIdInput, setBulkJobIdInput] = useState<string>('');
 
   const canOperate = accessLevel === 'authorized' || accessLevel === 'admin';
-  const canManageSms = hasCapability('sms_bulk_manage');
+  const isAdminAccess = accessLevel === 'admin';
   const canManageProvider = hasCapability('provider_manage');
+  const canUseSmsCore = canOperate;
+  const canUseSmsAdminTools = isAdminAccess;
   const statusSid = statusSidInput.trim();
   const sendRecipient = normalizePhone(sendRecipientInput.trim());
   const sendRecipientValid = isValidE164(sendRecipient);
@@ -3013,7 +3621,6 @@ function SmsCommandPageContent() {
   const normalizedConversationPhone = normalizePhone(conversationPhoneInput.trim());
   const conversationPhoneValid = isValidE164(normalizedConversationPhone);
   const bulkJobId = bulkJobIdInput.trim();
-  const isAdminAccess = accessLevel === 'admin';
   const bulkSmsRoute = MINIAPP_COMMAND_ACTION_CONTRACTS.BULK_SMS.routePath
     ?? DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT;
   const activeBusy = sendBusy
@@ -3031,7 +3638,18 @@ function SmsCommandPageContent() {
     + Number(recentMessages.length > 0)
     + Number(conversationMessages.length > 0)
     + Number(bulkOperations.length > 0);
-  const smsComposerReady = sendRecipientValid && Boolean(sendMessage) && canManageSms;
+  const smsComposerReady = sendRecipientValid && Boolean(sendMessage) && canUseSmsCore;
+  const callbackPlaceholder = canUseSmsAdminTools ? 'SMS_SEND or SMS_RECENT_PAGE:2' : 'SMS_SEND or SMS_STATUS';
+  const visibleSmsCallbackRows = SMS_CALLBACK_PARITY_ROWS.filter((row) => {
+    const { baseAction } = parseCallbackToken(row.callbackAction);
+    if (baseAction === 'SMS_SEND' || baseAction === 'SMS_SCHEDULE' || baseAction === 'SMS_STATUS') {
+      return canUseSmsCore;
+    }
+    if (baseAction === 'BULK_SMS_PRECHECK') {
+      return canManageProvider;
+    }
+    return canUseSmsAdminTools;
+  });
   const smsActionBarTitle = sendResult
     ? 'SMS request accepted'
     : (smsComposerReady ? 'Ready to send' : 'Complete send details');
@@ -3039,14 +3657,14 @@ function SmsCommandPageContent() {
     ? sendResult
     : (smsComposerReady
       ? `Send now to ${sendRecipient}. Scheduling is ${sendScheduleAtInput ? 'available' : 'waiting for a send time'}.`
-      : (!canManageSms
-        ? 'SMS bulk management capability is required for send and diagnostics actions.'
+      : (!canUseSmsCore
+        ? 'Authorized access is required for SMS actions.'
         : (!sendRecipientValid
           ? 'Add a valid E.164 recipient before sending.'
           : 'Add a message body before sending.')));
 
   const runSendNow = async (): Promise<void> => {
-    if (!sendRecipientValid || !sendMessage || !canManageSms) return;
+    if (!sendRecipientValid || !sendMessage || !canUseSmsCore) return;
     setSendBusy(true);
     setActionError('');
     setSendResult('');
@@ -3071,7 +3689,7 @@ function SmsCommandPageContent() {
   };
 
   const runSchedule = async (): Promise<void> => {
-    if (!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canManageSms) return;
+    if (!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canUseSmsCore) return;
     const scheduledAtMs = Date.parse(sendScheduleAtInput);
     if (Number.isNaN(scheduledAtMs)) {
       setActionError('Scheduled time is invalid.');
@@ -3103,7 +3721,7 @@ function SmsCommandPageContent() {
   };
 
   const runStatusLookup = async (): Promise<void> => {
-    if (!statusSid || !canManageSms) return;
+    if (!statusSid || !canUseSmsCore) return;
     setStatusBusy(true);
     setActionError('');
     try {
@@ -3121,7 +3739,7 @@ function SmsCommandPageContent() {
   };
 
   const runConversationLookup = async (): Promise<void> => {
-    if (!conversationPhoneValid || !canManageSms) return;
+    if (!conversationPhoneValid || !canUseSmsAdminTools) return;
     setConversationBusy(true);
     setActionError('');
     try {
@@ -3138,7 +3756,7 @@ function SmsCommandPageContent() {
   };
 
   const runRecentLookup = async (): Promise<void> => {
-    if (!canManageSms) return;
+    if (!canUseSmsAdminTools) return;
     setRecentBusy(true);
     setActionError('');
     try {
@@ -3155,7 +3773,7 @@ function SmsCommandPageContent() {
   };
 
   const runStatsLookup = async (): Promise<void> => {
-    if (!canManageSms) return;
+    if (!canUseSmsAdminTools) return;
     setStatsBusy(true);
     setActionError('');
     try {
@@ -3172,7 +3790,7 @@ function SmsCommandPageContent() {
   };
 
   const runBulkStatusLookup = async (options: { limit?: number; hours?: number } = {}): Promise<void> => {
-    if (!canManageSms) return;
+    if (!canUseSmsAdminTools) return;
     setBulkBusy(true);
     setActionError('');
     try {
@@ -3210,7 +3828,7 @@ function SmsCommandPageContent() {
   };
 
   const executeCallbackAction = async (rawCallbackActionInput: string): Promise<void> => {
-    if ((!canManageSms && !canManageProvider) || activeBusy) return;
+    if ((!canUseSmsCore && !canManageProvider) || activeBusy) return;
     const rawCallbackAction = rawCallbackActionInput.trim();
     const { baseAction, suffix } = parseCallbackToken(rawCallbackAction);
     if (!baseAction) {
@@ -3236,8 +3854,8 @@ function SmsCommandPageContent() {
       setCallbackResult('');
       let callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}.`;
       if (baseAction === 'SMS_SEND') {
-        if (!canManageSms) {
-          setActionError('SMS_SEND requires SMS bulk management capability.');
+        if (!canUseSmsCore) {
+          setActionError('SMS_SEND requires authorized access.');
           return;
         }
         if (!sendRecipientValid || !sendMessage) {
@@ -3252,8 +3870,8 @@ function SmsCommandPageContent() {
         });
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Queued current SMS payload.`;
       } else if (baseAction === 'SMS_SCHEDULE') {
-        if (!canManageSms) {
-          setActionError('SMS_SCHEDULE requires SMS bulk management capability.');
+        if (!canUseSmsCore) {
+          setActionError('SMS_SCHEDULE requires authorized access.');
           return;
         }
         if (!sendRecipientValid || !sendMessage || !sendScheduleAtInput) {
@@ -3274,8 +3892,8 @@ function SmsCommandPageContent() {
         });
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Scheduled current SMS payload.`;
       } else if (baseAction === 'SMS_STATUS') {
-        if (!canManageSms) {
-          setActionError('SMS_STATUS requires SMS bulk management capability.');
+        if (!canUseSmsCore) {
+          setActionError('SMS_STATUS requires authorized access.');
           return;
         }
         if (!statusSid) {
@@ -3292,8 +3910,8 @@ function SmsCommandPageContent() {
         setStatusSnapshot(Object.keys(messageRecord).length > 0 ? messageRecord : asRecord(payload));
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded SMS status for ${statusSid}.`;
       } else if (baseAction === 'SMS_CONVO') {
-        if (!canManageSms) {
-          setActionError('SMS_CONVO requires SMS bulk management capability.');
+        if (!canUseSmsAdminTools) {
+          setActionError('SMS_CONVO requires admin access.');
           return;
         }
         if (!conversationPhoneValid) {
@@ -3310,8 +3928,8 @@ function SmsCommandPageContent() {
         setConversationMessages(messages);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded ${messages.length} conversation message(s).`;
       } else if (baseAction === 'SMS_RECENT_PAGE') {
-        if (!canManageSms) {
-          setActionError('SMS_RECENT_PAGE requires SMS bulk management capability.');
+        if (!canUseSmsAdminTools) {
+          setActionError('SMS_RECENT_PAGE requires admin access.');
           return;
         }
         callbackRecentBusy = true;
@@ -3326,8 +3944,8 @@ function SmsCommandPageContent() {
         setRecentMessages(messages);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded ${messages.length} recent message(s) from page ${page}.`;
       } else if (baseAction === 'SMS_RECENT') {
-        if (!canManageSms) {
-          setActionError('SMS_RECENT requires SMS bulk management capability.');
+        if (!canUseSmsAdminTools) {
+          setActionError('SMS_RECENT requires admin access.');
           return;
         }
         callbackRecentBusy = true;
@@ -3340,8 +3958,8 @@ function SmsCommandPageContent() {
         setRecentMessages(messages);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded ${messages.length} recent message(s).`;
       } else if (baseAction === 'SMS_STATS') {
-        if (!canManageSms) {
-          setActionError('SMS_STATS requires SMS bulk management capability.');
+        if (!canUseSmsAdminTools) {
+          setActionError('SMS_STATS requires admin access.');
           return;
         }
         callbackStatsBusy = true;
@@ -3364,8 +3982,8 @@ function SmsCommandPageContent() {
         setProviderSnapshot(nextSnapshot);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded SMS provider readiness for ${toText(nextSnapshot?.provider, 'unknown')}.`;
       } else if (baseAction === 'BULK_SMS_LIST' || baseAction === 'BULK_SMS_STATS' || baseAction === 'BULK_SMS_STATUS') {
-        if (!canManageSms) {
-          setActionError(`${baseAction} requires SMS bulk management capability.`);
+        if (!canUseSmsAdminTools) {
+          setActionError(`${baseAction} requires admin access.`);
           return;
         }
         const resolvedJobId = baseAction === 'BULK_SMS_STATUS' ? suffix || bulkJobId : '';
@@ -3650,11 +4268,11 @@ function SmsCommandPageContent() {
                     tone="success"
                   />
                 ) : null}
-                {!canManageSms ? (
+                {!canUseSmsAdminTools ? (
                   <UiStatePanel
                     compact
-                    title="SMS actions unavailable"
-                    description="Your account needs SMS bulk management capability to run these execution actions in the Mini App."
+                    title="Admin diagnostics hidden"
+                    description="Conversation, recent messages, stats, and bulk job views are available only in admin sessions."
                     tone="warning"
                   />
                 ) : null}
@@ -3666,7 +4284,7 @@ function SmsCommandPageContent() {
                     <>
                       <UiButton
                         variant="primary"
-                        disabled={!sendRecipientValid || !sendMessage || !canManageSms || activeBusy}
+                        disabled={!sendRecipientValid || !sendMessage || !canUseSmsCore || activeBusy}
                         onClick={() => {
                           void runSendNow();
                         }}
@@ -3675,7 +4293,7 @@ function SmsCommandPageContent() {
                       </UiButton>
                       <UiButton
                         variant="secondary"
-                        disabled={!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canManageSms || activeBusy}
+                        disabled={!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canUseSmsCore || activeBusy}
                         onClick={() => {
                           void runSchedule();
                         }}
@@ -3692,14 +4310,14 @@ function SmsCommandPageContent() {
                 >
                   <UiInput
                     aria-label="SMS callback action"
-                    placeholder="SMS_SEND or SMS_RECENT_PAGE:2"
+                    placeholder={callbackPlaceholder}
                     value={callbackActionInput}
                     onChange={(event) => setCallbackActionInput(event.target.value)}
                   />
                   <div className="va-inline-tools">
                     <UiButton
                       variant="secondary"
-                      disabled={(!canManageSms && !canManageProvider) || activeBusy}
+                      disabled={(!canUseSmsCore && !canManageProvider) || activeBusy}
                       onClick={() => {
                         void runCallbackAction();
                       }}
@@ -3708,7 +4326,7 @@ function SmsCommandPageContent() {
                     </UiButton>
                   </div>
                   <ul className="va-list va-list-dense">
-                    {SMS_CALLBACK_PARITY_ROWS.map((row) => (
+                    {visibleSmsCallbackRows.map((row) => (
                       <li key={row.callbackAction}>
                         {row.callbackAction}{' -> '}{row.dashboardAction} ({row.summary})
                       </li>
@@ -3737,7 +4355,7 @@ function SmsCommandPageContent() {
                     />
                     <UiButton
                       variant="secondary"
-                      disabled={!statusSid || !canManageSms || activeBusy}
+                      disabled={!statusSid || !canUseSmsCore || activeBusy}
                       onClick={() => {
                         void runStatusLookup();
                       }}
@@ -3754,7 +4372,7 @@ function SmsCommandPageContent() {
                     />
                     <UiButton
                       variant="secondary"
-                      disabled={!conversationPhoneValid || !canManageSms || activeBusy}
+                      disabled={!conversationPhoneValid || !canUseSmsAdminTools || activeBusy}
                       onClick={() => {
                         void runConversationLookup();
                       }}
@@ -3768,6 +4386,14 @@ function SmsCommandPageContent() {
                       title="Conversation phone format required"
                       description="Use E.164 format with the + prefix and country code, for example +18005551234."
                       tone="warning"
+                    />
+                  ) : null}
+                  {!canUseSmsAdminTools ? (
+                    <UiStatePanel
+                      compact
+                      title="Conversation lookup requires admin access"
+                      description="Use SMS status with a message SID in authorized sessions, or switch to an admin session for full conversation history."
+                      tone="info"
                     />
                   ) : null}
                   {statusSnapshot ? (
@@ -3800,7 +4426,7 @@ function SmsCommandPageContent() {
                 <div className="va-inline-tools">
                   <UiButton
                     variant="secondary"
-                    disabled={!canManageSms || activeBusy}
+                    disabled={!canUseSmsAdminTools || activeBusy}
                     onClick={() => {
                       void runRecentLookup();
                     }}
@@ -3809,7 +4435,7 @@ function SmsCommandPageContent() {
                   </UiButton>
                   <UiButton
                     variant="secondary"
-                    disabled={!canManageSms || activeBusy}
+                    disabled={!canUseSmsAdminTools || activeBusy}
                     onClick={() => {
                       void runStatsLookup();
                     }}
@@ -3818,7 +4444,7 @@ function SmsCommandPageContent() {
                   </UiButton>
                   <UiButton
                     variant="secondary"
-                    disabled={!canManageSms || activeBusy}
+                    disabled={!canUseSmsAdminTools || activeBusy}
                     onClick={() => {
                       void runBulkStatusLookup();
                     }}

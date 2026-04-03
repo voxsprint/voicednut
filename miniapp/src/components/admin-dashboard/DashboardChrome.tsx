@@ -108,8 +108,8 @@ export function DashboardMainHeader({
           onOpenSettings={onOpenSettings}
         />
         <div className="va-header-copy">
-          <h1>Voicednut Console</h1>
-          <p className="va-muted">Stay on top of delivery, calling, provider health, and incident response.</p>
+          <h1>Voicednut</h1>
+          <p className="va-muted">One home for delivery, calling, provider health, and incident response.</p>
           <p className="va-module-context-line va-muted">
             <span className="va-module-context-icon" aria-hidden>{activeModuleGlyph}</span>
             <span>{moduleDetail}</span>
@@ -118,7 +118,7 @@ export function DashboardMainHeader({
       </div>
       <div className="va-header-meta">
         <div className="va-meta-chips">
-          <UiBadge>Admin {userLabel}</UiBadge>
+          <UiBadge>{userLabel}</UiBadge>
           <UiBadge>Role {sessionRole}</UiBadge>
           {compact ? null : (
             <>

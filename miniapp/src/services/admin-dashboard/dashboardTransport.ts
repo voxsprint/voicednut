@@ -14,6 +14,8 @@ export type DashboardRealtimeTransportContract = {
   enabled: boolean;
   endpoints: string[];
   source: string;
+  authMode: 'none' | 'query_token';
+  authQueryParam: string;
 };
 
 function parseApiBaseHost(apiBaseUrl: string): string {
@@ -185,19 +187,50 @@ export function buildApiUrl(path: string, apiBaseUrl: string): string {
   return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
 }
 
-export function buildEventStreamUrl(path: string, apiBaseUrl: string): string {
+export function buildEventStreamUrl(
+  path: string,
+  apiBaseUrl: string,
+  options: {
+    authMode?: 'none' | 'query_token';
+    authQueryParam?: string;
+    token?: string | null;
+  } = {},
+): string {
   const base = buildApiUrl(path, apiBaseUrl);
+  const params = new URLSearchParams();
+  params.set('transport', 'sse');
+  if (isNgrokApiBase(apiBaseUrl)) {
+    params.set('ngrok-skip-browser-warning', '1');
+  }
+  if (
+    options.authMode === 'query_token'
+    && options.authQueryParam
+    && options.token
+  ) {
+    params.set(options.authQueryParam, options.token);
+  }
   const separator = base.includes('?') ? '&' : '?';
-  const ngrokBypassQuery = isNgrokApiBase(apiBaseUrl)
-    ? '&ngrok-skip-browser-warning=1'
-    : '';
-  return `${base}${separator}transport=sse${ngrokBypassQuery}`;
+  return `${base}${separator}${params.toString()}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function readTextCandidate(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const next = value.trim();
+      if (next) return next;
+      continue;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value).trim();
+    }
+  }
+  return '';
 }
 
 function toBoolean(value: unknown): boolean | null {
@@ -248,6 +281,27 @@ function parseRealtimeEndpoints(payload: Record<string, unknown>): string[] {
   return Array.from(new Set(endpoints));
 }
 
+function parseRealtimeAuthMode(payload: Record<string, unknown>): 'none' | 'query_token' {
+  const auth = asRecord(payload.auth);
+  const direct = readTextCandidate(payload.auth_mode, auth.mode).toLowerCase();
+  if (direct === 'query_token') {
+    return 'query_token';
+  }
+  return 'none';
+}
+
+function parseRealtimeAuthQueryParam(payload: Record<string, unknown>): string {
+  const auth = asRecord(payload.auth);
+  return readTextCandidate(
+    payload.auth_query_param
+      || payload.token_query_param
+      || payload.query_token_param
+      || auth.query_param
+      || auth.token_param
+      || '',
+  );
+}
+
 function resolveRealtimeCandidate(payload: unknown): {
   realtime: Record<string, unknown>;
   source: string;
@@ -278,19 +332,28 @@ export function resolveRealtimeTransportContract(
       continue;
     }
     const endpoints = parseRealtimeEndpoints(realtime);
+    const authMode = parseRealtimeAuthMode(realtime);
+    const authQueryParam = parseRealtimeAuthQueryParam(realtime);
     const explicitEnabled = toBoolean(realtime.enabled);
+    const contractIsUsable = endpoints.length > 0
+      && authMode === 'query_token'
+      && Boolean(authQueryParam);
     const enabled = explicitEnabled === null
-      ? endpoints.length > 0
-      : explicitEnabled && endpoints.length > 0;
+      ? contractIsUsable
+      : explicitEnabled && contractIsUsable;
     return {
       enabled,
       endpoints,
       source,
+      authMode,
+      authQueryParam,
     };
   }
   return {
     enabled: false,
     endpoints: [],
     source: 'none',
+    authMode: 'none',
+    authQueryParam: '',
   };
 }

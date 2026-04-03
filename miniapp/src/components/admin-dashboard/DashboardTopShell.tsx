@@ -95,14 +95,14 @@ export function DashboardTopShell({
 
   const showNoticeRail = notice.trim().length > 0 && noticeTone !== 'info';
   const overviewDetail = loading
-    ? 'Checking console status.'
+    ? 'Checking live status.'
     : busyAction.length > 0
       ? `Updating ${busyAction}.`
       : notice.trim().length > 0
         ? notice
         : isDashboardDegraded
-          ? 'Attention needed in console health.'
-          : 'Healthy console. Choose a workspace.';
+          ? 'Attention needed in live operations.'
+          : 'Everything looks healthy. Open the area you need.';
   const showStatusRail = !sessionBlocked
     && showOverviewMode
     && (error || busyAction.length > 0 || isDashboardDegraded || showNoticeRail);

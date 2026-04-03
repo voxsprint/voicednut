@@ -615,7 +615,7 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
       'Job ID before email bulk job lookup',
     ],
     validationSteps: [
-      'Require sms_bulk_manage capability for SMS diagnostic actions.',
+      'Allow SMS status checks for authorized users and require admin access for conversation, recent history, and stats diagnostics.',
       'Require email_bulk_manage capability for email diagnostic actions.',
       'Keep recent and history requests bounded to dashboard page sizes.',
     ],

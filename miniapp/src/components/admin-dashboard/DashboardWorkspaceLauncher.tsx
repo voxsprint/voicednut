@@ -33,9 +33,9 @@ export function DashboardWorkspaceLauncher({
   return (
     <section className="va-overview-launcher" aria-labelledby="va-overview-launcher-title">
       <div className="va-overview-head">
-        <h2 id="va-overview-launcher-title" className="va-section-title">Workspaces</h2>
+        <h2 id="va-overview-launcher-title" className="va-section-title">All areas</h2>
         <p className="va-muted">
-          Open the workspace that matches the task in front of you.
+          Open the area that matches the task in front of you.
         </p>
       </div>
       <div className="va-launcher-groups">
@@ -46,7 +46,7 @@ export function DashboardWorkspaceLauncher({
                 <h3 className="va-launcher-group-title">{group.label}</h3>
                 <p className="va-muted va-launcher-group-subtitle">{group.subtitle}</p>
               </div>
-              <span className="va-meta-chip">{group.modules.length} ready</span>
+              <span className="va-meta-chip">{group.modules.length} available</span>
             </div>
             <div className="va-launcher-grid">
               {group.modules.map((module) => {
@@ -58,7 +58,7 @@ export function DashboardWorkspaceLauncher({
                     id={`va-launcher-module-${module.id}`}
                     variant="plain"
                     className={`va-launcher-card ${isActive ? 'is-active' : ''}`}
-                    aria-label={`Open ${module.label} workspace`}
+                    aria-label={`Open ${module.label}`}
                     aria-pressed={isActive}
                     aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
                     onClick={() => onSelectModule(module.id)}
@@ -74,7 +74,7 @@ export function DashboardWorkspaceLauncher({
                       <span>{MODULE_CONTEXT[module.id].detail}</span>
                       <span className="va-launcher-footer">
                         <span className="va-launcher-state-hint">
-                          {isActive ? 'Continue in this workspace' : 'Open workspace'}
+                          {isActive ? 'Continue here' : 'Open area'}
                         </span>
                         {shortcutIndex > 0 ? (
                           <span className="va-launcher-shortcut">Alt + {shortcutIndex}</span>

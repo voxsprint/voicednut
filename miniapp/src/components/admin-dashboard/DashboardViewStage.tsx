@@ -1,5 +1,6 @@
 import { Suspense, type CSSProperties, type TouchEventHandler } from 'react';
 
+import { DashboardHomeBriefing } from '@/components/admin-dashboard/DashboardHomeBriefing';
 import { DashboardFocusedModulePane } from '@/components/admin-dashboard/DashboardFocusedModulePane';
 import { DashboardOverviewMetrics } from '@/components/admin-dashboard/DashboardOverviewMetrics';
 import { DashboardShellOwnershipCard } from '@/components/admin-dashboard/DashboardShellOwnershipCard';
@@ -13,6 +14,12 @@ import {
   type DashboardWorkspaceLauncherGroup,
 } from '@/components/admin-dashboard/DashboardWorkspaceLauncher';
 import type { DashboardModule } from '@/pages/AdminDashboard/dashboardShellConfig';
+import type {
+  ActivityEntry,
+  CallLogRow,
+  EmailJob,
+  IncidentRow,
+} from '@/pages/AdminDashboard/types';
 import type { DashboardVm } from '@/pages/AdminDashboard/types';
 
 type DashboardViewStageProps = {
@@ -32,6 +39,11 @@ type DashboardViewStageProps = {
   queueBacklogTotal: number;
   lastSuccessfulPollLabel: string;
   visibleModulesCount: number;
+  sessionRole: string;
+  activityLog: ActivityEntry[];
+  callLogs: CallLogRow[];
+  emailJobs: EmailJob[];
+  incidentRows: IncidentRow[];
   onRefreshAccess: () => void;
   showModuleSkeleton: boolean;
   groupedVisibleModules: DashboardWorkspaceLauncherGroup[];
@@ -72,6 +84,11 @@ export function DashboardViewStage({
   queueBacklogTotal,
   lastSuccessfulPollLabel,
   visibleModulesCount,
+  sessionRole,
+  activityLog,
+  callLogs,
+  emailJobs,
+  incidentRows,
   onRefreshAccess,
   showModuleSkeleton,
   groupedVisibleModules,
@@ -148,6 +165,18 @@ export function DashboardViewStage({
               queueBacklogTotal={queueBacklogTotal}
               lastSuccessfulPollLabel={lastSuccessfulPollLabel}
             />
+            <DashboardHomeBriefing
+              sessionRole={sessionRole}
+              visibleModulesCount={visibleModulesCount}
+              groupedVisibleModules={groupedVisibleModules}
+              activityLog={activityLog}
+              callLogs={callLogs}
+              emailJobs={emailJobs}
+              incidentRows={incidentRows}
+              openIncidentCount={openIncidentCount}
+              queueBacklogTotal={queueBacklogTotal}
+              lastSuccessfulPollLabel={lastSuccessfulPollLabel}
+            />
             {visibleModulesCount === 0 ? (
               <EmptyModulesCard
                 onRefreshAccess={onRefreshAccess}
@@ -164,7 +193,10 @@ export function DashboardViewStage({
                 onSelectModule={onSelectModule}
               />
             ) : null}
-            <DashboardShellOwnershipCard />
+            <DashboardShellOwnershipCard
+              sessionRole={sessionRole}
+              visibleModulesCount={visibleModulesCount}
+            />
           </>
         ) : null}
 
