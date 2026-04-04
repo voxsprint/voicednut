@@ -68,11 +68,26 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
     ? `Running ${providerRequestState.activeActionLabel || 'provider checks'}.`
     : !plannerConfigured
       ? 'Provider support metadata is still warming up. Refresh once bootstrap data is available.'
-      : 'Use preflight and staged switching to validate changes before applying them.';
+      : 'Keep the call backbone healthy first, then validate linked SMS and email lanes before applying changes.';
   const matrixStateTitle = loading ? 'Compatibility matrix warming up' : 'No matrix data available';
   const matrixStateDescription = loading
     ? 'Readiness compatibility rows will appear after the current sync cycle.'
     : 'Run preflight or refresh matrix to repopulate provider readiness rows.';
+
+  const channelRoleCopy: Record<'call' | 'sms' | 'email', { label: string; detail: string }> = {
+    call: {
+      label: 'Primary lane',
+      detail: 'This is the main provider workflow elevated by the bot and should be treated as the first change path.',
+    },
+    sms: {
+      label: 'Linked delivery lane',
+      detail: 'Keep SMS readiness aligned with the active call posture before large delivery work.',
+    },
+    email: {
+      label: 'Linked delivery lane',
+      detail: 'Review email readiness here when campaign or incident work depends on provider health.',
+    },
+  };
 
   const stageBadgeVariant = (stage: string): 'meta' | 'info' | 'success' | 'warning' => {
     switch (stage) {
@@ -90,13 +105,27 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
   return (
     <>
       <section className="va-page-intro">
-        <p className="va-kicker">Messaging</p>
+        <p className="va-kicker">Operations</p>
         <h2 className="va-page-title">Provider Control</h2>
-        <p className="va-muted">Review channel readiness, run preflight checks, and stage safe provider switches.</p>
+        <p className="va-muted">
+          Review the active call backbone, then validate SMS and email readiness before staging any provider change.
+        </p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={providerSummaryTone === 'warning' ? 'warning' : providerSummaryTone === 'info' ? 'info' : 'success'}>
+            {providerSummaryStatus}
+          </UiBadge>
+          <UiBadge variant="meta">Call-first routing</UiBadge>
+          <UiBadge variant={providerDegradedCount > 0 ? 'warning' : 'info'}>
+            {providerDegradedCount > 0 ? `${providerDegradedCount} degraded` : 'Routing stable'}
+          </UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Use this as the routing control surface: check the active backbone, simulate the target, confirm intent, and apply changes only after readiness clears.
+        </p>
       </section>
 
       <UiWorkspacePulse
-        title="Provider reliability"
+        title="Call backbone health"
         description={providerSummaryDescription}
         status={providerSummaryStatus}
         tone={providerSummaryTone}
@@ -116,10 +145,51 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
 
       <section className="va-grid">
         <UiCard>
-          <h3>Provider Preflight Matrix</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Active routing</h3>
+              <p className="va-muted">
+                Review the live call backbone first, then check the linked SMS and email lanes before changing provider posture.
+              </p>
+            </div>
+            <UiBadge variant={providerDegradedCount > 0 ? 'warning' : 'info'}>
+              {providerDegradedCount > 0 ? `${providerDegradedCount} degraded` : 'Routing stable'}
+            </UiBadge>
+          </div>
+          <ul className="va-list">
+            {(['call', 'sms', 'email'] as const).map((channel) => {
+              const current = providerCurrentByChannel[channel] || 'unknown';
+              const supported = providerSupportedByChannel[channel] || [];
+              const role = channelRoleCopy[channel];
+              return (
+                <li key={`provider-current-${channel}`}>
+                  <div className="va-entity-head">
+                    <strong>{channel.toUpperCase()}</strong>
+                    <UiBadge variant={channel === 'call' ? 'info' : 'meta'}>
+                      {role.label}
+                    </UiBadge>
+                  </div>
+                  <span>Current provider: <strong>{current}</strong></span>
+                  <span>Supported targets: <strong>{supported.length > 0 ? supported.join(', ') : 'pending'}</strong></span>
+                  <span>{role.detail}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </UiCard>
+        <UiCard>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Provider Status &amp; Readiness</h3>
+              <p className="va-muted">Refresh the matrix, preflight active channels, and inspect compatibility before any routing move.</p>
+            </div>
+            <UiBadge variant={providerSummaryTone === 'warning' ? 'warning' : providerSummaryTone === 'info' ? 'info' : 'success'}>
+              {providerSummaryStatus}
+            </UiBadge>
+          </div>
           <UiActionBar
-            title="Run provider checks"
-            description="Validate active channels before switching traffic, or refresh the matrix after configuration changes."
+            title="Refresh or preflight"
+            description="Refresh the current provider picture, then preflight active lanes before committing a switch."
             actions={(
               <>
                 <UiButton
@@ -164,8 +234,8 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
             />
           ) : (
             <UiDisclosure
-              title="Compatibility details"
-              subtitle="Review readiness, degraded signals, and parity gaps by provider."
+              title="Readiness matrix"
+              subtitle="Review readiness, degraded signals, and payment/path constraints by provider."
             >
               <pre>{textBar(providerReadinessPercent)}</pre>
               <ul className="va-list va-matrix-list">
@@ -192,9 +262,21 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
       </section>
       <section className="va-grid">
         <UiCard>
-          <h3>Staged Switch Planner</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Call-First Switch Planner</h3>
+              <p className="va-muted">
+                Simulate first, confirm intent second, and apply only after the active routing picture is clean.
+              </p>
+            </div>
+            <UiBadge variant={plannerConfigured ? 'meta' : 'warning'}>
+              {plannerConfigured ? 'Planner ready' : 'Awaiting metadata'}
+            </UiBadge>
+          </div>
           <p className="va-muted">
-            Safe flow: simulate target readiness, confirm intent, apply switch, then review health check.
+            Follow the operational sequence used by the bot: review readiness, simulate a target, confirm intent,
+            apply the switch, then verify health. Call is the primary change lane; SMS and email stay available when
+            backend policy allows.
           </p>
           {!plannerConfigured ? (
             <UiSurfaceState
@@ -221,6 +303,7 @@ export function ProviderControlPage({ visible, vm }: ProviderControlPageProps) {
                       {plan.stage}
                     </UiBadge>
                   </div>
+                  <span>{channelRoleCopy[channel].detail}</span>
                   <span>Current: {current}</span>
                   <div className="va-inline-tools">
                     <UiSelect

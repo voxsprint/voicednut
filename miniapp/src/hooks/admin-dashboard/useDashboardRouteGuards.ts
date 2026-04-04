@@ -15,6 +15,7 @@ type UseDashboardModuleRouteGuardsOptions = {
   preferredServerModule: DashboardModule | null;
   workspaceRouteFallbackPath: (route: WorkspaceRoute, visibleModuleIds: DashboardModule[]) => string;
   initialServerModuleAppliedRef: MutableRefObject<boolean>;
+  routeAccessReady: boolean;
 };
 
 export function useDashboardModuleRouteGuards({
@@ -27,6 +28,7 @@ export function useDashboardModuleRouteGuards({
   preferredServerModule,
   workspaceRouteFallbackPath: resolveWorkspaceRouteFallbackPath,
   initialServerModuleAppliedRef,
+  routeAccessReady,
 }: UseDashboardModuleRouteGuardsOptions): void {
   useEffect(() => {
     if (visibleModules.length === 0) return;
@@ -38,6 +40,7 @@ export function useDashboardModuleRouteGuards({
   useEffect(() => {
     if (!workspaceRoute || workspaceRoute === 'settings') return;
     if (visibleModules.length === 0) {
+      if (!routeAccessReady) return;
       if (locationPathname !== DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT) {
         navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT, { replace: true });
       }
@@ -49,7 +52,14 @@ export function useDashboardModuleRouteGuards({
     if (locationPathname !== fallbackPath) {
       navigate(fallbackPath, { replace: true });
     }
-  }, [locationPathname, navigate, resolveWorkspaceRouteFallbackPath, visibleModules, workspaceRoute]);
+  }, [
+    locationPathname,
+    navigate,
+    resolveWorkspaceRouteFallbackPath,
+    routeAccessReady,
+    visibleModules,
+    workspaceRoute,
+  ]);
 
   useEffect(() => {
     if (initialServerModuleAppliedRef.current) return;

@@ -68,9 +68,37 @@
 }
 
 .va-page-intro {
+  position: relative;
+  overflow: hidden;
   display: grid;
   gap: var(--app-space-2);
   margin-bottom: var(--app-space-4);
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.08));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(92, 146, 238, 0.12), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 90%, transparent), color-mix(in srgb, var(--va-surface-strong) 96%, transparent));
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-page-intro::before {
+  content: '';
+  position: absolute;
+  top: -46px;
+  right: -28px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(74, 224, 176, 0.12), transparent 70%);
+  pointer-events: none;
+}
+
+.va-page-intro > * {
+  position: relative;
+  z-index: 1;
 }
 
 .va-page-title {
@@ -87,7 +115,23 @@
   gap: var(--app-space-2);
 }
 
+.va-page-intro-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.va-page-intro-note {
+  margin: 0;
+  max-width: 68ch;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 92%, white 8%);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .va-focused-header {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -95,8 +139,23 @@
   padding: var(--app-space-3);
   border: 1px solid var(--app-color-border-soft);
   border-radius: var(--app-radius-lg);
-  background: color-mix(in srgb, var(--app-color-card-telegram) 86%, transparent);
-  box-shadow: var(--app-shadow-soft);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-color-card-telegram) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 96%, rgba(8, 13, 21, 0.88)));
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-focused-header::before {
+  content: '';
+  position: absolute;
+  top: -56px;
+  right: -36px;
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(107, 168, 255, 0.16), transparent 72%);
+  pointer-events: none;
 }
 
 .va-focused-main {
@@ -108,6 +167,56 @@
 .va-focused-copy {
   display: grid;
   gap: 4px;
+}
+
+.va-focused-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.va-focused-eyebrow {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 80%, white 20%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.va-focused-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(105, 146, 222, 0.28);
+  background: rgba(44, 70, 124, 0.22);
+  color: #d4e4ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.va-focused-subtitle {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 84%, white 16%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.va-focused-story {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.06));
+  background: linear-gradient(180deg, rgba(15, 22, 36, 0.62), rgba(9, 13, 23, 0.22));
 }
 
 .va-focused-back {
@@ -157,7 +266,9 @@
   border-left-width: 3px;
   border-radius: var(--app-radius-md);
   padding: 10px 12px 10px 11px;
-  background: color-mix(in srgb, var(--va-surface-strong) 82%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 88%, transparent), color-mix(in srgb, var(--va-surface-strong) 96%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .va-state-panel-title {
@@ -340,6 +451,9 @@
 }
 
 .va-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--app-space-3);
@@ -347,15 +461,61 @@
   border: 1px solid var(--va-border);
   border-radius: var(--app-radius-xl);
   padding: var(--app-space-4);
-  background: color-mix(in srgb, var(--app-color-card-telegram) 88%, transparent);
-  box-shadow: var(--app-shadow-soft);
+  background:
+    radial-gradient(circle at top left, rgba(90, 164, 255, 0.18), transparent 42%),
+    radial-gradient(circle at right center, rgba(75, 224, 176, 0.12), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-color-card-telegram) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 96%, rgba(8, 13, 21, 0.88)));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   margin-bottom: 0;
+}
+
+.va-header::before,
+.va-header::after {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.va-header::before {
+  top: -88px;
+  right: -52px;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(109, 182, 255, 0.28), transparent 68%);
+}
+
+.va-header::after {
+  left: -64px;
+  bottom: -104px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(82, 224, 186, 0.18), transparent 72%);
+}
+
+.va-header > * {
+  position: relative;
+  z-index: 1;
 }
 
 .va-header-primary {
   display: flex;
   align-items: flex-start;
   gap: var(--app-space-3);
+}
+
+.va-header-avatar-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 70%, rgba(255, 255, 255, 0.08));
+  background: linear-gradient(180deg, rgba(13, 19, 32, 0.56), rgba(9, 13, 22, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .va-header h1 {
@@ -369,7 +529,104 @@
 .va-header-copy {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 7px;
+}
+
+.va-header-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.va-header-eyebrow {
+  margin: 0;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 76%, white 24%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.va-header-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(106, 142, 209, 0.3);
+  background: rgba(47, 73, 128, 0.24);
+  color: #d7e6ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.va-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.va-header-posture {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.va-header-posture.is-success {
+  color: #9cf4d9;
+  border-color: rgba(108, 232, 190, 0.34);
+  background: rgba(35, 116, 88, 0.22);
+}
+
+.va-header-posture.is-info {
+  color: #cfe2ff;
+  border-color: rgba(124, 171, 255, 0.3);
+  background: rgba(53, 91, 166, 0.22);
+}
+
+.va-header-posture.is-warning {
+  color: #ffd7a7;
+  border-color: rgba(255, 186, 105, 0.34);
+  background: rgba(136, 88, 29, 0.22);
+}
+
+.va-header-subtitle {
+  margin: -2px 0 0;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 84%, white 16%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.va-header-story {
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.06));
+  background:
+    linear-gradient(180deg, rgba(16, 23, 37, 0.68), rgba(9, 13, 23, 0.24));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-header-lead {
+  margin: 0;
+  max-width: 56ch;
+  color: color-mix(in srgb, var(--tg-theme-text-color, var(--va-text)) 88%, white 12%);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .va-module-context-line {
@@ -398,27 +655,45 @@
 
 .va-header-meta {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
 }
 
-.va-meta-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.va-header-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.va-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border-radius: var(--app-radius-pill);
-  padding: 0 9px;
-  border: 1px solid var(--app-color-border);
-  background: color-mix(in srgb, var(--va-surface-strong) 86%, transparent);
-  color: var(--tg-theme-text-color, color-mix(in srgb, var(--va-text) 76%, var(--va-muted)));
-  font-size: 11px;
-  letter-spacing: 0.01em;
+.va-header-signal-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 82%, rgba(255, 255, 255, 0.08));
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.62), rgba(11, 16, 28, 0.28));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-header-signal-card strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.va-header-signal-label {
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 78%, white 22%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.va-header-signal-note {
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 92%, white 8%);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .va-header-actions {
@@ -765,13 +1040,36 @@
 }
 
 .va-launcher-group {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  gap: var(--app-space-2);
-  padding: var(--app-space-3);
-  border: 1px solid var(--app-color-border-soft);
-  border-radius: var(--app-radius-md);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 82%, rgba(255, 255, 255, 0.08));
+  border-radius: 22px;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--va-surface-strong) 60%, transparent), color-mix(in srgb, var(--va-surface) 88%, transparent));
+    radial-gradient(circle at top right, rgba(78, 132, 226, 0.12), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface-strong) 70%, transparent), color-mix(in srgb, var(--va-surface) 92%, transparent));
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-launcher-group::before {
+  content: '';
+  position: absolute;
+  top: -52px;
+  right: -28px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(78, 225, 180, 0.12), transparent 72%);
+  pointer-events: none;
+}
+
+.va-launcher-group > * {
+  position: relative;
+  z-index: 1;
 }
 
 .va-launcher-group-head {
@@ -779,6 +1077,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--app-space-2);
+  padding: 2px 2px 0;
 }
 
 .va-launcher-group-copy {
@@ -797,23 +1096,44 @@
 }
 
 .va-launcher-card {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: start;
-  gap: 10px;
+  gap: 12px;
   text-align: left;
-  border: 1px solid var(--va-border);
+  border: 1px solid color-mix(in srgb, var(--va-border) 84%, rgba(255, 255, 255, 0.08));
   border-radius: var(--app-radius-lg);
-  background: color-mix(in srgb, var(--app-color-card-telegram) 90%, transparent);
-  box-shadow: var(--va-shadow);
-  min-height: 78px;
-  padding: var(--app-space-3);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-color-card-telegram) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 96%, rgba(8, 13, 21, 0.88)));
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  min-height: 88px;
+  padding: 14px;
   cursor: pointer;
   transition:
     transform var(--app-motion-fast) var(--app-ease-standard),
     border-color var(--app-motion-fast) var(--app-ease-standard),
     background-color var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.va-launcher-card::before {
+  content: '';
+  position: absolute;
+  inset: auto -36px -44px auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(87, 144, 245, 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.va-launcher-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .va-launcher-card:hover {
@@ -822,7 +1142,8 @@
 
 .va-launcher-card.is-active {
   border-color: rgba(88, 140, 238, 0.54);
-  background: color-mix(in srgb, var(--va-surface-strong) 74%, rgba(62, 95, 166, 0.3));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, rgba(62, 95, 166, 0.24) 76%, var(--app-color-card-telegram)), color-mix(in srgb, var(--va-surface-strong) 98%, rgba(9, 14, 25, 0.9)));
 }
 
 .va-launcher-card:focus-visible {
@@ -834,6 +1155,25 @@
 
 .va-launcher-card:active {
   transform: scale(0.997);
+}
+
+.va-launcher-card:disabled {
+  cursor: not-allowed;
+}
+
+.va-launcher-card.is-locked {
+  border-color: color-mix(in srgb, var(--app-color-border-soft) 92%, rgba(255, 255, 255, 0.06));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 92%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  opacity: 0.84;
+}
+
+.va-launcher-card.is-locked:hover,
+.va-launcher-card.is-locked:active {
+  transform: none;
+  border-color: color-mix(in srgb, var(--app-color-border-soft) 92%, rgba(255, 255, 255, 0.06));
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -865,6 +1205,7 @@
   color: #d8e6ff;
   border: 1px solid rgba(106, 142, 209, 0.34);
   background: rgba(58, 90, 155, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .va-launcher-copy {
@@ -893,6 +1234,12 @@
   line-height: 1.1;
   letter-spacing: 0.02em;
   color: #dbe8ff;
+}
+
+.va-launcher-state.is-locked {
+  border-color: color-mix(in srgb, var(--app-color-border-soft) 86%, rgba(255, 255, 255, 0.12));
+  background: color-mix(in srgb, var(--va-surface) 86%, transparent);
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 82%, white 18%);
 }
 
 .va-launcher-copy strong {
@@ -954,8 +1301,8 @@
   grid-template-columns: 36px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
-  min-height: 84px;
-  padding: 14px;
+  min-height: 112px;
+  padding: 15px;
   border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 86%, rgba(255, 255, 255, 0.08));
   border-radius: var(--app-radius-lg);
   background:
@@ -972,6 +1319,9 @@
 
 .va-home-action-card:hover {
   border-color: color-mix(in srgb, var(--app-color-primary) 48%, var(--app-color-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 100%, rgba(8, 13, 21, 0.92))),
+    color-mix(in srgb, var(--app-color-card-telegram) 90%, transparent);
 }
 
 .va-home-action-card:focus-visible {
@@ -994,6 +1344,7 @@
   color: #d8e6ff;
   border: 1px solid rgba(106, 142, 209, 0.34);
   background: rgba(58, 90, 155, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .va-home-action-copy {
@@ -1002,16 +1353,27 @@
   gap: 6px;
 }
 
-.va-home-action-title-row {
+.va-home-action-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.va-home-action-kicker {
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 74%, white 26%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .va-home-action-copy strong {
-  font-size: 0.96rem;
-  line-height: 1.25;
+  display: block;
+  font-size: 1rem;
+  line-height: 1.18;
+  letter-spacing: 0.01em;
 }
 
 .va-home-action-copy span:last-child {
@@ -1020,30 +1382,79 @@
   line-height: 1.4;
 }
 
+.va-home-action-card .va-shortcut-action {
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-color-primary) 30%, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--app-color-primary) 10%, transparent);
+  color: color-mix(in srgb, var(--app-color-primary) 74%, white 26%);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .va-home-continue-list {
+  display: grid;
+  gap: var(--app-space-2);
   align-self: start;
 }
 
 .va-home-admin-list {
+  display: grid;
+  gap: var(--app-space-2);
   align-self: start;
 }
 
 .va-home-continue-row {
+  display: grid;
+  gap: 8px;
+  padding: 15px 16px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 86%, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   color: inherit;
   text-decoration: none;
+  transition:
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    border-color var(--app-motion-fast) var(--app-ease-standard),
+    background-color var(--app-motion-fast) var(--app-ease-standard);
 }
 
 .va-home-admin-row {
+  display: grid;
+  gap: 8px;
+  padding: 15px 16px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   color: inherit;
   text-decoration: none;
+  transition:
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    border-color var(--app-motion-fast) var(--app-ease-standard),
+    background-color var(--app-motion-fast) var(--app-ease-standard);
 }
 
 .va-home-continue-row:hover {
-  background: color-mix(in srgb, var(--app-color-primary) 8%, transparent);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-color-primary) 42%, var(--app-color-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 98%, transparent));
 }
 
 .va-home-admin-row:hover {
-  background: color-mix(in srgb, var(--app-color-warning) 8%, transparent);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-color-warning) 44%, var(--app-color-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 98%, transparent));
 }
 
 .va-home-continue-detail {
@@ -1052,10 +1463,71 @@
   line-height: 1.4;
 }
 
+.va-command-page {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+.va-command-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.va-command-hero::before {
+  content: '';
+  position: absolute;
+  inset: auto -42px -54px auto;
+  width: 168px;
+  height: 168px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(85, 214, 178, 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.va-command-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.va-command-hero-note {
+  margin: 12px 0 0;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 90%, white 10%);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.va-command-hero-loading {
+  min-height: 0;
+}
+
+.va-command-nav-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 68px;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 72%, white 28%);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
 .va-home-empty-panel {
   display: grid;
   gap: var(--app-space-2);
   align-self: start;
+  padding: 15px 16px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 86%, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 84%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .va-shell-guide-block .va-disclosure {
@@ -1073,11 +1545,15 @@
   justify-content: space-between;
   gap: var(--app-space-3);
   padding: 14px 16px;
-  border: 1px solid var(--app-color-border-soft);
-  border-radius: var(--app-radius-md);
-  background: color-mix(in srgb, var(--va-surface) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
   color: inherit;
   text-decoration: none;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition:
     border-color var(--app-motion-fast) var(--app-ease-standard),
     background-color var(--app-motion-fast) var(--app-ease-standard),
@@ -1086,6 +1562,7 @@
 
 .va-shortcut-link:hover {
   border-color: color-mix(in srgb, var(--app-color-primary) 48%, var(--app-color-border));
+  transform: translateY(-1px);
 }
 
 .va-shortcut-link:focus-visible {
@@ -1114,6 +1591,14 @@
 }
 
 .va-shortcut-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-color-primary) 30%, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--app-color-primary) 10%, transparent);
   font-family: var(--app-font-mono);
   font-size: 11px;
   letter-spacing: 0.03em;
@@ -1131,8 +1616,11 @@
   border-radius: var(--app-radius-lg);
   padding: var(--app-space-4);
   color: var(--tg-theme-text-color, var(--va-text));
-  background: var(--tg-theme-secondary-bg-color, color-mix(in srgb, var(--app-color-card-telegram) 90%, transparent));
-  box-shadow: var(--va-shadow);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-color-card-telegram) 92%, rgba(255, 255, 255, 0.02)), color-mix(in srgb, var(--va-surface-strong) 96%, rgba(8, 13, 21, 0.88)));
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(4px);
 }
 
@@ -1413,8 +1901,8 @@
   padding: 10px;
   border-radius: var(--app-radius-md);
   border-color: var(--app-color-border-soft);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 80%, transparent), color-mix(in srgb, var(--va-surface-strong) 88%, transparent));
-  box-shadow: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .va-drilldown {
@@ -1431,8 +1919,11 @@
 
 .va-disclosure {
   border-top: 0;
-  padding-top: 0;
+  padding: 10px 12px;
   margin-top: 10px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.06));
+  border-radius: var(--app-radius-md);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 82%, transparent), color-mix(in srgb, var(--va-surface-strong) 92%, transparent));
 }
 
 .va-disclosure-summary {
@@ -1562,6 +2053,9 @@
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 86%, transparent), color-mix(in srgb, var(--va-surface-strong) 94%, transparent)),
     color-mix(in srgb, var(--va-surface-strong) 88%, black 12%);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .va-native-list-row {
@@ -1569,7 +2063,9 @@
   gap: 6px;
   min-height: 48px;
   padding: 12px 14px;
-  transition: background-color var(--app-motion-fast) var(--app-ease-standard);
+  transition:
+    background-color var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard);
 }
 
 .va-native-list-row + .va-native-list-row {
@@ -1578,6 +2074,10 @@
 
 .va-native-list-row:active {
   background: color-mix(in srgb, var(--app-color-primary) 10%, transparent);
+}
+
+.va-native-list-row:hover {
+  background: color-mix(in srgb, var(--app-color-primary) 6%, transparent);
 }
 
 .va-native-list-head {
@@ -1909,11 +2409,38 @@
 }
 
 .va-settings-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  padding: 4px 4px 0;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--app-color-border-soft) 84%, rgba(255, 255, 255, 0.08));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(107, 168, 255, 0.14), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--va-surface) 88%, transparent), color-mix(in srgb, var(--va-surface-strong) 96%, transparent));
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.va-settings-hero::before {
+  content: '';
+  position: absolute;
+  top: -42px;
+  right: -22px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(74, 224, 176, 0.12), transparent 72%);
+  pointer-events: none;
+}
+
+.va-settings-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 .va-settings-summary {
@@ -1927,6 +2454,8 @@
 
 .va-settings-title-wrap {
   flex: 1;
+  display: grid;
+  gap: 8px;
 }
 
 .va-settings-title {
@@ -1936,9 +2465,42 @@
   letter-spacing: 0.005em;
 }
 
+.va-settings-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.va-settings-hero-note {
+  margin: 0;
+  max-width: 60ch;
+  color: color-mix(in srgb, var(--tg-theme-hint-color, var(--va-muted)) 90%, white 10%);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .va-settings-cluster {
   display: grid;
   gap: 8px;
+}
+
+.va-ops-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.va-ops-card-headline {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.va-ops-card-headline > h3,
+.va-ops-card-headline > p {
+  margin: 0;
 }
 
 .va-settings-section-label {
@@ -2412,6 +2974,11 @@
     align-items: center;
   }
 
+  .va-header-meta {
+    align-self: stretch;
+    align-content: stretch;
+  }
+
   .va-header-actions {
     justify-content: flex-end;
   }
@@ -2493,6 +3060,8 @@
 @media (max-width: 520px) {
   .va-page-intro {
     margin-bottom: var(--app-space-3);
+    padding: 14px 15px;
+    border-radius: 20px;
   }
 
   .va-focused-header {
@@ -2522,8 +3091,24 @@
     gap: 10px;
   }
 
+  .va-header-avatar-shell {
+    padding: 4px;
+    border-radius: 16px;
+  }
+
   .va-header h1 {
     font-size: clamp(1.35rem, 7vw, 1.65rem);
+    letter-spacing: 0.05em;
+  }
+
+  .va-header-title-row {
+    gap: 8px;
+  }
+
+  .va-header-posture {
+    min-height: 24px;
+    padding: 0 10px;
+    font-size: 10px;
   }
 
   .va-profile-trigger {
@@ -2542,6 +3127,21 @@
 
   .va-header-meta {
     gap: 6px;
+  }
+
+  .va-header-story {
+    padding: 10px 11px;
+    border-radius: 16px;
+  }
+
+  .va-focused-story {
+    padding: 9px 10px;
+    border-radius: 14px;
+  }
+
+  .va-header-signal-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .va-header-actions {
@@ -2592,6 +3192,15 @@
     padding: 11px 12px;
   }
 
+  .va-home-action-card {
+    min-height: 104px;
+    padding: 14px;
+  }
+
+  .va-home-action-head {
+    align-items: flex-start;
+  }
+
   .va-native-list-head {
     flex-direction: column;
     align-items: flex-start;
@@ -2617,12 +3226,23 @@
   }
 
   .va-settings-hero {
+    padding: 16px;
     flex-direction: column;
     align-items: flex-start;
   }
 
+  .va-command-hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .va-settings-summary {
     justify-content: flex-start;
+  }
+
+  .va-ops-card-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .va-settings-page {

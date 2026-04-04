@@ -63,8 +63,12 @@ export function selectUsersRows(params: {
     if (roleFilter !== 'all' && role !== roleFilter) return false;
     if (!query) return true;
     const telegramId = toText(user.telegram_id, '').toLowerCase();
+    const username = toText(user.username, '').toLowerCase();
     const roleSource = toText(user.role_source, '').toLowerCase();
-    return telegramId.includes(query) || role.includes(query) || roleSource.includes(query);
+    return telegramId.includes(query)
+      || username.includes(query)
+      || role.includes(query)
+      || roleSource.includes(query);
   });
 
   const direction = userSortDir === 'asc' ? 1 : -1;

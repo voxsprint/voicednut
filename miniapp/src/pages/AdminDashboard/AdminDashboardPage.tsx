@@ -377,6 +377,19 @@ export function AdminDashboardPage() {
     }
   }, [location.pathname, navigate, triggerHaptic]);
 
+  const returnToHome = useCallback((): void => {
+    setSettingsOpen((prev) => {
+      if (prev) {
+        shouldRestoreFocusRef.current = true;
+      }
+      return false;
+    });
+    setActiveModule('ops');
+    if (location.pathname !== DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT) {
+      navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT);
+    }
+  }, [location.pathname, navigate]);
+
   const { pushActivity, clearActivityLog } = useDashboardActivityFeed({
     setActivityLog,
     maxItems: MAX_ACTIVITY_ITEMS,
@@ -537,14 +550,13 @@ export function AdminDashboardPage() {
   useDashboardTelegramButtons({
     settingsButtonSupported,
     toggleSettings,
+    returnToHome,
     dialogState,
     dismissDialog,
     triggerHaptic,
     settingsOpen,
     focusedWorkspaceMode,
     activeModule,
-    selectModule,
-    navigate,
   });
 
   const serverPollIntervalMs = useMemo(() => {
@@ -677,6 +689,7 @@ export function AdminDashboardPage() {
     preferredServerModule,
     workspaceRouteFallbackPath: resolveWorkspaceRouteFallbackPath,
     initialServerModuleAppliedRef,
+    routeAccessReady: !loading,
   });
   const activeModuleMeta = MODULE_CONTEXT[activeModule] || MODULE_CONTEXT.ops;
   const activeModuleLabel = useMemo(() => (
@@ -690,14 +703,27 @@ export function AdminDashboardPage() {
       return acc;
     }, {})
   ), [visibleModules]);
+  const workspaceModules = useMemo(() => {
+    const visibleModuleMap = new Map(visibleModules.map((module) => [module.id, module]));
+    return MODULE_DEFINITIONS.map((module) => {
+      const visibleModule = visibleModuleMap.get(module.id);
+      return {
+        id: module.id,
+        label: visibleModule?.label || module.label,
+        isAvailable: Boolean(visibleModule),
+      };
+    });
+  }, [visibleModules]);
   const groupedVisibleModules = useMemo(() => (
     MODULE_GROUPS
       .map((group) => ({
         ...group,
-        modules: visibleModules.filter((module) => group.moduleIds.includes(module.id)),
+        modules: group.moduleIds
+          .map((moduleId) => workspaceModules.find((module) => module.id === moduleId))
+          .filter((module): module is (typeof workspaceModules)[number] => module != null),
       }))
       .filter((group) => group.modules.length > 0)
-  ), [visibleModules]);
+  ), [workspaceModules]);
   const openIncidentCount = toInt(asRecord(incidentsPayload.summary).open, incidentRows.length);
   const showOverviewMode = !focusedWorkspaceMode && !settingsOpen;
   const showFocusedModuleMode = focusedWorkspaceMode && !settingsOpen;
@@ -1429,16 +1455,9 @@ export function AdminDashboardPage() {
         featureFlagsCount={Object.keys(featureFlags).length || 'default'}
         featureFlagsSourceLabel={featureFlagsSourceLabel}
         featureFlagsUpdatedAtLabel={featureFlagsUpdatedAtLabel}
-        visibleModules={visibleModules}
         onTogglePolling={handleTogglePolling}
         onSyncNow={handleRefresh}
         onRetrySession={resetSession}
-        onJumpToModule={(moduleId) => {
-          if (!visibleModules.some((module) => module.id === moduleId)) return;
-          restoreFocusSelectorRef.current = `#va-launcher-module-${moduleId}, #va-view-stage-root`;
-          toggleSettings(false, { fallbackModule: moduleId as DashboardModule });
-          selectModule(moduleId as DashboardModule);
-        }}
       />
       <DashboardViewStage
         settingsOpen={settingsOpen}

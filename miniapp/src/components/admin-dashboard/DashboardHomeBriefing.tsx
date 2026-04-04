@@ -94,12 +94,12 @@ const HOME_ACTION_COPY: Partial<Record<DashboardModuleId, HomeActionCopy>> = {
     description: 'Investigate SMS and email issues from one diagnostics workspace.',
   },
   content: {
-    title: 'Script studio',
-    description: 'Draft and review call flows without leaving the dashboard.',
+    title: 'Script Designer',
+    description: 'Switch between call, SMS, and email script editing from one workspace.',
   },
   scriptsparity: {
-    title: 'Message templates',
-    description: 'Maintain SMS scripts and email templates together.',
+    title: 'Message lanes',
+    description: 'Open a narrower SMS and email editor without leaving the scripts model.',
   },
   callerflags: {
     title: 'Caller flags',
@@ -247,7 +247,7 @@ const ADMIN_STRIP_ACTIONS: HomeActionLink[] = [
   {
     id: 'admin-strip-scripts',
     title: 'Scripts',
-    description: 'Open the command-backed script and template workflows.',
+    description: 'Open script and template workflows from the dedicated workspace.',
     to: MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS,
   },
   {
@@ -388,6 +388,7 @@ export function DashboardHomeBriefing({
       id: module.id,
       to: moduleRoutePath(module.id),
       actionLabel: 'Open',
+      moduleId: module.id,
       title: HOME_ACTION_COPY[module.id]?.title || module.label,
       description: HOME_ACTION_COPY[module.id]?.description || MODULE_CONTEXT[module.id].detail,
     }));
@@ -424,7 +425,7 @@ export function DashboardHomeBriefing({
         <UiSurfaceState
           className="va-home-panel"
           eyebrow="Start here"
-          status="Frontend home"
+          status="Workspace ready"
           statusVariant="info"
           tone="info"
           title="Primary actions"
@@ -441,10 +442,13 @@ export function DashboardHomeBriefing({
               >
                 <span className="va-home-action-glyph" aria-hidden>{homeActionGlyph(action.id)}</span>
                 <span className="va-home-action-copy">
-                  <span className="va-home-action-title-row">
-                    <strong>{action.title}</strong>
+                  <span className="va-home-action-head">
+                    <span className="va-home-action-kicker">
+                      {action.moduleId ? 'Workspace' : 'Workflow'}
+                    </span>
                     <span className="va-shortcut-action">{action.actionLabel || 'Open'}</span>
                   </span>
+                  <strong>{action.title}</strong>
                   <span>{action.description}</span>
                 </span>
               </Link>

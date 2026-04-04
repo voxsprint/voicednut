@@ -414,15 +414,28 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
   return (
     <>
       <section className="va-page-intro">
-        <p className="va-kicker">Governance</p>
-        <h2 className="va-page-title">Audit & Incident Center</h2>
+        <p className="va-kicker">System Posture</p>
+        <h2 className="va-page-title">System Status & Audit</h2>
         <p className="va-muted">
-          Incident triage, audit review, and runbook actions for operational follow-up.
+          Mirrors bot-backed health and status posture while keeping alert triage, response actions,
+          and audit history together in one workspace.
+        </p>
+        <div className="va-page-intro-meta" aria-label="System status and audit summary">
+          <UiBadge variant={auditPulseTone === 'warning' ? 'info' : auditPulseTone}>
+            {auditPulseStatus}
+          </UiBadge>
+          <UiBadge variant="meta">Incident command center</UiBadge>
+          <UiBadge variant="info">{filteredIncidentRows.length} active alerts</UiBadge>
+          <UiBadge variant="meta">{filteredAuditRows.length} audit entries</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Use this surface to review live posture first, then move into response actions and audit follow-up without
+          leaving the operational context the bot already maintains.
         </p>
       </section>
 
       <UiWorkspacePulse
-        title="Audit workspace"
+        title="Operational posture"
         description={auditPulseDescription}
         status={auditPulseStatus}
         tone={auditPulseTone}
@@ -442,8 +455,8 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             eyebrow="Workspace state"
             status="In progress"
             statusVariant="info"
-            title="A runbook action is running"
-            description="The workspace will remain available while the current response action completes."
+            title="A response action is running"
+            description="Status review stays available while the current recovery action completes."
             tone="info"
             compact
           />
@@ -452,7 +465,15 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
 
       <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
         <UiCard>
-        <h3>Incident Response</h3>
+        <div className="va-ops-card-header">
+          <div className="va-ops-card-headline">
+            <h3>System posture and alerts</h3>
+            <p className="va-muted">Triage live alerts, trigger recovery runbooks, and keep the current health picture in view.</p>
+          </div>
+          <UiBadge variant={auditPulseTone === 'warning' ? 'info' : auditPulseTone}>
+            {busyAction.length > 0 ? 'Live action running' : `${filteredIncidentRows.length} in scope`}
+          </UiBadge>
+        </div>
         <div className="va-filter-grid" role="toolbar" aria-label="Audit and incident actions">
           <UiButton
             ref={refreshAlertsButtonRef}
@@ -462,7 +483,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRefreshAuditModule(event.currentTarget);
             }}
           >
-            Refresh Alerts
+            Refresh Status
           </UiButton>
           <UiButton
             variant="secondary"
@@ -471,7 +492,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, {}, event.currentTarget);
             }}
           >
-            Runbook: SMS Reconcile
+            Reconcile SMS
           </UiButton>
           <UiButton
             variant="secondary"
@@ -480,7 +501,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PAYMENT_RECONCILE, {}, event.currentTarget);
             }}
           >
-            Runbook: Payment Reconcile
+            Reconcile Payments
           </UiButton>
           <UiButton
             variant="secondary"
@@ -489,7 +510,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT, {}, event.currentTarget);
             }}
           >
-            Runbook: Provider Preflight
+            Provider Preflight
           </UiButton>
           <UiButton
             variant="secondary"
@@ -498,7 +519,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_PROVIDER_PREFLIGHT, { channel: 'call' }, event.currentTarget);
             }}
           >
-            Playbook: Provider Outage
+            Check Call Provider
           </UiButton>
           <UiButton
             variant="secondary"
@@ -507,14 +528,18 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
               handleRunbookAction(DASHBOARD_ACTION_CONTRACTS.RUNBOOK_SMS_RECONCILE, { scope: 'failure_spike' }, event.currentTarget);
             }}
           >
-            Playbook: SMS Failure Spike
+            Recover SMS Spike
           </UiButton>
         </div>
+        <p className="va-muted">
+          Data sources: bot-backed /health, admin /status, service health logs, and bridge runbooks.
+          This page is the frontend for those operational signals, not a separate incident engine.
+        </p>
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
             <UiInput
               ref={incidentQueryInputRef}
-              placeholder="Filter incidents (service/status/message)"
+              placeholder="Search service, status, or incident detail"
               value={incidentQuery}
               onChange={(event) => setIncidentQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -575,11 +600,11 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             </UiSelect>
             {incidentCsvEnabled ? (
               <UiButton variant="secondary" onClick={exportIncidentCsv} disabled={filteredIncidentRows.length === 0}>
-                Export Alerts CSV
+                Export Alerts
               </UiButton>
             ) : null}
             <UiButton variant="secondary" onClick={saveCurrentQuery}>
-              Save Query
+              Save View
             </UiButton>
           </div>
         ) : null}
@@ -594,7 +619,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
           </div>
         ) : null}
         <p className="va-muted">
-          Alert count: <strong>{toInt(incidentsPayload.total_alerts, incidentRows.length)}</strong>
+          System alerts: <strong>{toInt(incidentsPayload.total_alerts, incidentRows.length)}</strong>
           {' '}| Filtered: <strong>{filteredIncidentRows.length}</strong>
           {' '}| Showing: <strong>{incidentRangeStart}-{incidentRangeEnd}</strong>
         </p>
@@ -627,10 +652,10 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             eyebrow="Incident filters"
             status={incidentFiltersApplied ? 'No matches' : 'Awaiting results'}
             statusVariant={incidentFiltersApplied ? 'warning' : 'info'}
-            title="No incident alerts matched filters"
+            title="No alerts matched this view"
             description={incidentFiltersApplied
-              ? 'Try widening status, actor, module, or severity filters.'
-              : 'Refresh alerts or start filtering to load the first incident view.'}
+              ? 'Widen status, actor, module, or severity filters to restore matching alerts.'
+              : 'Refresh status or begin filtering to load the first alert view.'}
             tone={incidentFiltersApplied ? 'warning' : 'info'}
             compact
             cardTone="subcard"
@@ -657,7 +682,15 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
         ) : null}
         {runbookActionsEnabled && runbookRows.length > 0 ? (
           <>
-            <h3>Runbook Actions</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Response actions</h3>
+                <p className="va-muted">Launch supported runbooks directly from the current alert context.</p>
+              </div>
+              <UiBadge variant={availableRunbooks > 0 ? 'success' : 'info'}>
+                {availableRunbooks > 0 ? `${availableRunbooks} ready` : 'No runbooks'}
+              </UiBadge>
+            </div>
             <ul className="va-list">
               {runbookRows.map((runbook: RunbookRow, index: number) => {
                 const action = toText(runbook.action, '');
@@ -675,7 +708,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
                         handleRunbookAction(resolvedAction || action, {}, event.currentTarget);
                       }}
                     >
-                      Execute
+                      Run
                     </UiButton>
                   </li>
                 );
@@ -685,11 +718,19 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
         ) : null}
       </UiCard>
       <UiCard>
-        <h3>Immutable Activity Timeline</h3>
+        <div className="va-ops-card-header">
+          <div className="va-ops-card-headline">
+            <h3>Audit trail</h3>
+            <p className="va-muted">Track who acted, which module changed, and how each response path unfolded.</p>
+          </div>
+          <UiBadge variant={filteredAuditRows.length > 0 ? 'meta' : 'info'}>
+            {filteredAuditRows.length} visible
+          </UiBadge>
+        </div>
         {advancedTablesEnabled ? (
           <div className="va-filter-grid">
             <UiInput
-              placeholder="Filter audit timeline"
+              placeholder="Search audit entries"
               value={auditQuery}
               onChange={(event) => setAuditQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -741,7 +782,7 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             </UiSelect>
             {auditCsvEnabled ? (
               <UiButton variant="secondary" onClick={exportAuditCsv} disabled={filteredAuditRows.length === 0}>
-                Export Audit CSV
+                Export Audit
               </UiButton>
             ) : null}
           </div>
@@ -779,10 +820,10 @@ export function AuditIncidentsPage({ visible, vm }: AuditIncidentsPageProps) {
             eyebrow="Audit filters"
             status={auditFiltersApplied ? 'No matches' : 'Awaiting results'}
             statusVariant={auditFiltersApplied ? 'warning' : 'info'}
-            title="No audit entries matched filters"
+            title="No audit entries matched this view"
             description={auditFiltersApplied
-              ? 'Try widening actor, module, severity, or query filters.'
-              : 'Refresh the feed or adjust filters to load audit activity.'}
+              ? 'Widen actor, module, or severity filters to restore matching audit entries.'
+              : 'Refresh status or begin filtering to load the first audit view.'}
             tone={auditFiltersApplied ? 'warning' : 'info'}
             compact
             cardTone="subcard"

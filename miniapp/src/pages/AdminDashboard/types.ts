@@ -170,6 +170,7 @@ export interface UsersPayload {
 
 export interface UserRow {
   telegram_id?: unknown;
+  username?: unknown;
   role?: unknown;
   role_source?: unknown;
   total_calls?: unknown;

@@ -10,6 +10,7 @@ const helmet = require("helmet");
 const cors = require("cors");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const sqlite3 = require("sqlite3").verbose();
 
 const { EnhancedGptService } = require("./routes/gpt");
 const { StreamService } = require("./routes/stream");
@@ -7392,6 +7393,146 @@ function recordApiRouteTelemetry(req, res, durationMs, rawPath = "") {
   db?.logServiceHealth?.("api_route", payload.ok ? "ok" : "error", payload).catch(() => {});
 }
 
+const BOT_USER_STORE_PATH = path.resolve(__dirname, "..", "bot", "db", "data.db");
+const botManagedUsers = new Map(); // telegram_id -> { telegram_id, username, role, timestamp }
+
+function normalizeBotDirectoryRole(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (normalized === "ADMIN") return "ADMIN";
+  if (normalized === "USER") return "USER";
+  return null;
+}
+
+function mapBotDirectoryRoleToMiniAppRole(value) {
+  const normalized = normalizeBotDirectoryRole(value);
+  if (normalized === "ADMIN") return "admin";
+  if (normalized === "USER") return "operator";
+  return null;
+}
+
+function getBotManagedUserRecord(telegramId) {
+  const normalized = String(telegramId || "").trim();
+  if (!normalized) return null;
+  return botManagedUsers.get(normalized) || null;
+}
+
+async function queryBotUserStore(sql, params = [], mode = "all") {
+  if (!fs.existsSync(BOT_USER_STORE_PATH)) {
+    if (mode === "all") return [];
+    return { changes: 0, lastID: 0 };
+  }
+  return new Promise((resolve, reject) => {
+    const connection = new sqlite3.Database(
+      BOT_USER_STORE_PATH,
+      sqlite3.OPEN_READWRITE,
+      (openError) => {
+        if (openError) {
+          reject(openError);
+          return;
+        }
+        const finalize = (error, result) => {
+          connection.close((closeError) => {
+            if (error || closeError) {
+              reject(error || closeError);
+              return;
+            }
+            resolve(result);
+          });
+        };
+        connection.run("PRAGMA busy_timeout = 5000", (pragmaError) => {
+          if (pragmaError) {
+            finalize(pragmaError);
+            return;
+          }
+          if (mode === "run") {
+            connection.run(sql, params, function onRun(runError) {
+              finalize(runError, {
+                changes: Number(this?.changes || 0),
+                lastID: Number(this?.lastID || 0),
+              });
+            });
+            return;
+          }
+          connection.all(sql, params, (queryError, rows) => {
+            finalize(queryError, Array.isArray(rows) ? rows : []);
+          });
+        });
+      },
+    );
+  });
+}
+
+async function listBotManagedUsers() {
+  const rows = await queryBotUserStore(
+    `
+      SELECT telegram_id, username, role, timestamp
+      FROM users
+      ORDER BY
+        CASE WHEN upper(role) = 'ADMIN' THEN 0 ELSE 1 END,
+        datetime(timestamp) DESC,
+        telegram_id ASC
+    `,
+    [],
+    "all",
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function refreshBotManagedUserCache() {
+  botManagedUsers.clear();
+  try {
+    const rows = await listBotManagedUsers();
+    for (const row of rows) {
+      const telegramId = String(row?.telegram_id || "").trim();
+      const role = normalizeBotDirectoryRole(row?.role);
+      if (!telegramId || !role) continue;
+      botManagedUsers.set(telegramId, {
+        telegram_id: telegramId,
+        username: row?.username || null,
+        role,
+        timestamp: row?.timestamp || null,
+      });
+    }
+  } catch (error) {
+    console.error("miniapp_bot_user_cache_refresh_failed", buildErrorDetails(error));
+  }
+}
+
+async function upsertBotManagedUserRole(telegramId, role) {
+  const normalizedId = String(telegramId || "").trim();
+  const normalizedRole = normalizeBotDirectoryRole(role);
+  if (!normalizedId || !normalizedRole) return;
+  await queryBotUserStore(
+    `
+      INSERT INTO users (telegram_id, username, role, timestamp)
+      VALUES (
+        ?,
+        COALESCE((SELECT username FROM users WHERE telegram_id = ?), NULL),
+        ?,
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT(telegram_id)
+      DO UPDATE SET
+        role = excluded.role,
+        timestamp = CURRENT_TIMESTAMP
+    `,
+    [normalizedId, normalizedId, normalizedRole],
+    "run",
+  );
+}
+
+async function removeBotManagedUser(telegramId) {
+  const normalizedId = String(telegramId || "").trim();
+  if (!normalizedId) return;
+  await queryBotUserStore(
+    `DELETE FROM users WHERE telegram_id = ?`,
+    [normalizedId],
+    "run",
+  );
+}
+
 function getConfiguredMiniAppRoles() {
   const roles = new Map();
   const append = (values, role) => {
@@ -7497,6 +7638,8 @@ function resolveMiniAppUserRole(telegramId) {
   if (!id) return null;
   const configuredRole = normalizeMiniAppRole(getConfiguredMiniAppRoles().get(id));
   if (configuredRole) return configuredRole;
+  const botManagedRole = mapBotDirectoryRoleToMiniAppRole(getBotManagedUserRecord(id)?.role);
+  if (botManagedRole) return botManagedRole;
   const override = normalizeMiniAppRole(miniAppRoleOverrides.get(id));
   if (override) return override;
   return null;
@@ -7506,6 +7649,7 @@ function resolveMiniAppRoleSource(telegramId) {
   const id = String(telegramId || "").trim();
   if (!id) return "inferred";
   if (getConfiguredMiniAppRoles().has(id)) return "config";
+  if (getBotManagedUserRecord(id)) return "bot_db";
   if (miniAppRoleOverrides.has(id)) return "override";
   return "inferred";
 }
@@ -7571,11 +7715,15 @@ async function listMiniAppUsers(options = {}) {
   const rowsById = new Map();
   const recentSessions = await queryMiniAppRecentUserSessions({ limit: 500 });
 
-  for (const [id, role] of getConfiguredMiniAppRoles().entries()) {
-    rowsById.set(id, {
-      telegram_id: id,
-      role: normalizeMiniAppRole(role) || "viewer",
-      role_source: "config",
+  for (const row of botManagedUsers.values()) {
+    const telegramId = String(row?.telegram_id || "").trim();
+    const role = mapBotDirectoryRoleToMiniAppRole(row?.role);
+    if (!telegramId || !role) continue;
+    rowsById.set(telegramId, {
+      telegram_id: telegramId,
+      username: row?.username || null,
+      role,
+      role_source: "bot_db",
       total_calls: 0,
       successful_calls: 0,
       failed_calls: 0,
@@ -7585,12 +7733,30 @@ async function listMiniAppUsers(options = {}) {
       last_activity: null,
     });
   }
+  for (const [id, role] of getConfiguredMiniAppRoles().entries()) {
+    const current = rowsById.get(id) || {};
+    rowsById.set(id, {
+      ...current,
+      telegram_id: id,
+      username: current.username || null,
+      role: normalizeMiniAppRole(role) || "viewer",
+      role_source: "config",
+      total_calls: Number(current.total_calls || 0),
+      successful_calls: Number(current.successful_calls || 0),
+      failed_calls: Number(current.failed_calls || 0),
+      total_duration: Number(current.total_duration || 0),
+      session_start: current.session_start || null,
+      session_end: current.session_end || null,
+      last_activity: current.last_activity || null,
+    });
+  }
   for (const [id, rawRole] of miniAppRoleOverrides.entries()) {
     const normalized = String(id || "").trim();
     const role = normalizeMiniAppRole(rawRole);
     if (!normalized || !role) continue;
     const current = rowsById.get(normalized) || {
       telegram_id: normalized,
+      username: null,
       role: role,
       role_source: "override",
       total_calls: 0,
@@ -7601,7 +7767,7 @@ async function listMiniAppUsers(options = {}) {
       session_end: null,
       last_activity: null,
     };
-    if (current.role_source !== "config") {
+    if (current.role_source !== "config" && current.role_source !== "bot_db") {
       current.role = role;
       current.role_source = "override";
     }
@@ -7610,9 +7776,12 @@ async function listMiniAppUsers(options = {}) {
   for (const row of recentSessions) {
     const id = String(row?.telegram_chat_id || "").trim();
     if (!id) continue;
+    const resolvedRole = resolveMiniAppUserRole(id);
+    if (!rowsById.has(id) && !resolvedRole) continue;
     const current = rowsById.get(id) || {
       telegram_id: id,
-      role: resolveMiniAppUserRole(id) || "viewer",
+      username: null,
+      role: resolvedRole || "viewer",
       role_source: resolveMiniAppRoleSource(id),
       total_calls: 0,
       successful_calls: 0,
@@ -7680,18 +7849,26 @@ async function setMiniAppUserRole(options = {}) {
   if (getConfiguredMiniAppAdminIds().has(telegramId) && nextRole !== "admin") {
     throw new Error("Configured admin users cannot be demoted via Mini App");
   }
-  miniAppRoleOverrides.set(telegramId, nextRole);
+  if (nextRole === "viewer") {
+    miniAppRoleOverrides.delete(telegramId);
+    await removeBotManagedUser(telegramId);
+  } else {
+    miniAppRoleOverrides.delete(telegramId);
+    await upsertBotManagedUserRole(telegramId, nextRole === "admin" ? "ADMIN" : "USER");
+  }
   await persistMiniAppRoleOverrides();
+  await refreshBotManagedUserCache();
   db?.logServiceHealth?.("miniapp_users", "role_changed", {
     telegram_id: telegramId,
     role: nextRole,
     actor,
     reason,
+    storage: "bot_db",
     at: new Date().toISOString(),
   }).catch(() => {});
   return {
     telegram_id: telegramId,
-    role: nextRole,
+    role: resolveMiniAppUserRole(telegramId) || nextRole,
     role_source: resolveMiniAppRoleSource(telegramId),
     reason,
   };
@@ -12893,6 +13070,7 @@ async function startServer(options = {}) {
     await loadStoredEmailProvider();
     await loadPaymentFeatureConfig();
     await loadVoiceRuntimeControlSettings();
+    await refreshBotManagedUserCache();
     await loadMiniAppRoleOverrides();
     await refreshInboundDefaultScript(true);
     await loadKeypadProviderOverrides();
@@ -17514,9 +17692,23 @@ const MINI_APP_SUPPORTED_ACTIONS = Object.freeze([
   "sms.stats",
   "smsscript.create",
   "smsscript.delete",
+  "smsscript.diff",
   "smsscript.get",
   "smsscript.list",
+  "smsscript.promote_live",
+  "smsscript.review",
+  "smsscript.rollback",
+  "smsscript.simulate",
+  "smsscript.submit_review",
   "smsscript.update",
+  "smsscript.versions",
+  "emailtemplate.diff",
+  "emailtemplate.promote_live",
+  "emailtemplate.review",
+  "emailtemplate.rollback",
+  "emailtemplate.simulate",
+  "emailtemplate.submit_review",
+  "emailtemplate.versions",
   "users.list",
   "users.role.set",
 ]);
@@ -17542,10 +17734,17 @@ const MINI_APP_DASHBOARD_MODULE_DEFINITIONS = [
   },
   {
     id: "mailer",
-    label: "Mailer Console",
+    label: "Mailer",
     capability: "email_bulk_manage",
     command: "/mailer",
-    action_contracts: ["email.bulk.send"],
+    action_contracts: [
+      "provider.get",
+      "email.bulk.send",
+      "email.message.status",
+      "email.bulk.job",
+      "email.bulk.history",
+      "email.bulk.stats",
+    ],
     order: 2,
     enabled: true,
   },
@@ -17560,10 +17759,17 @@ const MINI_APP_DASHBOARD_MODULE_DEFINITIONS = [
   },
   {
     id: "content",
-    label: "Script Studio",
+    label: "Script Designer",
     capability: "caller_flags_manage",
     command: "/scripts",
-    action_contracts: ["callscript.list", "callscript.update"],
+    action_contracts: [
+      "callscript.list",
+      "callscript.update",
+      "callscript.submit_review",
+      "callscript.review",
+      "callscript.promote_live",
+      "callscript.simulate",
+    ],
     order: 4,
     enabled: true,
   },
@@ -17587,10 +17793,35 @@ const MINI_APP_DASHBOARD_MODULE_DEFINITIONS = [
   },
   {
     id: "scriptsparity",
-    label: "Scripts Parity Expansion",
+    label: "Message Lanes",
     capability: "caller_flags_manage",
     command: "/scripts",
-    action_contracts: ["smsscript.list", "emailtemplate.list"],
+    action_contracts: [
+      "smsscript.list",
+      "smsscript.get",
+      "smsscript.create",
+      "smsscript.update",
+      "smsscript.delete",
+      "smsscript.submit_review",
+      "smsscript.review",
+      "smsscript.promote_live",
+      "smsscript.simulate",
+      "smsscript.versions",
+      "smsscript.diff",
+      "smsscript.rollback",
+      "emailtemplate.list",
+      "emailtemplate.get",
+      "emailtemplate.create",
+      "emailtemplate.update",
+      "emailtemplate.delete",
+      "emailtemplate.submit_review",
+      "emailtemplate.review",
+      "emailtemplate.promote_live",
+      "emailtemplate.simulate",
+      "emailtemplate.versions",
+      "emailtemplate.diff",
+      "emailtemplate.rollback",
+    ],
     order: 7,
     enabled: true,
   },
@@ -18126,6 +18357,127 @@ function buildMiniAppActionSpec(action, payload = {}) {
     };
   }
 
+  if (normalizedAction === "smsscript.submit_review") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/submit-review`,
+      body: {},
+    };
+  }
+
+  if (normalizedAction === "smsscript.review") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    const decision = String(input.decision || "").trim().toLowerCase();
+    const note = input.note === undefined ? null : String(input.note || "");
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    if (!["approve", "reject"].includes(decision)) {
+      return { error: "decision must be approve or reject" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/review`,
+      body: { decision, note },
+    };
+  }
+
+  if (normalizedAction === "smsscript.promote_live") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/promote-live`,
+      body: {},
+    };
+  }
+
+  if (normalizedAction === "smsscript.simulate") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    const variables =
+      input.variables && typeof input.variables === "object" ? input.variables : {};
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/simulate`,
+      body: { variables },
+    };
+  }
+
+  if (normalizedAction === "smsscript.versions") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "GET",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/versions`,
+    };
+  }
+
+  if (normalizedAction === "smsscript.diff") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    const fromVersion = parseBoundedInteger(input.from_version || input.fromVersion, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    const toVersion = parseBoundedInteger(input.to_version || input.toVersion, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    if (!Number.isFinite(fromVersion) || !Number.isFinite(toVersion)) {
+      return { error: "from_version and to_version are required positive numbers" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "GET",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/diff`,
+      query: {
+        from_version: fromVersion,
+        to_version: toVersion,
+      },
+    };
+  }
+
+  if (normalizedAction === "smsscript.rollback") {
+    const scriptName = String(input.script_name || input.scriptName || input.id || "").trim();
+    const version = parseBoundedInteger(input.version, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    if (!isSafeId(scriptName, { max: 128 })) {
+      return { error: "Valid script_name is required" };
+    }
+    if (!Number.isFinite(version)) {
+      return { error: "version is required and must be a positive number" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/api/sms/scripts/${encodeURIComponent(scriptName)}/rollback`,
+      body: { version },
+    };
+  }
+
   if (normalizedAction === "emailtemplate.list") {
     const limit = parseBoundedInteger(input.limit, {
       defaultValue: 50,
@@ -18208,6 +18560,127 @@ function buildMiniAppActionSpec(action, payload = {}) {
       capability: "caller_flags_manage",
       method: "DELETE",
       path: `/email/templates/${encodeURIComponent(templateId)}`,
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.submit_review") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/email/templates/${encodeURIComponent(templateId)}/submit-review`,
+      body: {},
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.review") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    const decision = String(input.decision || "").trim().toLowerCase();
+    const note = input.note === undefined ? null : String(input.note || "");
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    if (!["approve", "reject"].includes(decision)) {
+      return { error: "decision must be approve or reject" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/email/templates/${encodeURIComponent(templateId)}/review`,
+      body: { decision, note },
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.promote_live") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/email/templates/${encodeURIComponent(templateId)}/promote-live`,
+      body: {},
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.simulate") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    const variables =
+      input.variables && typeof input.variables === "object" ? input.variables : {};
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/email/templates/${encodeURIComponent(templateId)}/simulate`,
+      body: { variables },
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.versions") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "GET",
+      path: `/email/templates/${encodeURIComponent(templateId)}/versions`,
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.diff") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    const fromVersion = parseBoundedInteger(input.from_version || input.fromVersion, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    const toVersion = parseBoundedInteger(input.to_version || input.toVersion, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    if (!Number.isFinite(fromVersion) || !Number.isFinite(toVersion)) {
+      return { error: "from_version and to_version are required positive numbers" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "GET",
+      path: `/email/templates/${encodeURIComponent(templateId)}/diff`,
+      query: {
+        from_version: fromVersion,
+        to_version: toVersion,
+      },
+    };
+  }
+
+  if (normalizedAction === "emailtemplate.rollback") {
+    const templateId = String(input.template_id || input.templateId || input.id || "").trim();
+    const version = parseBoundedInteger(input.version, {
+      defaultValue: NaN,
+      min: 1,
+      max: 999999,
+    });
+    if (!isSafeId(templateId, { max: 128 })) {
+      return { error: "Valid template_id is required" };
+    }
+    if (!Number.isFinite(version)) {
+      return { error: "version is required and must be a positive number" };
+    }
+    return {
+      capability: "caller_flags_manage",
+      method: "POST",
+      path: `/email/templates/${encodeURIComponent(templateId)}/rollback`,
+      body: { version },
     };
   }
 

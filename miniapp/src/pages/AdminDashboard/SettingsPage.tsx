@@ -1,10 +1,4 @@
-import { UiButton, UiSurfaceState } from '@/components/ui/AdminPrimitives';
-import { DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS } from '@/contracts/miniappParityContracts';
-
-type SettingsModule = {
-  id: string;
-  label: string;
-};
+import { UiBadge, UiButton } from '@/components/ui/AdminPrimitives';
 
 type SettingsPageProps = {
   userLabel: string;
@@ -17,11 +11,9 @@ type SettingsPageProps = {
   featureFlagsCount: number | string;
   featureFlagsSourceLabel: string;
   featureFlagsUpdatedAtLabel: string;
-  visibleModules: SettingsModule[];
   onTogglePolling: () => void;
   onSyncNow: () => void;
   onRetrySession: () => void;
-  onJumpToModule: (moduleId: string) => void;
 };
 
 type SettingsRowProps = {
@@ -33,37 +25,6 @@ type SettingsRowProps = {
   onClick?: () => void;
   disabled?: boolean;
 };
-
-function moduleBadge(moduleId: string): { token: string; tone: string } {
-  switch (moduleId) {
-    case 'ops':
-      return { token: '◉', tone: 'is-blue' };
-    case 'sms':
-      return { token: '✉', tone: 'is-green' };
-    case 'mailer':
-      return { token: '✦', tone: 'is-violet' };
-    case 'provider':
-      return { token: '⛭', tone: 'is-orange' };
-    case 'content':
-      return { token: '✎', tone: 'is-cyan' };
-    case 'calllog':
-      return { token: '⌕', tone: 'is-blue' };
-    case 'callerflags':
-      return { token: '⚐', tone: 'is-orange' };
-    case 'scriptsparity':
-      return { token: '⌘', tone: 'is-violet' };
-    case 'messaging':
-      return { token: '✉', tone: 'is-green' };
-    case 'persona':
-      return { token: '☰', tone: 'is-cyan' };
-    case 'users':
-      return { token: '◎', tone: 'is-yellow' };
-    case 'audit':
-      return { token: '⚑', tone: 'is-red' };
-    default:
-      return { token: '•', tone: 'is-blue' };
-  }
-}
 
 function SettingsRow({
   icon,
@@ -119,104 +80,128 @@ export function SettingsPage({
   featureFlagsCount,
   featureFlagsSourceLabel,
   featureFlagsUpdatedAtLabel,
-  visibleModules,
   onTogglePolling,
   onSyncNow,
   onRetrySession,
-  onJumpToModule,
 }: SettingsPageProps) {
   const actionsDisabled = loading || busy;
   const liveUpdatesLabel = pollingPaused ? 'Off' : 'On';
   const roleLabel = sessionRole.slice(0, 1).toUpperCase() + sessionRole.slice(1);
-  const hasModuleAccess = (moduleId: string): boolean => (
-    visibleModules.some((module) => module.id === moduleId)
-  );
+  const syncStatusLabel = loading ? 'Loading' : busy ? 'Working' : 'Ready';
+  const featureFlagsLabel = `${featureFlagsCount} active`;
+  const accessibilityStatusLabel = settingsStatusLabel === 'Visible' ? 'Connected' : settingsStatusLabel;
+  const updatesVariant = pollingPaused ? 'warning' : 'success';
 
   return (
     <section className="va-settings-page">
       <div className="va-settings-hero">
         <div className="va-settings-title-wrap">
-          <h2 className="va-settings-title">General settings</h2>
-          <p className="va-muted">Manage account access, sync controls, and workspace access.</p>
+          <p className="va-kicker">Preferences</p>
+          <h2 className="va-settings-title">Settings</h2>
+          <p className="va-muted">
+            Manage account basics, app behavior, accessibility posture, and recovery controls.
+          </p>
+          <div className="va-settings-meta-strip">
+            <UiBadge variant={updatesVariant}>Live updates {liveUpdatesLabel}</UiBadge>
+            <UiBadge variant="meta">{roleLabel} access</UiBadge>
+            <UiBadge variant="info">{featureFlagsLabel}</UiBadge>
+          </div>
+          <p className="va-settings-hero-note">
+            This page stays focused on session, accessibility, and diagnostics so the dashboard home
+            remains the place for navigation and day-to-day work.
+          </p>
         </div>
         <div className="va-settings-summary">
           <span className={`va-settings-flag-state ${pollingPaused ? 'is-disabled' : 'is-enabled'}`}>
             Live updates {liveUpdatesLabel}
           </span>
-          <span className="va-settings-meta">Role {roleLabel}</span>
+          <span className="va-settings-meta">{syncStatusLabel} session</span>
         </div>
       </div>
 
       <section className="va-settings-cluster">
-        <p className="va-settings-section-label">General settings</p>
+        <p className="va-settings-section-label">Account</p>
         <div className="va-settings-group">
           <SettingsRow
             icon="◎"
             iconTone="is-cyan"
-            title={userLabel}
-            description={`Signed in as ${sessionRole}.`}
+            title="Signed-in account"
+            description={userLabel}
             value={roleLabel}
           />
+          <SettingsRow
+            icon="⌁"
+            iconTone={busy ? 'is-orange' : 'is-green'}
+            title="Session recovery"
+            description="Reconnect this session when Telegram state or access data becomes stale."
+            value={actionsDisabled ? 'Busy' : 'Retry'}
+            onClick={onRetrySession}
+            disabled={actionsDisabled}
+          />
+          <SettingsRow
+            icon="⚑"
+            iconTone="is-blue"
+            title="Access posture"
+            description="Role-aware visibility and protected actions follow the main bot access model."
+            value={roleLabel}
+          />
+        </div>
+      </section>
+
+      <section className="va-settings-cluster">
+        <p className="va-settings-section-label">App behavior</p>
+        <div className="va-settings-group">
           <SettingsRow
             icon="⟳"
             iconTone={pollingPaused ? 'is-orange' : 'is-green'}
             title="Live updates"
-            description="Pause or resume background refresh loops."
+            description="Pause or resume background refresh loops for dashboard and workspace data."
             value={liveUpdatesLabel}
             onClick={onTogglePolling}
           />
           <SettingsRow
             icon="↻"
             iconTone="is-green"
-            title="Sync now"
-            description="Fetch latest dashboard and module snapshots."
-            value={actionsDisabled ? 'Busy' : 'Now'}
+            title="Refresh workspace data"
+            description="Fetch the latest dashboard, module, and status snapshots on demand."
+            value={actionsDisabled ? 'Busy' : 'Sync now'}
             onClick={onSyncNow}
             disabled={actionsDisabled}
           />
           <SettingsRow
-            icon="⌁"
-            iconTone="is-orange"
-            title="Retry session"
-            description="Re-establish access token when state is stale."
-            value={actionsDisabled ? 'Busy' : 'Recover'}
-            onClick={onRetrySession}
-            disabled={actionsDisabled}
+            icon="◉"
+            iconTone="is-blue"
+            title="Sync status"
+            description="Current background refresh posture for this session."
+            value={syncStatusLabel}
           />
         </div>
       </section>
 
       <section className="va-settings-cluster">
-        <p className="va-settings-section-label">Workspace</p>
+        <p className="va-settings-section-label">Accessibility</p>
         <div className="va-settings-group">
-        {visibleModules.length === 0 ? (
-          <div className="va-settings-empty">
-            <UiSurfaceState
-              cardTone="empty"
-              eyebrow="Workspace access"
-              status="Unavailable"
-              statusVariant="warning"
-              compact
-              title="No modules available"
-              description="This role currently has no enabled workspaces."
-            />
-          </div>
-        ) : (
-          visibleModules.map((module) => {
-            const badge = moduleBadge(module.id);
-            return (
-              <SettingsRow
-                key={module.id}
-                icon={badge.token}
-                iconTone={badge.tone}
-                title={module.label}
-                description="Jump directly to this workspace."
-                value="Open"
-                onClick={() => onJumpToModule(module.id)}
-              />
-            );
-          })
-        )}
+          <SettingsRow
+            icon="⚙"
+            iconTone="is-violet"
+            title="Telegram settings button"
+            description="Native settings entry binding inside Telegram Mini Apps."
+            value={accessibilityStatusLabel}
+          />
+          <SettingsRow
+            icon="⌘"
+            iconTone="is-cyan"
+            title="Navigation and focus"
+            description="Keyboard focus order, route memory, and clear action targets stay enabled."
+            value="Enabled"
+          />
+          <SettingsRow
+            icon="◌"
+            iconTone="is-yellow"
+            title="Readable interface"
+            description="High-contrast dark styling and Telegram-native controls remain active across the app."
+            value="Default"
+          />
         </div>
       </section>
 
@@ -224,16 +209,9 @@ export function SettingsPage({
         <p className="va-settings-section-label">Diagnostics</p>
         <div className="va-settings-group">
           <SettingsRow
-            icon="⚙"
-            iconTone="is-violet"
-            title="Settings integration"
-            description="Telegram native settings button binding."
-            value={settingsStatusLabel}
-          />
-          <SettingsRow
             icon="⌘"
             iconTone="is-yellow"
-            title="Version & network"
+            title="API endpoint"
             description={apiBaseLabel}
             value="Bound"
           />
@@ -241,31 +219,10 @@ export function SettingsPage({
             icon="⚑"
             iconTone="is-blue"
             title="Feature flags"
-            description={`Source: ${featureFlagsSourceLabel}`}
-            value={String(featureFlagsCount)}
+            description={`Config source: ${featureFlagsSourceLabel}`}
+            value={featureFlagsLabel}
           />
-          <div className="va-settings-footnote">Updated {featureFlagsUpdatedAtLabel}</div>
-        </div>
-      </section>
-
-      <section className="va-settings-cluster">
-        <p className="va-settings-section-label">Support tools</p>
-        <div className="va-settings-group">
-          {DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS.map((tool) => {
-            const badge = moduleBadge(tool.moduleId);
-            const moduleAvailable = hasModuleAccess(tool.moduleId);
-            return (
-              <SettingsRow
-                key={tool.moduleId}
-                icon={badge.token}
-                iconTone={badge.tone}
-                title={tool.title}
-                description={tool.description}
-                value={moduleAvailable ? 'Open' : 'Locked'}
-                onClick={moduleAvailable ? () => onJumpToModule(tool.moduleId) : undefined}
-              />
-            );
-          })}
+          <div className="va-settings-footnote">Configuration updated {featureFlagsUpdatedAtLabel}</div>
         </div>
       </section>
     </section>

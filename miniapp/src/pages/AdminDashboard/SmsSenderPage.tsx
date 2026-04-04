@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { buildSmsRequestState } from './moduleRequestState';
 import type { DashboardVm } from './types';
@@ -7,10 +7,12 @@ import { selectSmsPageVm } from './vmSelectors';
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import {
   UiActionBar,
+  UiBadge,
   UiButton,
   UiCard,
   UiDisclosure,
   UiInput,
+  UiSelect,
   UiStatePanel,
   UiSurfaceState,
   UiTextarea,
@@ -24,10 +26,43 @@ type SmsSenderPageProps = {
   vm: DashboardVm;
 };
 
+type SmsScriptRow = {
+  name?: unknown;
+  description?: unknown;
+  content?: unknown;
+  is_builtin?: unknown;
+  lifecycle_state?: unknown;
+};
+
+function toScriptRows(value: unknown): SmsScriptRow[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => asRecord(entry) as SmsScriptRow);
+}
+
+function toErrorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return String(error);
+  }
+  return 'Request failed';
+}
+
+function extractTemplateTokens(content: string): string[] {
+  return Array.from(
+    new Set(
+      Array.from(content.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g))
+        .map((match) => match[1].trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
   if (!visible) return null;
 
   const {
+    hasCapability,
     smsRecipientsInput,
     setSmsRecipientsInput,
     handleRecipientsFile,
@@ -74,6 +109,10 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
   const [recentMessages, setRecentMessages] = useState<Array<Record<string, unknown>>>([]);
   const [conversationMessages, setConversationMessages] = useState<Array<Record<string, unknown>>>([]);
   const [statsSnapshot, setStatsSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [smsScriptAssistBusy, setSmsScriptAssistBusy] = useState<boolean>(false);
+  const [smsScriptAssistError, setSmsScriptAssistError] = useState<string>('');
+  const [smsScriptRows, setSmsScriptRows] = useState<SmsScriptRow[]>([]);
+  const [selectedSmsScriptName, setSelectedSmsScriptName] = useState<string>('');
   const {
     investigationBusy,
     investigationError,
@@ -107,6 +146,50 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
       : !smsCanSubmit && (smsRecipientsInput.trim() || smsMessageInput.trim())
         ? smsReadinessHint
         : 'Recipients, routing checks, and send controls are ready for the next batch.';
+  const canManageSmsScripts = hasCapability('caller_flags_manage');
+  const selectedSmsScript = useMemo(() => (
+    smsScriptRows.find((script) => pickDisplayText([script.name], '') === selectedSmsScriptName) || null
+  ), [selectedSmsScriptName, smsScriptRows]);
+  const selectedSmsScriptContent = pickDisplayText([selectedSmsScript?.content], '');
+  const selectedSmsScriptDescription = pickDisplayText([selectedSmsScript?.description], '');
+  const selectedSmsScriptTokens = useMemo(
+    () => extractTemplateTokens(selectedSmsScriptContent),
+    [selectedSmsScriptContent],
+  );
+
+  const loadSmsScripts = useCallback(async (): Promise<void> => {
+    if (!canManageSmsScripts) return;
+    setSmsScriptAssistBusy(true);
+    setSmsScriptAssistError('');
+    try {
+      const payload = asRecord(await invokeAction(
+        DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST,
+        {
+          include_builtins: true,
+          detailed: true,
+        },
+      ));
+      const merged = [
+        ...toScriptRows(payload.scripts),
+        ...toScriptRows(payload.builtin),
+      ];
+      setSmsScriptRows(merged);
+      setSelectedSmsScriptName((current) => {
+        if (!merged.length) return '';
+        const hasCurrent = merged.some((script) => pickDisplayText([script.name], '') === current);
+        return hasCurrent ? current : pickDisplayText([merged[0]?.name], '');
+      });
+    } catch (error) {
+      setSmsScriptAssistError(toErrorText(error));
+    } finally {
+      setSmsScriptAssistBusy(false);
+    }
+  }, [canManageSmsScripts, invokeAction]);
+
+  useEffect(() => {
+    if (!canManageSmsScripts) return;
+    void loadSmsScripts();
+  }, [canManageSmsScripts, loadSmsScripts]);
 
   return (
     <>
@@ -115,6 +198,15 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         <h2 className="va-page-title">SMS Operations Console</h2>
         <p className="va-muted">
           Compose bulk SMS campaigns, validate recipients, estimate cost, and monitor completion.
+        </p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={pulseTone}>{pulseStatus}</UiBadge>
+          <UiBadge variant="meta">Bulk messaging</UiBadge>
+          <UiBadge variant="info">{smsRecipientsParsed.length} recipients</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Prepare a batch, validate routing and cost, then move into message-level diagnostics from
+          the same workspace when delivery needs deeper review.
         </p>
       </section>
 
@@ -144,7 +236,15 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         </header>
         <section className="va-grid">
           <UiCard>
-            <h3>SMS Sender Console</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>SMS Sender Console</h3>
+                <p className="va-muted">Stage recipients, refine message content, and confirm delivery settings before execution.</p>
+              </div>
+              <UiBadge variant={smsCanSubmit ? 'success' : smsRecipientsInput.trim() || smsMessageInput.trim() ? 'warning' : 'info'}>
+                {smsCanSubmit ? 'Ready' : smsRecipientsInput.trim() || smsMessageInput.trim() ? 'Needs setup' : 'Idle'}
+              </UiBadge>
+            </div>
             <UiActionBar
               title="Prepare the next batch"
               description={
@@ -207,6 +307,119 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
             <p id="va-sms-message-hint" className="va-field-hint">
               Message content is required to execute a send or schedule operation.
             </p>
+            <UiDisclosure
+              title="Script-assisted composer"
+              subtitle={
+                canManageSmsScripts
+                  ? 'Use approved script assets as a starting point for message composition.'
+                  : 'Safe script rendering for this role is pending backend action contract exposure.'
+              }
+            >
+              {!canManageSmsScripts ? (
+                <UiStatePanel
+                  title="Script assist pending for this role"
+                  description="Manual composition is available now. Script-assisted rendering for non-admin users will unlock after backend action contracts are exposed on this page."
+                  tone="info"
+                  compact
+                />
+              ) : (
+                <>
+                  <UiActionBar
+                    title="Script library"
+                    description={
+                      smsScriptRows.length > 0
+                        ? 'Select a script and apply it to the message body.'
+                        : 'Load scripts from the content workspace, then apply one to the composer.'
+                    }
+                    actions={(
+                      <div className="va-inline-tools">
+                        <UiButton
+                          variant="secondary"
+                          disabled={controlsBusy || smsScriptAssistBusy}
+                          onClick={() => { void loadSmsScripts(); }}
+                        >
+                          Refresh Scripts
+                        </UiButton>
+                        <UiButton
+                          variant="secondary"
+                          disabled={controlsBusy || smsScriptAssistBusy || !selectedSmsScriptContent}
+                          onClick={() => setSmsMessageInput(selectedSmsScriptContent)}
+                        >
+                          Apply to Composer
+                        </UiButton>
+                      </div>
+                    )}
+                  />
+                  {smsScriptAssistError ? (
+                    <UiStatePanel
+                      title="Script library unavailable"
+                      description={smsScriptAssistError}
+                      tone="error"
+                      compact
+                    />
+                  ) : null}
+                  <UiSelect
+                    aria-label="Select SMS script"
+                    value={selectedSmsScriptName}
+                    disabled={controlsBusy || smsScriptAssistBusy || smsScriptRows.length === 0}
+                    onChange={(event) => setSelectedSmsScriptName(event.target.value)}
+                  >
+                    {smsScriptRows.length === 0 ? (
+                      <option value="">No scripts loaded</option>
+                    ) : (
+                      smsScriptRows.map((script, index) => {
+                        const scriptName = pickDisplayText([script.name], `script-${index + 1}`);
+                        const lifecycle = pickDisplayText([script.lifecycle_state], '').trim();
+                        return (
+                          <option key={`${scriptName}-${index}`} value={scriptName}>
+                            {lifecycle ? `${scriptName} (${lifecycle})` : scriptName}
+                          </option>
+                        );
+                      })
+                    )}
+                  </UiSelect>
+                  {selectedSmsScript ? (
+                    <div className="va-subcard-grid va-subcard-grid-two">
+                      <UiCard tone="subcard">
+                        <h4>Selected Script</h4>
+                        <p className="va-muted"><strong>{pickDisplayText([selectedSmsScript.name], 'Unnamed script')}</strong></p>
+                        {selectedSmsScriptDescription ? (
+                          <p className="va-muted">{selectedSmsScriptDescription}</p>
+                        ) : (
+                          <p className="va-muted">No description provided.</p>
+                        )}
+                        <p className="va-muted">
+                          Template tokens: <strong>{selectedSmsScriptTokens.length}</strong>
+                        </p>
+                        {selectedSmsScriptTokens.length > 0 ? (
+                          <p className="va-muted">{selectedSmsScriptTokens.join(', ')}</p>
+                        ) : null}
+                      </UiCard>
+                      <UiCard tone="subcard">
+                        <h4>Render mode</h4>
+                        <p className="va-muted">
+                          Applying a script inserts raw template text into the composer.
+                          Variable rendering remains disabled until the safe render contract is exposed on this page.
+                        </p>
+                        <UiTextarea
+                          value={selectedSmsScriptContent}
+                          readOnly
+                          rows={4}
+                          aria-label="Selected SMS script preview"
+                        />
+                      </UiCard>
+                    </div>
+                  ) : (
+                    <UiStatePanel
+                      title="No script selected"
+                      description="Select a script to preview and apply it to the message composer."
+                      tone="info"
+                      compact
+                    />
+                  )}
+                </>
+              )}
+            </UiDisclosure>
             <p className="va-card-eyebrow">Delivery Settings</p>
             <div className="va-inline-tools">
               <label className="va-muted">
@@ -297,7 +510,15 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
             </UiDisclosure>
           </UiCard>
           <UiCard>
-            <h3>SMS Job Tracker</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>SMS Job Tracker</h3>
+                <p className="va-muted">Watch 24-hour throughput, failures, and suppression risk after batch execution.</p>
+              </div>
+              <UiBadge variant={smsFailed > 0 ? 'warning' : 'success'}>
+                {smsTotalRecipients > 0 ? `${smsProcessedPercent}% processed` : 'No activity'}
+              </UiBadge>
+            </div>
             <p>Total recipients (24h): <strong>{smsTotalRecipients}</strong></p>
             <p>Successful: <strong>{smsSuccess}</strong> | Failed: <strong>{smsFailed}</strong></p>
             <pre>{textBar(smsProcessedPercent)}</pre>
@@ -346,7 +567,17 @@ export function SmsSenderPage({ visible, vm }: SmsSenderPageProps) {
         ) : null}
         <section className="va-grid">
           <UiCard>
-            <h3>SMS Message Lookup</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>SMS Message Lookup</h3>
+                <p className="va-muted">Inspect individual SID status, phone-level conversations, and recent delivery artifacts.</p>
+              </div>
+              <UiBadge
+                variant={statusSnapshot || recentMessages.length > 0 || conversationMessages.length > 0 || statsSnapshot ? 'success' : 'info'}
+              >
+                {statusSnapshot || recentMessages.length > 0 || conversationMessages.length > 0 || statsSnapshot ? 'Artifacts loaded' : 'Lookup ready'}
+              </UiBadge>
+            </div>
             <div className="va-inline-tools">
               <UiInput
                 placeholder="Message SID"

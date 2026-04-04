@@ -15,6 +15,42 @@
 - Verify with fastest relevant checks and report outcomes.
 - If checks cannot run, state exact commands that should be run.
 
+## Autonomy and persistence
+- Default expectation: deliver working code, not only a plan.
+- Bias to action with reasonable assumptions; do not stop on clarifications unless blocked by a real safety or contract ambiguity.
+- Persist through context gathering, implementation, verification, and refinement within the same turn whenever feasible.
+- If progress stalls from repeated rereads or edits without clear forward movement, stop and summarize the blocker instead of thrashing.
+
+## Code implementation
+- Optimize for correctness, clarity, and reliability over speed; avoid speculative rewrites and shortcut fixes.
+- Preserve intended UX and behavior by default; flag intentional behavior changes explicitly.
+- Reuse existing helpers, normalization logic, and shared abstractions before adding new ones.
+- Keep type safety intact; avoid unnecessary `any`-style escapes when a guard, helper, or proper type will do.
+- Do not add broad catches, silent fallbacks, or success-shaped defaults that hide real failures.
+- Cover all relevant surfaces so behavior stays coherent across the app, not only in one touched file.
+
+## Exploration and reading
+- Prefer `rg` and `rg --files` for repository search.
+- Think first, then batch likely reads together instead of reading files one by one.
+- Use `multi_tool_use.parallel` for independent reads, searches, and other parallelizable developer-tool calls.
+- Prefer dedicated tools over raw shell when an equivalent tool exists.
+- Treat inline `L123:`-style prefixes in copied code as line-number metadata, not source text.
+
+## Editing constraints
+- Default to ASCII unless the file already requires non-ASCII content.
+- Add brief comments only when they materially improve comprehension of non-obvious logic.
+- Use `apply_patch` for manual code edits unless another method is clearly more efficient for generated or bulk mechanical changes.
+- Never revert user changes you did not make unless explicitly requested.
+- If unexpected local changes appear while you are working and they affect the task, stop and ask how to proceed.
+- Never use destructive git commands such as `git reset --hard` or `git checkout --` unless explicitly requested.
+
+## Planning discipline
+- Skip formal plans for straightforward tasks.
+- Do not make single-step plans.
+- If a plan is created, update it after completing a meaningful subtask.
+- Do not finish with plan-only output; the deliverable is implemented work or a concrete blocker.
+- Before finishing, reconcile prior plan items as done, blocked, or cancelled.
+
 ## Codex artifacts
 - Do not create or persist a repo-root `.codex/` directory in this repository.
 - Store convention fingerprints and Codex local artifacts under `~/.codex/` instead (for example `~/.codex/conventions/`).
@@ -42,6 +78,7 @@
 - Prefer `fs` for repository inspection/editing.
 - Use `openaiDeveloperDocs` for OpenAI/Codex docs and `context7` for third-party docs.
 - Use `playwright` when UI/runtime validation is required.
+- Prefer connector-first execution paths before falling back to generic shell commands.
 - If a tool fails, continue with safe fallback and state limitation briefly.
 - Never expose secrets in logs or outputs.
 
@@ -51,6 +88,7 @@
 - Keep Mini App local validation scripts limited to static checks such as lint, type-check, build, and source-based smoke verification unless the user explicitly requests otherwise.
 
 ## Skill routing hints
+- Skill or workflow updates -> use `skill-creator`.
 - Provider/API docs lookup and integration behavior validation -> use `integration-docs-kit`.
 - Feature implementation/code generation -> use `intent-codegen`.
 - Miniapp UI/UX enhancement and visual quality improvements -> use `frontend-skill` with `intent-codegen`.
@@ -63,6 +101,7 @@
 - Bug/edge-case/code-risk review -> use `bug-risk-review`.
 - Repro + root-cause + fix -> use `debug-fix-playbook`.
 - Repetitive setup/refactor/test/migration loops -> use `workflow-automation`.
+- Repo commit/push/miniapp production deployment in this repository -> use `Deploy`.
 - Vercel preview/production deployments -> use `vercel-deploy`.
 - Recurring provider drift/docs-sync maintenance -> use `integration-maintenance`.
 
@@ -74,6 +113,8 @@
   - Any follow-ups / risks
 - Do not paste unified diffs by default.
 - Include exact commands to run when relevant.
+- For review requests, report findings first by severity with file references, then assumptions, then a short summary.
+- Keep file references standalone and clickable using inline-code paths with optional `:line` or `#Lline` suffixes.
 
 ## Telegram Mini Apps docs sync (required)
 - For Telegram Mini App work (`miniapp/**`, `@tma.js/*`, Telegram platform APIs), use docs-first workflow.
@@ -95,6 +136,11 @@
   4) `figma-create-design-system-rules` when rule generation is requested.
   5) `figma-use` before any direct `use_figma` write/read action.
 - If a relevant installed skill is available and the task matches it, use that skill instead of ad-hoc workflow.
+
+## Complex task orchestration
+- Treat a task as complex when it likely changes more than 4 non-test files, crosses layers, affects high-stakes behavior, or asks for a broad audit/refactor.
+- For complex tasks, use a small multi-agent workflow: one explorer for codebase mapping, parallel workers with disjoint ownership, and a risk review pass when correctness is sensitive.
+- Keep the main thread as the integrator: merge results, run verification, and report rollback/risk clearly.
 
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.

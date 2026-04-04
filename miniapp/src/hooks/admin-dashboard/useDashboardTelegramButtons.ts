@@ -1,8 +1,6 @@
 import { backButton, settingsButton } from '@tma.js/sdk-react';
 import { useEffect } from 'react';
-import type { NavigateFunction } from 'react-router-dom';
 
-import { DASHBOARD_STATIC_ROUTE_CONTRACTS } from '@/contracts/miniappParityContracts';
 import type { DashboardDialogState } from '@/hooks/admin-dashboard/useDashboardDialog';
 import type { DashboardModule } from '@/pages/AdminDashboard/dashboardShellConfig';
 
@@ -16,6 +14,7 @@ type TelegramButtonLifecycleControl = {
 type UseDashboardTelegramButtonsOptions = {
   settingsButtonSupported: boolean;
   toggleSettings: (next?: boolean, options?: { fallbackModule?: DashboardModule }) => void;
+  returnToHome: () => void;
   dialogState: DashboardDialogState | null;
   dismissDialog: (state: DashboardDialogState | null) => void;
   triggerHaptic: (
@@ -25,8 +24,6 @@ type UseDashboardTelegramButtonsOptions = {
   settingsOpen: boolean;
   focusedWorkspaceMode: boolean;
   activeModule: DashboardModule;
-  selectModule: (moduleId: DashboardModule, options?: { fromKeyboard?: boolean }) => void;
-  navigate: NavigateFunction;
 };
 
 const settingsLifecycleControl = settingsButton as unknown as TelegramButtonLifecycleControl;
@@ -35,14 +32,13 @@ const backButtonLifecycleControl = backButton as unknown as TelegramButtonLifecy
 export function useDashboardTelegramButtons({
   settingsButtonSupported,
   toggleSettings,
+  returnToHome,
   dialogState,
   dismissDialog,
   triggerHaptic,
   settingsOpen,
   focusedWorkspaceMode,
   activeModule,
-  selectModule,
-  navigate,
 }: UseDashboardTelegramButtonsOptions): void {
   useEffect(() => {
     if (!settingsButtonSupported) return undefined;
@@ -95,16 +91,13 @@ export function useDashboardTelegramButtons({
         return;
       }
       if (settingsOpen) {
-        toggleSettings(false);
-        return;
-      }
-      if (focusedWorkspaceMode) {
         triggerHaptic('selection');
-        navigate(DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT);
+        returnToHome();
         return;
       }
-      if (activeModule !== 'ops') {
-        selectModule('ops', { fromKeyboard: true });
+      if (focusedWorkspaceMode || activeModule !== 'ops') {
+        triggerHaptic('selection');
+        returnToHome();
         return;
       }
       if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -117,8 +110,7 @@ export function useDashboardTelegramButtons({
     dialogState,
     dismissDialog,
     focusedWorkspaceMode,
-    navigate,
-    selectModule,
+    returnToHome,
     settingsOpen,
     toggleSettings,
     triggerHaptic,

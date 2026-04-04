@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { buildMailerRequestState } from './moduleRequestState';
+import { moduleRoutePath } from './dashboardShellConfig';
 import type { DashboardVm, EmailJob } from './types';
 import { useInvestigationAction } from './useInvestigationAction';
 import { selectMailerPageVm } from './vmSelectors';
@@ -8,6 +10,7 @@ import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/Dash
 import { LoadingTelemetryCard } from '@/components/admin-dashboard/DashboardStateCards';
 import {
   UiActionBar,
+  UiBadge,
   UiButton,
   UiCard,
   UiDisclosure,
@@ -25,7 +28,11 @@ type MailerPageProps = {
   vm: DashboardVm;
 };
 
+type MailerLinkedWorkspace = 'content' | 'scriptsparity';
+
 export function MailerPage({ visible, vm }: MailerPageProps) {
+  const navigate = useNavigate();
+
   if (!visible) return null;
 
   const {
@@ -96,6 +103,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
   const mailerCanSubmit = mailerMissingRequirements.length === 0;
   const [messageIdInput, setMessageIdInput] = useState<string>('');
   const [jobIdInput, setJobIdInput] = useState<string>('');
+  const [providerSnapshot, setProviderSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [bulkStatsSnapshot, setBulkStatsSnapshot] = useState<Record<string, unknown> | null>(null);
   const [messageSnapshot, setMessageSnapshot] = useState<Record<string, unknown> | null>(null);
   const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
   const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
@@ -113,6 +122,12 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
   const activeActionLabel = mailerRequestState.activeActionLabel;
   const domainHealthStatusLabel = pickDisplayText([mailerDomainHealthStatus], 'Unknown');
   const domainHealthNeedsAttention = /warning|degraded|failed|error|unhealthy|suppressed/i.test(domainHealthStatusLabel);
+  const providerReadiness = asRecord(providerSnapshot?.email_readiness);
+  const providerSupportedProviders = Array.isArray(providerSnapshot?.email_supported_providers)
+    ? providerSnapshot.email_supported_providers.map((provider) => String(provider))
+    : [];
+  const bulkStats = asRecord(bulkStatsSnapshot?.stats);
+  const bulkStatsHours = pickDisplayText([bulkStatsSnapshot?.hours], '24');
   const pulseTone: 'info' | 'success' | 'warning' | 'error' = investigationError || mailerTemplatePreviewError
     ? 'error'
     : mailerRequestState.status === 'busy'
@@ -156,19 +171,34 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
           : domainHealthNeedsAttention
             ? mailerDomainHealthDetail
             : 'Audience, content, and deliverability controls are ready for the next send.';
+  const openMailerLinkedWorkspace = (moduleId: MailerLinkedWorkspace) => {
+    navigate(moduleRoutePath(moduleId));
+  };
 
   return (
     <>
       <section className="va-page-intro">
         <p className="va-kicker">Messaging</p>
-        <h2 className="va-page-title">Email Operations Console</h2>
+        <h2 className="va-page-title">Mailer</h2>
         <p className="va-muted">
-          Build and schedule campaigns, validate template variables, and track deliverability performance.
+          Run the bulk-email lane from one place: readiness, queueing, job status, history, and 24-hour delivery posture.
+        </p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={pulseTone === 'error' ? 'error' : pulseTone === 'warning' ? 'warning' : pulseTone === 'info' ? 'info' : 'success'}>
+            {pulseStatus}
+          </UiBadge>
+          <UiBadge variant="meta">Bulk email lane</UiBadge>
+          <UiBadge variant={domainHealthNeedsAttention ? 'warning' : 'info'}>
+            Domain {domainHealthStatusLabel}
+          </UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Keep campaign execution here, refresh readiness before queueing, and hand off governed template editing to the dedicated script workspaces.
         </p>
       </section>
 
       <UiWorkspacePulse
-        title="Email workspace"
+        title="Bulk email workspace"
         description={pulseDescription}
         status={pulseStatus}
         tone={pulseTone}
@@ -183,22 +213,169 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
       <LoadingTelemetryCard
         visible={mailerRequestState.isLoading && mailerRecipientsParsed.length === 0}
         title="Loading mailer telemetry"
-        description="Syncing recipient analytics, domain health, and recent delivery outcomes."
+        description="Syncing provider readiness, bulk-send telemetry, and recent delivery outcomes."
       />
       <DashboardWorkflowContractCard moduleId="mailer" />
       <section className="va-section-block">
         <header className="va-section-header">
-          <h3 className="va-section-title">Compose & Queue</h3>
-          <p className="va-muted">Prepare recipients, draft content, and schedule the outbound batch.</p>
+          <h3 className="va-section-title">Operational Checks</h3>
+          <p className="va-muted">Refresh readiness, inspect 24-hour bulk performance, and jump into the template workspaces when needed.</p>
         </header>
         <section className="va-grid">
           <UiCard>
-            <h3>Mailer Console</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Provider Readiness</h3>
+                <p className="va-muted">Refresh the active email route, check stored posture, and confirm readiness before a large send.</p>
+              </div>
+              <UiBadge variant={domainHealthNeedsAttention ? 'warning' : 'info'}>
+                {domainHealthStatusLabel}
+              </UiBadge>
+            </div>
+            <UiActionBar
+              title="Refresh the email provider snapshot"
+              description="Use this before large sends or when delivery posture needs confirmation."
+              actions={(
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy}
+                  onClick={() => {
+                    void runInvestigationAction(
+                      DASHBOARD_ACTION_CONTRACTS.PROVIDER_GET,
+                      { channel: 'email' },
+                      (payload) => setProviderSnapshot(payload),
+                    );
+                  }}
+                >
+                  Refresh Email Readiness
+                </UiButton>
+              )}
+            />
+            <p className="va-muted">
+              Active provider: <strong>{pickDisplayText([providerSnapshot?.email_provider, providerSnapshot?.provider], 'unknown')}</strong>
+            </p>
+            <p className="va-muted">
+              Stored provider: <strong>{pickDisplayText([providerSnapshot?.email_stored_provider, providerSnapshot?.stored_provider], 'unknown')}</strong>
+            </p>
+            <p className="va-muted">
+              Readiness: <strong>{pickDisplayText([providerReadiness?.status, providerReadiness?.summary, domainHealthStatusLabel], domainHealthStatusLabel)}</strong>
+            </p>
+            <p className="va-muted">
+              Supported providers: {providerSupportedProviders.length ? providerSupportedProviders.join(', ') : 'refresh to load'}
+            </p>
+            <UiStatePanel
+              compact
+              tone={domainHealthNeedsAttention ? 'warning' : 'info'}
+              title="Readiness note"
+              description={pickDisplayText([providerReadiness?.detail, mailerDomainHealthDetail], mailerDomainHealthDetail)}
+            />
+          </UiCard>
+          <UiCard>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Bulk Stats</h3>
+                <p className="va-muted">Keep the last 24 hours of job volume and delivery posture visible while you prepare the next campaign.</p>
+              </div>
+              <UiBadge variant="meta">{bulkStatsHours}h window</UiBadge>
+            </div>
+            <UiActionBar
+              title="Refresh the 24-hour bulk rollup"
+              description="Matches the bulk stats lane from the bot-side Mailer workflow."
+              actions={(
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy}
+                  onClick={() => {
+                    void runInvestigationAction(
+                      DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_STATS,
+                      { hours: 24 },
+                      (payload) => setBulkStatsSnapshot(payload),
+                    );
+                  }}
+                >
+                  Refresh 24h Stats
+                </UiButton>
+              )}
+            />
+            <p className="va-muted">Window: <strong>{bulkStatsHours}h</strong></p>
+            <p className="va-muted">
+              Jobs: <strong>{pickDisplayText([bulkStats?.total_jobs], String(emailJobs.length))}</strong>
+              {' '}| Recipients: <strong>{pickDisplayText([bulkStats?.total_recipients], String(emailTotalRecipients))}</strong>
+            </p>
+            <p className="va-muted">
+              Sent: <strong>{pickDisplayText([bulkStats?.sent], String(emailSent))}</strong>
+              {' '}| Delivered: <strong>{pickDisplayText([bulkStats?.delivered], String(emailDelivered))}</strong>
+            </p>
+            <p className="va-muted">
+              Failed: <strong>{pickDisplayText([bulkStats?.failed], String(emailFailed))}</strong>
+              {' '}| Bounced: <strong>{pickDisplayText([bulkStats?.bounced], String(emailBounced))}</strong>
+              {' '}| Complaints: <strong>{pickDisplayText([bulkStats?.complained], String(emailComplained))}</strong>
+            </p>
+            <p className="va-muted">
+              Suppressed: <strong>{pickDisplayText([bulkStats?.suppressed], String(emailSuppressed))}</strong>
+            </p>
+          </UiCard>
+          <UiCard>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Template Handoff</h3>
+                <p className="va-muted">Keep bulk sending operational here while governed authoring and review stay in the script workspaces.</p>
+              </div>
+              <UiBadge variant="meta">Linked workspaces</UiBadge>
+            </div>
+            <UiActionBar
+              title="Keep bulk delivery here and editing there"
+              description="Reviewed template authoring stays in the dedicated editing pages, not in the bulk-send console."
+              actions={(
+                <>
+                  <UiButton
+                    variant="secondary"
+                    disabled={controlsBusy}
+                    onClick={() => openMailerLinkedWorkspace('scriptsparity')}
+                  >
+                    Open Message Lanes
+                  </UiButton>
+                  <UiButton
+                    variant="secondary"
+                    disabled={controlsBusy}
+                    onClick={() => openMailerLinkedWorkspace('content')}
+                  >
+                    Open Script Designer
+                  </UiButton>
+                </>
+              )}
+            />
+            <p className="va-muted">
+              Use Message Lanes for email template review, promotion, simulation, and rollback.
+            </p>
+            <p className="va-muted">
+              Use Script Designer when you need the combined call, SMS, and email editing model from the main bot workflow.
+            </p>
+          </UiCard>
+        </section>
+      </section>
+
+      <section className="va-section-block">
+        <header className="va-section-header">
+          <h3 className="va-section-title">Bulk Send</h3>
+          <p className="va-muted">Prepare recipients, select a template or body, and queue the outbound batch.</p>
+        </header>
+        <section className="va-grid">
+          <UiCard>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Bulk Send Console</h3>
+                <p className="va-muted">Assemble audience, content, variables, and timing in one queue-ready surface.</p>
+              </div>
+              <UiBadge variant={mailerCanSubmit ? 'success' : 'warning'}>
+                {mailerCanSubmit ? 'Queue ready' : 'Needs input'}
+              </UiBadge>
+            </div>
             <UiActionBar
               title="Prepare the next mailer job"
               description={
                 mailerCanSubmit
-                  ? 'Review timing and template variables, then queue the job.'
+                  ? 'Confirm readiness, review timing and variables, then queue the next job.'
                   : 'Add recipients and draft content, or load a template before queueing.'
               }
               actions={(
@@ -242,6 +419,9 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
                 onChange={(event) => setMailerTemplateIdInput(event.target.value)}
               />
             </div>
+            <p className="va-field-hint">
+              Use a reviewed template ID from Message Lanes when this batch should run a governed email template.
+            </p>
             <p className="va-card-eyebrow">Content</p>
             <UiInput
               id="va-mailer-subject"
@@ -348,7 +528,15 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
             </UiDisclosure>
           </UiCard>
           <UiCard>
-            <h3>Deliverability Monitor</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Readiness & Deliverability</h3>
+                <p className="va-muted">Watch delivery health, bounce trends, and recent jobs before and after each batch.</p>
+              </div>
+              <UiBadge variant={emailFailed > 0 || emailBounced > 0 || emailComplained > 0 ? 'warning' : 'info'}>
+                {emailDelivered} delivered
+              </UiBadge>
+            </div>
             <p>Total recipients (24h): <strong>{emailTotalRecipients}</strong></p>
             <p>Sent: <strong>{emailSent}</strong> | Failed: <strong>{emailFailed}</strong></p>
             <p>Delivered: <strong>{emailDelivered}</strong></p>
@@ -418,8 +606,8 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
 
       <section className="va-section-block">
         <header className="va-section-header">
-          <h3 className="va-section-title">Investigation & Tracking</h3>
-          <p className="va-muted">Lookup individual message status, bulk jobs, and recent history.</p>
+          <h3 className="va-section-title">Status, History & Trace</h3>
+          <p className="va-muted">Lookup individual message status, inspect bulk jobs, and review recent mailer history.</p>
         </header>
         {investigationError || mailerRequestState.status === 'busy' ? (
           <div className="va-status-state-stack">
@@ -449,7 +637,15 @@ export function MailerPage({ visible, vm }: MailerPageProps) {
         ) : null}
         <section className="va-grid">
           <UiCard>
-            <h3>Email Diagnostics Console</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Email Diagnostics Console</h3>
+                <p className="va-muted">Look up a single message, inspect a bulk job, and pull recent history without leaving the mailer lane.</p>
+              </div>
+              <UiBadge variant={historySnapshot.length > 0 ? 'meta' : 'info'}>
+                {historySnapshot.length > 0 ? `${historySnapshot.length} loaded` : 'Lookup ready'}
+              </UiBadge>
+            </div>
             <div className="va-inline-tools">
               <UiInput
                 placeholder="Message ID"

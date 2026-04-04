@@ -13,6 +13,7 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import {
+  UiBadge,
   UiButton,
   UiCard,
   UiInput,
@@ -233,6 +234,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         <p className="va-muted">
           Reliability, runtime controls, and recovery signals for calls, SMS, and email.
         </p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={opsPulseTone}>{opsPulseStatus}</UiBadge>
+          <UiBadge variant="meta">Runtime control</UiBadge>
+          <UiBadge variant="info">{queueBacklogTotal} backlog</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Use this surface to confirm live sync posture, review queue pressure, and steer runtime
+          recovery before operators move into channel-specific workflows.
+        </p>
       </section>
 
       <UiWorkspacePulse
@@ -271,7 +281,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </header>
       <section className="va-grid">
         <div className={`va-card va-health ${isDashboardDegraded ? 'is-degraded' : 'is-healthy'}`}>
-          <h3>Live Sync Health</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Live Sync Health</h3>
+              <p className="va-muted">Track polling cadence, stream reliability, and active degradation causes.</p>
+            </div>
+            <UiBadge variant={isDashboardDegraded ? 'warning' : 'success'}>
+              {isDashboardDegraded ? 'Degraded' : 'Healthy'}
+            </UiBadge>
+          </div>
           <p>
             Mode: <strong>{syncModeLabel}</strong>
           </p>
@@ -301,7 +319,13 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </div>
 
         <div className="va-card">
-          <h3>SLO Widgets</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>SLO Widgets</h3>
+              <p className="va-muted">Watch remaining budget, action latency, and freshness without leaving ops.</p>
+            </div>
+            <UiBadge variant="info">{sloErrorBudgetPercent}% budget</UiBadge>
+          </div>
           <p>
             Error budget remaining: <strong>{sloErrorBudgetPercent}%</strong>
           </p>
@@ -315,7 +339,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </div>
 
         <div className="va-card">
-          <h3>Ops Snapshot</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Ops Snapshot</h3>
+              <p className="va-muted">A fast read on calls, backlog, and provider readiness for the current window.</p>
+            </div>
+            <UiBadge variant={callFailureRate > 0 ? 'warning' : 'success'}>
+              {Math.max(0, Math.min(100, Math.round(callSuccessRate)))}% success
+            </UiBadge>
+          </div>
           <p>
             Calls: <strong>{callCompleted}</strong> completed / <strong>{callTotal}</strong> total
           </p>
@@ -336,7 +368,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
 
         {opsQaSummary ? (
           <div className="va-card">
-            <h3>Post-Call QA</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Post-Call QA</h3>
+                <p className="va-muted">Track evaluation quality, score posture, and recurring findings after live calls.</p>
+              </div>
+              <UiBadge variant={opsQaSummary.passRate >= 80 ? 'success' : opsQaSummary.passRate >= 60 ? 'info' : 'warning'}>
+                {opsQaSummary.passRate}% pass
+              </UiBadge>
+            </div>
             <p>
               Window: <strong>{opsQaSummary.windowHours}h</strong>
               {' '}| Evaluations: <strong>{opsQaSummary.total}</strong>
@@ -434,7 +474,13 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </div>
         ) : (
           <UiCard>
-            <h3>Post-Call QA</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Post-Call QA</h3>
+                <p className="va-muted">Quality trends appear here once post-call reviews are being captured.</p>
+              </div>
+              <UiBadge variant="info">Unavailable</UiBadge>
+            </div>
             <UiStatePanel
               title="QA summary unavailable"
               description="Enable and collect post-call QA evaluations to unlock quality trends."
@@ -446,7 +492,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
 
         {runtimeControlsEnabled ? (
           <UiCard>
-            <h3>Voice Runtime Control</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Voice Runtime Control</h3>
+                <p className="va-muted">Manage maintenance posture, canary rollout, and live runtime balance in one place.</p>
+              </div>
+              <UiBadge variant={runtimeIsCircuitOpen ? 'warning' : 'success'}>
+                {runtimeEffectiveMode}
+              </UiBadge>
+            </div>
             <p>
               Effective mode: <strong>{runtimeEffectiveMode}</strong>
               {' '}| Override: <strong>{runtimeModeOverride}</strong>
@@ -514,7 +568,13 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
           </UiCard>
         ) : (
           <UiCard>
-            <h3>Voice Runtime Control</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Voice Runtime Control</h3>
+                <p className="va-muted">Runtime controls stay hidden until maintenance and canary tools are enabled.</p>
+              </div>
+              <UiBadge variant="warning">Disabled</UiBadge>
+            </div>
             <UiStatePanel
               title="Runtime controls disabled"
               description="Enable the runtime_controls feature flag to manage maintenance and canary rollout."
@@ -525,7 +585,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         )}
 
         <UiCard>
-          <h3>Activity Timeline</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Activity Timeline</h3>
+              <p className="va-muted">Recent actions, recoveries, and runtime transitions in chronological order.</p>
+            </div>
+            <UiBadge variant={activityLog.length > 0 ? 'meta' : 'info'}>
+              {activityLog.length > 0 ? `${activityLog.length} events` : 'Idle'}
+            </UiBadge>
+          </div>
           {activityLog.length === 0 ? (
             <UiStatePanel
               title="No activity yet"
@@ -570,14 +638,30 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </header>
         <section className="va-grid">
         <div className="va-card">
-          <h3>SMS Bulk Status (24h)</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>SMS Bulk Status (24h)</h3>
+              <p className="va-muted">Latest recipient throughput and failure posture for the SMS lane.</p>
+            </div>
+            <UiBadge variant={smsFailed > 0 ? 'warning' : 'success'}>
+              {smsProcessedPercent}% processed
+            </UiBadge>
+          </div>
           <p>Total recipients: <strong>{smsTotalRecipients}</strong></p>
           <p>Successful: <strong>{smsSuccess}</strong> | Failed: <strong>{smsFailed}</strong></p>
           <pre>{textBar(smsProcessedPercent)}</pre>
         </div>
 
         <div className="va-card">
-          <h3>Email Bulk Status (24h)</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Email Bulk Status (24h)</h3>
+              <p className="va-muted">Monitor processed volume, delivery quality, and suppression pressure.</p>
+            </div>
+            <UiBadge variant={emailFailed > 0 || emailBounced > 0 ? 'warning' : 'success'}>
+              {emailDeliveredPercent}% delivered
+            </UiBadge>
+          </div>
           <p>Total recipients: <strong>{emailTotalRecipients}</strong></p>
           <p>Sent: <strong>{emailSent}</strong> | Failed: <strong>{emailFailed}</strong></p>
           <p>Delivered: <strong>{emailDelivered}</strong></p>
@@ -728,7 +812,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </div>
 
         <div className="va-card">
-          <h3>Recent Call Logs</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Recent Call Logs</h3>
+              <p className="va-muted">Latest persisted calls with runtime, transcript, and outcome context in one feed.</p>
+            </div>
+            <UiBadge variant={callLogs.length > 0 ? 'success' : 'info'}>
+              {callLogs.length > 0 ? `${callLogs.length} visible` : 'Feed idle'}
+            </UiBadge>
+          </div>
           <p>
             Showing <strong>{callLogs.length}</strong> of <strong>{callLogsTotal}</strong> recent calls.
           </p>
@@ -759,7 +851,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </div>
 
         <div className="va-card">
-          <h3>Email Jobs</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Email Jobs</h3>
+              <p className="va-muted">Track the latest bulk-email jobs, send progress, and delivery posture.</p>
+            </div>
+            <UiBadge variant={emailJobs.length > 0 ? 'meta' : 'info'}>
+              {emailJobs.length > 0 ? `${emailJobs.length} jobs` : 'No jobs'}
+            </UiBadge>
+          </div>
           {emailJobs.length === 0 ? <p className="va-muted">No recent jobs.</p> : null}
           <ul className="va-list">
             {emailJobs.slice(0, 8).map((job: EmailJob, index: number) => {
@@ -782,7 +882,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </div>
 
         <UiCard>
-          <h3>DLQ: Call Jobs ({toInt(dlqPayload.call_open, callDlq.length)})</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>DLQ: Call Jobs</h3>
+              <p className="va-muted">Review failed call work items and replay them from the recovery queue.</p>
+            </div>
+            <UiBadge variant={callDlq.length > 0 ? 'warning' : 'success'}>
+              {toInt(dlqPayload.call_open, callDlq.length)} open
+            </UiBadge>
+          </div>
           {callDlq.length === 0 ? <p className="va-muted">No open call DLQ entries.</p> : null}
           <ul className="va-list">
             {callDlq.map((row: DlqCallRow) => {
@@ -815,7 +923,15 @@ export function OpsDashboardPage({ visible, vm }: OpsDashboardPageProps) {
         </UiCard>
 
         <UiCard>
-          <h3>DLQ: Email ({toInt(dlqPayload.email_open, emailDlq.length)})</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>DLQ: Email</h3>
+              <p className="va-muted">Inspect blocked email work items and trigger replay when the cause is cleared.</p>
+            </div>
+            <UiBadge variant={emailDlq.length > 0 ? 'warning' : 'success'}>
+              {toInt(dlqPayload.email_open, emailDlq.length)} open
+            </UiBadge>
+          </div>
           {emailDlq.length === 0 ? <p className="va-muted">No open email DLQ entries.</p> : null}
           <ul className="va-list">
             {emailDlq.map((row: DlqEmailRow) => {

@@ -185,7 +185,7 @@ export function DashboardViewStage({
             ) : null}
             {showModuleSkeleton ? (
               <ModuleSkeletonGrid />
-            ) : visibleModulesCount > 0 ? (
+            ) : groupedVisibleModules.length > 0 ? (
               <DashboardWorkspaceLauncher
                 groupedVisibleModules={groupedVisibleModules}
                 moduleShortcutIndexById={moduleShortcutIndexById}

@@ -145,7 +145,7 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
     capability: 'users_manage',
   },
   mailer: {
-    label: 'Mailer Console',
+    label: 'Mailer',
     capability: 'email_bulk_manage',
   },
   provider: {
@@ -153,7 +153,7 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
     capability: 'provider_manage',
   },
   content: {
-    label: 'Script Studio',
+    label: 'Script Designer',
     capability: 'caller_flags_manage',
   },
   calllog: {
@@ -161,11 +161,11 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
     capability: 'dashboard_view',
   },
   callerflags: {
-    label: 'Caller Flags Moderation',
+    label: 'Caller Screening',
     capability: 'caller_flags_manage',
   },
   scriptsparity: {
-    label: 'Message Templates',
+    label: 'Message Lanes',
     capability: 'caller_flags_manage',
   },
   messaging: {
@@ -181,7 +181,7 @@ export const DASHBOARD_MODULE_SCREEN_CONTRACTS: Record<DashboardModuleId, {
     capability: 'users_manage',
   },
   audit: {
-    label: 'Audit & Incidents',
+    label: 'System Status & Audit',
     capability: 'dashboard_view',
   },
 };
@@ -248,7 +248,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'mailer',
-    notes: 'Bulk email workspace for audience sends, history, and delivery health.',
+    notes: 'Admin bulk email workspace for readiness checks, queueing, job status, history, and delivery stats.',
   },
   {
     pageId: 'dashboard.module.provider',
@@ -272,7 +272,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'content',
-    notes: 'Call script drafting, review, and simulation tools in one dedicated workspace.',
+    notes: 'Primary script designer entry with lane switching across call, SMS, and email editors. Advanced authoring recovery continues in the broader scripts workflow.',
   },
   {
     pageId: 'dashboard.module.calllog',
@@ -296,7 +296,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'aligned',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'callerflags',
-    notes: 'Moderate inbound caller flags with shared admin validation.',
+    notes: 'Review inbound caller decisions and apply allow, block, or spam updates with shared admin validation.',
   },
   {
     pageId: 'dashboard.module.scriptsparity',
@@ -305,10 +305,10 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     canonicalCommand: BOT_PRIMARY_COMMANDS.SCRIPTS,
     relatedCommands: [BOT_PRIMARY_COMMANDS.SMS, BOT_PRIMARY_COMMANDS.EMAIL],
     capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.scriptsparity.capability,
-    workflowStatus: 'dashboard-composed',
+    workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'scriptsparity',
-    notes: 'Maintain SMS scripts and email templates alongside the rest of the content toolset.',
+    notes: 'Maintain SMS scripts and email templates here with review, simulation, promotion, and version recovery, while clone and preview handoff still continue in the broader scripts workflow.',
   },
   {
     pageId: 'dashboard.module.messaging',
@@ -320,7 +320,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'messaging',
-    notes: 'Investigate SMS and email delivery from a shared diagnostics workspace.',
+    notes: 'Investigate SMS and email delivery, conversations, job history, and email batch stats from one shared workspace.',
   },
   {
     pageId: 'dashboard.module.persona',
@@ -329,10 +329,10 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     canonicalCommand: BOT_PRIMARY_COMMANDS.PERSONA,
     relatedCommands: [BOT_PRIMARY_COMMANDS.SCRIPTS],
     capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.persona.capability,
-    workflowStatus: 'aligned',
+    workflowStatus: 'partial',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'persona',
-    notes: 'Manage personas with shared validation and role-aware access.',
+    notes: 'Review the shared persona registry here. Persona create, edit, delete, and cache refresh still continue in the broader bot workflow.',
   },
   {
     pageId: 'dashboard.module.users',
@@ -350,13 +350,13 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     pageId: 'dashboard.module.audit',
     path: DASHBOARD_MODULE_ROUTE_CONTRACTS.audit,
     pageComponent: 'AuditIncidentsPage',
-    canonicalCommand: BOT_PRIMARY_COMMANDS.ADMIN,
-    relatedCommands: [BOT_PRIMARY_COMMANDS.STATUS],
+    canonicalCommand: BOT_PRIMARY_COMMANDS.STATUS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.HEALTH, BOT_PRIMARY_COMMANDS.ADMIN],
     capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.audit.capability,
     workflowStatus: 'dashboard-composed',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: 'audit',
-    notes: 'Review incidents, audit trails, and runbook actions in one place.',
+    notes: 'Review health/status posture, alert history, response actions, and audit trails in one place.',
   },
   {
     pageId: 'dashboard.settings',
@@ -368,7 +368,7 @@ export const DASHBOARD_PAGE_WORKFLOW_CONTRACTS: readonly DashboardPageWorkflowCo
     workflowStatus: 'shell-only',
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     moduleId: null,
-    notes: 'App settings, diagnostics, and support shortcuts for the current session.',
+    notes: 'App settings, session controls, accessibility posture, and diagnostics for the current session.',
   },
 ] as const;
 
@@ -402,7 +402,7 @@ export type DashboardModuleWorkflowDetailContract = {
 };
 
 export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
-  'ops' | 'mailer' | 'content' | 'scriptsparity' | 'messaging' | 'audit',
+  'ops' | 'mailer' | 'content' | 'scriptsparity' | 'messaging' | 'persona' | 'audit',
   DashboardModuleWorkflowDetailContract
 > = {
   ops: {
@@ -465,13 +465,14 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
       'Message ID or job ID before diagnostics lookup',
     ],
     validationSteps: [
-      'Check provider readiness through provider.get(channel=email) before large send decisions.',
+      'Refresh provider readiness through provider.get(channel=email) before large send decisions.',
       'Parse, deduplicate, and surface invalid recipients before queueing.',
       'Preview template variables and render hints before execution.',
+      'Keep template authoring and review in Message Lanes or Script Designer instead of mixing it into bulk-send execution.',
     ],
     confirmationRules: [
       'Queue a bulk email job only after audience and content requirements pass.',
-      'Message status, job status, and history actions remain read-only investigations.',
+      'Message status, job status, history, and bulk stats actions remain read-only investigations.',
     ],
     executionActions: [
       'email.bulk.send',
@@ -483,11 +484,11 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
     ],
     successBehavior: [
       'Queue the email job while keeping recipient parsing, template preview, and diagnostics visible.',
-      'Refresh job and history artifacts without resetting compose inputs.',
+      'Refresh provider readiness, bulk stats, job, and history artifacts without resetting compose inputs.',
     ],
     failureBehavior: [
       'Preserve compose state and surface inline request errors when queueing fails.',
-      'Keep prior message, job, and history snapshots visible when diagnostics fail.',
+      'Keep prior readiness, message, job, stats, and history snapshots visible when diagnostics fail.',
     ],
     degradedBehavior: [
       'Allow history and job diagnostics to remain usable even when trend telemetry is incomplete.',
@@ -495,9 +496,11 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
     ],
     fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
     productivityEnhancements: [
+      'One-tap email readiness refresh before large sends.',
       'CSV/TXT audience upload for bulk mailer ownership.',
       'Inline template render preview before queueing.',
       'Deliverability trend monitoring alongside compose flow.',
+      'Direct handoff to Message Lanes and Script Designer for governed email template work.',
     ],
   },
   content: {
@@ -563,27 +566,45 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
     ],
     validationSteps: [
       'Keep SMS script and email template actions behind caller_flags_manage capability.',
-      'Require explicit selected assets before update actions.',
-      'Refresh both content lists after create or update so the operator sees the authoritative result.',
+      'Require explicit selected assets before governance actions such as review, promote, simulate, diff, or rollback.',
+      'Refresh both content lists after create, update, delete, review, promote, or rollback so the operator sees the authoritative result.',
     ],
     confirmationRules: [
-      'Create and update actions remain explicit operator-triggered mutations.',
-      'List refresh actions stay bounded read-only requests.',
+      'Create, update, delete, review, promote, and rollback actions remain explicit operator-triggered mutations.',
+      'List, version, diff, and simulation requests stay bounded read-only requests.',
     ],
     executionActions: [
       'smsscript.list',
+      'smsscript.get',
       'smsscript.create',
       'smsscript.update',
+      'smsscript.delete',
+      'smsscript.submit_review',
+      'smsscript.review',
+      'smsscript.promote_live',
+      'smsscript.simulate',
+      'smsscript.versions',
+      'smsscript.diff',
+      'smsscript.rollback',
       'emailtemplate.list',
+      'emailtemplate.get',
       'emailtemplate.create',
       'emailtemplate.update',
+      'emailtemplate.delete',
+      'emailtemplate.submit_review',
+      'emailtemplate.review',
+      'emailtemplate.promote_live',
+      'emailtemplate.simulate',
+      'emailtemplate.versions',
+      'emailtemplate.diff',
+      'emailtemplate.rollback',
     ],
     successBehavior: [
       'Refresh SMS script and email template lists while preserving the active workspace.',
-      'Keep the currently selected script or template visible after successful updates.',
+      'Keep the currently selected script or template visible after successful updates, reviews, promotions, and rollback actions.',
     ],
     failureBehavior: [
-      'Preserve draft content and selected assets when content updates fail.',
+      'Preserve draft content, governance notes, simulation variables, and selected assets when content updates fail.',
       'Show request-specific errors inline without clearing the opposing channel workspace.',
     ],
     degradedBehavior: [
@@ -595,6 +616,7 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
       'One workspace for SMS and email content ownership.',
       'Parallel refresh and maintenance of adjacent content families.',
       'Selection-preserving updates that reduce operator context switching between channels.',
+      'Lifecycle review, simulation, and version recovery without leaving the focused message lanes.',
     ],
   },
   messaging: {
@@ -630,6 +652,7 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
       'email.message.status',
       'email.bulk.job',
       'email.bulk.history',
+      'email.bulk.stats',
     ],
     successBehavior: [
       'Populate SMS and email artifacts side by side inside one investigation workspace.',
@@ -647,13 +670,54 @@ export const DASHBOARD_MODULE_WORKFLOW_DETAIL_CONTRACTS: Record<
     productivityEnhancements: [
       'Unified SMS and email diagnostics in one operator surface.',
       'Shared filter count and artifact summary across both channels.',
-      'One investigation workspace for alias-derived status and history checks.',
+      'One investigation workspace for alias-derived status, history, and email batch health checks.',
+    ],
+  },
+  persona: {
+    moduleId: 'persona',
+    canonicalCommand: BOT_PRIMARY_COMMANDS.PERSONA,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.SCRIPTS],
+    capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.persona.capability,
+    requiredInputs: [
+      'None to refresh and review the current persona registry.',
+      'Custom persona authoring inputs still continue in the broader bot workflow.',
+      'Linked script defaults and policy metadata are shown only when the current bridge payload provides them.',
+    ],
+    validationSteps: [
+      'Keep persona visibility behind the same admin access used by the bot persona manager.',
+      'Treat the miniapp as a registry review surface until create, edit, delete, and cache-refresh actions are explicitly bridged.',
+      'Preserve the last successful persona snapshot when a refresh attempt fails.',
+    ],
+    confirmationRules: [
+      'Refresh remains a safe read-only action.',
+      'Persona mutations still require the broader bot workflow until dedicated miniapp actions are exposed.',
+    ],
+    executionActions: [
+      'persona.list',
+    ],
+    successBehavior: [
+      'Refresh built-in and custom persona visibility without leaving the current workspace.',
+      'Keep persona policy context visible for nearby script and messaging work.',
+    ],
+    failureBehavior: [
+      'Preserve the last successful persona snapshot and show the sync failure inline.',
+      'Avoid implying that create, edit, or delete completed in the miniapp when those flows are not bridged here.',
+    ],
+    degradedBehavior: [
+      'Allow operators to inspect the last visible persona registry when a live refresh fails.',
+      'Keep persona policy visibility available even when adjacent script metadata is stale or missing.',
+    ],
+    fallbackPath: DASHBOARD_STATIC_ROUTE_CONTRACTS.ROOT,
+    productivityEnhancements: [
+      'Built-in and custom persona visibility in one place.',
+      'Shared review context for script designers and messaging operators.',
+      'Refreshable registry view without leaving the admin dashboard.',
     ],
   },
   audit: {
     moduleId: 'audit',
-    canonicalCommand: BOT_PRIMARY_COMMANDS.ADMIN,
-    relatedCommands: [BOT_PRIMARY_COMMANDS.STATUS],
+    canonicalCommand: BOT_PRIMARY_COMMANDS.STATUS,
+    relatedCommands: [BOT_PRIMARY_COMMANDS.HEALTH, BOT_PRIMARY_COMMANDS.ADMIN],
     capability: DASHBOARD_MODULE_SCREEN_CONTRACTS.audit.capability,
     requiredInputs: [
       'Optional incident and audit filters for narrowed views',
@@ -755,7 +819,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
   START: {
     actionId: 'START',
     label: 'Start',
-    description: 'Open the role-aware welcome and command launcher workflow.',
+    description: 'Open the role-aware home and workspace launcher.',
     linkedCommand: BOT_PRIMARY_COMMANDS.START,
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.START,
     minAccess: 'guest',
@@ -815,7 +879,7 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
   HELP: {
     actionId: 'HELP',
     label: 'Help',
-    description: 'Review command coverage, examples, and access posture.',
+    description: 'Review workflow coverage, examples, and access posture.',
     linkedCommand: BOT_PRIMARY_COMMANDS.HELP,
     routePath: MINIAPP_COMMAND_ROUTE_CONTRACTS.HELP,
     minAccess: 'guest',
@@ -905,12 +969,12 @@ export const MINIAPP_COMMAND_ACTION_CONTRACTS = {
   BULK_EMAIL: {
     actionId: 'BULK_EMAIL',
     label: 'Mailer',
-    description: 'Run bulk email send and delivery monitoring workflows.',
+    description: 'Run bulk email readiness, send, status, history, and stats workflows.',
     linkedCommand: BOT_PRIMARY_COMMANDS.MAILER,
     routePath: DASHBOARD_MODULE_ROUTE_CONTRACTS.mailer,
     minAccess: 'admin',
     availability: 'aligned',
-    notes: 'Bulk email workspace for queued sends and delivery monitoring.',
+    notes: 'Admin bulk email workspace for readiness checks, queued sends, and delivery monitoring.',
   },
   ADMIN_PANEL: {
     actionId: 'ADMIN_PANEL',
@@ -1051,28 +1115,6 @@ export const MINIAPP_COMMAND_PAGE_CONTRACTS = {
   },
 } as const satisfies Record<'START' | 'CALL' | 'SMS' | 'HELP' | 'EMAIL' | 'SCRIPTS' | 'MENU' | 'GUIDE' | 'HEALTH' | 'STATUS', MiniAppCommandPageContract>;
 
-export const DASHBOARD_SETTINGS_SUPPORT_TOOL_CONTRACTS = [
-  {
-    moduleId: 'audit',
-    title: 'Incident runbooks',
-    description: 'Open runbooks and incident timelines.',
-  },
-  {
-    moduleId: 'provider',
-    title: 'Provider diagnostics',
-    description: 'Check provider readiness and preflight controls.',
-  },
-  {
-    moduleId: 'messaging',
-    title: 'Messaging diagnostics',
-    description: 'Review SMS/email investigation and delivery health.',
-  },
-] as const satisfies ReadonlyArray<{
-  moduleId: DashboardModuleId;
-  title: string;
-  description: string;
-}>;
-
 export const DASHBOARD_ACTION_CONTRACTS = {
   RUNTIME_STATUS: 'runtime.status',
   RUNTIME_MAINTENANCE_ENABLE: 'runtime.maintenance.enable',
@@ -1107,11 +1149,25 @@ export const DASHBOARD_ACTION_CONTRACTS = {
   SMSSCRIPT_CREATE: 'smsscript.create',
   SMSSCRIPT_UPDATE: 'smsscript.update',
   SMSSCRIPT_DELETE: 'smsscript.delete',
+  SMSSCRIPT_SUBMIT_REVIEW: 'smsscript.submit_review',
+  SMSSCRIPT_REVIEW: 'smsscript.review',
+  SMSSCRIPT_PROMOTE_LIVE: 'smsscript.promote_live',
+  SMSSCRIPT_SIMULATE: 'smsscript.simulate',
+  SMSSCRIPT_VERSIONS: 'smsscript.versions',
+  SMSSCRIPT_DIFF: 'smsscript.diff',
+  SMSSCRIPT_ROLLBACK: 'smsscript.rollback',
   EMAILTEMPLATE_LIST: 'emailtemplate.list',
   EMAILTEMPLATE_GET: 'emailtemplate.get',
   EMAILTEMPLATE_CREATE: 'emailtemplate.create',
   EMAILTEMPLATE_UPDATE: 'emailtemplate.update',
   EMAILTEMPLATE_DELETE: 'emailtemplate.delete',
+  EMAILTEMPLATE_SUBMIT_REVIEW: 'emailtemplate.submit_review',
+  EMAILTEMPLATE_REVIEW: 'emailtemplate.review',
+  EMAILTEMPLATE_PROMOTE_LIVE: 'emailtemplate.promote_live',
+  EMAILTEMPLATE_SIMULATE: 'emailtemplate.simulate',
+  EMAILTEMPLATE_VERSIONS: 'emailtemplate.versions',
+  EMAILTEMPLATE_DIFF: 'emailtemplate.diff',
+  EMAILTEMPLATE_ROLLBACK: 'emailtemplate.rollback',
   SMS_MESSAGES_RECENT: 'sms.messages.recent',
   SMS_MESSAGES_CONVERSATION: 'sms.messages.conversation',
   SMS_MESSAGE_STATUS: 'sms.message.status',
@@ -1211,7 +1267,14 @@ export const DASHBOARD_MODULE_ACTION_CONTRACTS = {
     DASHBOARD_ACTION_CONTRACTS.PROVIDER_SET,
     DASHBOARD_ACTION_CONTRACTS.PROVIDER_ROLLBACK,
   ],
-  content: [DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_LIST, DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_UPDATE],
+  content: [
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_LIST,
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_UPDATE,
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SUBMIT_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_PROMOTE_LIVE,
+    DASHBOARD_ACTION_CONTRACTS.CALLSCRIPT_SIMULATE,
+  ],
   calllog: [
     DASHBOARD_ACTION_CONTRACTS.CALLS_LIST,
     DASHBOARD_ACTION_CONTRACTS.CALLS_SEARCH,
@@ -1219,7 +1282,32 @@ export const DASHBOARD_MODULE_ACTION_CONTRACTS = {
     DASHBOARD_ACTION_CONTRACTS.CALLS_EVENTS,
   ],
   callerflags: [DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_LIST, DASHBOARD_ACTION_CONTRACTS.CALLERFLAGS_UPSERT],
-  scriptsparity: [DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST, DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_LIST],
+  scriptsparity: [
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_LIST,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_GET,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_SUBMIT_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_PROMOTE_LIVE,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_SIMULATE,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_VERSIONS,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DIFF,
+    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_ROLLBACK,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_LIST,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_GET,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_SUBMIT_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_REVIEW,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_PROMOTE_LIVE,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_SIMULATE,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_VERSIONS,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DIFF,
+    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_ROLLBACK,
+  ],
   messaging: [
     DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT,
     DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_CONVERSATION,
@@ -1228,6 +1316,7 @@ export const DASHBOARD_MODULE_ACTION_CONTRACTS = {
     DASHBOARD_ACTION_CONTRACTS.EMAIL_MESSAGE_STATUS,
     DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_JOB,
     DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_HISTORY,
+    DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_STATS,
   ],
   persona: [DASHBOARD_ACTION_CONTRACTS.PERSONA_LIST],
   users: [DASHBOARD_ACTION_CONTRACTS.USERS_LIST, DASHBOARD_ACTION_CONTRACTS.USERS_ROLE_SET],

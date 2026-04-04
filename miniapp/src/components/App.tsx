@@ -10,44 +10,44 @@ const AdminDashboardPage = lazy(async () => {
   return { default: module.AdminDashboardPage };
 });
 const CallCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.CallCommandPage };
+  const module = await import('@/pages/CommandPages/CallCommandPage.tsx');
+  return { default: module.default };
 });
 const SmsCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.SmsCommandPage };
+  const module = await import('@/pages/CommandPages/SmsCommandPage.tsx');
+  return { default: module.default };
 });
 const StartCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.StartCommandPage };
+  const module = await import('@/pages/CommandPages/StartCommandPage.tsx');
+  return { default: module.default };
 });
 const HelpCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.HelpCommandPage };
+  const module = await import('@/pages/CommandPages/HelpCommandPage.tsx');
+  return { default: module.default };
 });
 const EmailCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.EmailCommandPage };
+  const module = await import('@/pages/CommandPages/EmailCommandPage.tsx');
+  return { default: module.default };
 });
 const ScriptsCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.ScriptsCommandPage };
+  const module = await import('@/pages/CommandPages/ScriptsCommandPage.tsx');
+  return { default: module.default };
 });
 const MenuCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.MenuCommandPage };
+  const module = await import('@/pages/CommandPages/MenuCommandPage.tsx');
+  return { default: module.default };
 });
 const GuideCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.GuideCommandPage };
+  const module = await import('@/pages/CommandPages/GuideCommandPage.tsx');
+  return { default: module.default };
 });
 const HealthCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.HealthCommandPage };
+  const module = await import('@/pages/CommandPages/HealthCommandPage.tsx');
+  return { default: module.default };
 });
 const StatusCommandPage = lazy(async () => {
-  const module = await import('@/pages/CommandPages/CommandPages.tsx');
-  return { default: module.StatusCommandPage };
+  const module = await import('@/pages/CommandPages/StatusCommandPage.tsx');
+  return { default: module.default };
 });
 
 const adminWorkspaceRoutes = [...DASHBOARD_WORKSPACE_ROUTE_PATHS];

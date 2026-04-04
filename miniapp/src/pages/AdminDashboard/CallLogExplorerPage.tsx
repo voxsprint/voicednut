@@ -6,6 +6,7 @@ import { useInvestigationAction } from './useInvestigationAction';
 import { selectOpsPageVm } from './vmSelectors';
 import { DASHBOARD_ACTION_CONTRACTS } from '@/contracts/miniappParityContracts';
 import {
+  UiBadge,
   UiButton,
   UiCard,
   UiInput,
@@ -124,6 +125,17 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
         <p className="va-kicker">Operations</p>
         <h2 className="va-page-title">Call Log Explorer</h2>
         <p className="va-muted">Search and inspect call records, state transitions, and runtime details.</p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={error ? 'error' : controlsBusy || loading ? 'info' : activeSid ? 'success' : 'warning'}>
+            {error ? 'Needs attention' : controlsBusy || loading ? 'Working' : activeSid ? 'Ready' : 'Needs input'}
+          </UiBadge>
+          <UiBadge variant="meta">Call tracing</UiBadge>
+          <UiBadge variant="info">{loadedRowsCount} loaded</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Use one workspace to locate a call, inspect its snapshot, and review recent state changes
+          before escalating deeper runtime issues.
+        </p>
       </section>
 
       <UiWorkspacePulse
@@ -192,7 +204,15 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
         </header>
         <section className="va-grid">
           <UiCard className="va-investigation-card">
-          <h3>Call Search</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Call Search</h3>
+              <p className="va-muted">Search by SID, phone number, or status to start a faster investigation.</p>
+            </div>
+            <UiBadge variant={rows.length > 0 ? 'success' : 'info'}>
+              {rows.length > 0 ? `${rows.length} rows` : 'Lookup ready'}
+            </UiBadge>
+          </div>
           <div className="va-inline-tools">
             <UiInput
               value={query}
@@ -245,7 +265,15 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
           </UiCard>
 
           <UiCard className="va-investigation-card">
-          <h3>Call Detail</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Call Detail</h3>
+              <p className="va-muted">Load the selected call snapshot and timeline from the same operational surface.</p>
+            </div>
+            <UiBadge variant={hasDetails || hasEvents ? 'success' : activeSid ? 'warning' : 'info'}>
+              {hasDetails || hasEvents ? 'Loaded' : activeSid ? 'Pending' : 'No SID'}
+            </UiBadge>
+          </div>
           {!callSid.trim() ? (
             <UiStatePanel
               compact
@@ -358,7 +386,15 @@ export function CallLogExplorerPage({ visible, vm }: CallLogExplorerPageProps) {
         </header>
         <section className="va-grid">
           <UiCard className="va-investigation-card">
-          <h3>Recent Call Logs</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Recent Call Logs</h3>
+              <p className="va-muted">Review the latest persisted records before jumping into a deeper trace.</p>
+            </div>
+            <UiBadge variant={callLogs.length > 0 ? 'success' : 'info'}>
+              {callLogs.length > 0 ? `${callLogs.length} visible` : 'Feed idle'}
+            </UiBadge>
+          </div>
           <p>Showing <strong>{callLogs.length}</strong> of <strong>{callLogsTotal}</strong> calls.</p>
           {callLogs.length === 0 ? (
             <UiStatePanel

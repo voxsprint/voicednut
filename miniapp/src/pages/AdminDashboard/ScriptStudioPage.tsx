@@ -45,6 +45,8 @@ type EmailTemplateRow = {
   lifecycle_state?: unknown;
 };
 
+type ScriptStudioLane = 'call' | 'sms' | 'email';
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -146,6 +148,9 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
   const [emailTemplateHtmlInput, setEmailTemplateHtmlInput] = useState<string>('');
   const [emailTemplateTextInput, setEmailTemplateTextInput] = useState<string>('');
   const [emailTemplateCreateId, setEmailTemplateCreateId] = useState<string>('');
+  const [emailTemplateCreateSubject, setEmailTemplateCreateSubject] = useState<string>('');
+  const [emailTemplateCreateText, setEmailTemplateCreateText] = useState<string>('');
+  const [activeScriptStudioLane, setActiveScriptStudioLane] = useState<ScriptStudioLane>('call');
   const [callerFlags, setCallerFlags] = useState<Array<Record<string, unknown>>>([]);
   const [callerFlagsStatusFilter, setCallerFlagsStatusFilter] = useState<string>('all');
   const [callerFlagPhoneInput, setCallerFlagPhoneInput] = useState<string>('');
@@ -240,49 +245,460 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
     void loadPersonas();
   }, []);
 
+  const activeScriptStudioLaneLabel = activeScriptStudioLane === 'call'
+    ? 'Call scripts'
+    : activeScriptStudioLane === 'sms'
+      ? 'SMS scripts'
+      : 'Email templates';
+  const activeScriptStudioSelection = activeScriptStudioLane === 'call'
+    ? (selectedCallScript ? toText(selectedCallScript.name, 'Unknown') : 'None')
+    : activeScriptStudioLane === 'sms'
+      ? (selectedSmsScriptName || 'None')
+      : (selectedEmailTemplateId || 'None');
+  const activeScriptStudioCount = activeScriptStudioLane === 'call'
+    ? callScriptsTotal
+    : activeScriptStudioLane === 'sms'
+      ? smsScripts.length
+      : emailTemplates.length;
   const pulseTone = studioError
     ? 'error'
     : busyAction.length > 0 || studioBusy.length > 0
       ? 'info'
-      : selectedCallScript
+      : activeScriptStudioSelection !== 'None'
         ? 'success'
         : 'neutral';
   const pulseStatus = studioError
     ? 'Needs attention'
     : busyAction.length > 0 || studioBusy.length > 0
       ? (busyAction || studioBusy || 'Refreshing')
-      : selectedCallScript
-        ? 'Editing'
-        : 'Ready';
+      : activeScriptStudioSelection !== 'None'
+        ? `Editing ${activeScriptStudioLaneLabel}`
+        : `${activeScriptStudioLaneLabel} ready`;
   const totalPersonas = personaBuiltin.length + personaCustom.length;
   const selectedCallScriptLifecycleTone = toLifecycleTone(selectedCallScriptLifecycleState);
+
+  const renderSmsScriptsCard = () => (
+    <UiCard>
+      <h3>SMS Scripts</h3>
+      <p className="va-muted">Create, update, and maintain SMS script assets.</p>
+      <div className="va-inline-tools">
+        <UiButton
+          variant="secondary"
+          disabled={studioBusy.length > 0 || busyAction.length > 0}
+          onClick={() => {
+            triggerHaptic('impact', 'light');
+            void loadSmsScripts();
+          }}
+        >
+          Refresh SMS Scripts
+        </UiButton>
+        <UiInput
+          placeholder="Create script name"
+          value={smsScriptCreateName}
+          onChange={(event) => setSmsScriptCreateName(event.target.value)}
+        />
+      </div>
+      <UiTextarea
+        placeholder="Create script content"
+        value={smsScriptCreateContent}
+        onChange={(event) => setSmsScriptCreateContent(event.target.value)}
+        rows={3}
+      />
+      <div className="va-inline-tools">
+        <UiButton
+          variant="primary"
+          disabled={
+            studioBusy.length > 0
+            || busyAction.length > 0
+            || !smsScriptCreateName.trim()
+            || !smsScriptCreateContent.trim()
+          }
+          onClick={() => {
+            void runAction(
+              DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE,
+              {
+                name: smsScriptCreateName.trim(),
+                content: smsScriptCreateContent,
+              },
+              {
+                successMessage: `Created SMS script "${smsScriptCreateName.trim()}"`,
+                onSuccess: () => {
+                  setSmsScriptCreateName('');
+                  setSmsScriptCreateContent('');
+                  void loadSmsScripts();
+                },
+              },
+            );
+          }}
+        >
+          Create SMS Script
+        </UiButton>
+      </div>
+      {smsScripts.length === 0 ? (
+        <UiStatePanel
+          compact
+          title="No SMS scripts found"
+          description="Create a script or refresh to pull the latest content."
+        />
+      ) : (
+        <ul className="va-list va-list-dense">
+          {smsScripts.slice(0, 40).map((script, index) => {
+            const scriptName = toText(script.name, `sms-script-${index + 1}`);
+            const builtin = script.is_builtin === true;
+            const active = scriptName === selectedSmsScriptName;
+            return (
+              <li key={`sms-script-row-${scriptName}`}>
+                <strong>{scriptName}</strong>
+                <span>
+                  <UiBadge variant={toLifecycleTone(script.lifecycle_state)}>
+                    {toText(script.lifecycle_state, builtin ? 'builtin' : 'draft')}
+                  </UiBadge>
+                </span>
+                <span>
+                  <UiBadge variant={builtin ? 'info' : 'meta'}>
+                    {builtin ? 'Built-in (read-only)' : 'Custom'}
+                  </UiBadge>
+                </span>
+                <UiButton
+                  variant="chip"
+                  className={active ? 'is-active' : ''}
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setSelectedSmsScriptName(scriptName);
+                  }}
+                >
+                  {active ? 'Selected' : 'Select'}
+                </UiButton>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {selectedSmsScript ? (
+        <>
+          <h4>SMS Script Editor</h4>
+          {selectedSmsScript.is_builtin === true ? (
+            <UiStatePanel
+              compact
+              title="Read-only built-in script"
+              description="Clone this script into a custom entry if you need to modify the content."
+              tone="info"
+            />
+          ) : null}
+          <UiInput value={selectedSmsScriptName} disabled />
+          <UiTextarea
+            placeholder="Description"
+            value={smsScriptDescriptionInput}
+            onChange={(event) => setSmsScriptDescriptionInput(event.target.value)}
+            rows={2}
+            disabled={selectedSmsScript.is_builtin === true}
+          />
+          <UiTextarea
+            placeholder="SMS script content"
+            value={smsScriptContentInput}
+            onChange={(event) => setSmsScriptContentInput(event.target.value)}
+            rows={4}
+            disabled={selectedSmsScript.is_builtin === true}
+          />
+          <div className="va-inline-tools">
+            <UiButton
+              variant="primary"
+              disabled={
+                studioBusy.length > 0
+                || busyAction.length > 0
+                || selectedSmsScript.is_builtin === true
+                || !selectedSmsScriptName
+              }
+              onClick={() => {
+                void runAction(
+                  DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
+                  {
+                    script_name: selectedSmsScriptName,
+                    description: smsScriptDescriptionInput,
+                    content: smsScriptContentInput,
+                  },
+                  {
+                    successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
+                    onSuccess: () => {
+                      void loadSmsScripts();
+                    },
+                  },
+                );
+              }}
+            >
+              Save SMS Script
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              disabled={
+                studioBusy.length > 0
+                || busyAction.length > 0
+                || selectedSmsScript.is_builtin === true
+                || !selectedSmsScriptName
+              }
+              onClick={() => {
+                void runAction(
+                  DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
+                  { script_name: selectedSmsScriptName },
+                  {
+                    confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
+                    successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
+                    onSuccess: () => {
+                      void loadSmsScripts();
+                    },
+                  },
+                );
+              }}
+            >
+              Delete SMS Script
+            </UiButton>
+          </div>
+        </>
+      ) : null}
+    </UiCard>
+  );
+
+  const renderEmailTemplatesCard = () => (
+    <UiCard>
+      <h3>Email Templates</h3>
+      <p className="va-muted">Manage outbound email templates from the app.</p>
+      <div className="va-inline-tools">
+        <UiButton
+          variant="secondary"
+          disabled={studioBusy.length > 0}
+          onClick={() => {
+            triggerHaptic('impact', 'light');
+            void loadEmailTemplates();
+          }}
+        >
+          Refresh Templates
+        </UiButton>
+        <UiInput
+          placeholder="Create template ID"
+          value={emailTemplateCreateId}
+          onChange={(event) => setEmailTemplateCreateId(event.target.value)}
+        />
+        <UiInput
+          placeholder="Create subject"
+          value={emailTemplateCreateSubject}
+          onChange={(event) => setEmailTemplateCreateSubject(event.target.value)}
+        />
+      </div>
+      <UiTextarea
+        placeholder="Create plain-text body"
+        value={emailTemplateCreateText}
+        onChange={(event) => setEmailTemplateCreateText(event.target.value)}
+        rows={3}
+      />
+      <UiButton
+        variant="primary"
+        disabled={
+          studioBusy.length > 0
+          || busyAction.length > 0
+          || !emailTemplateCreateId.trim()
+          || !emailTemplateCreateSubject.trim()
+          || !emailTemplateCreateText.trim()
+        }
+        onClick={() => {
+          void runAction(
+            DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE,
+            {
+              template_id: emailTemplateCreateId.trim(),
+              subject: emailTemplateCreateSubject.trim(),
+              text: emailTemplateCreateText,
+            },
+            {
+              successMessage: `Created template "${emailTemplateCreateId.trim()}"`,
+              onSuccess: () => {
+                setEmailTemplateCreateId('');
+                setEmailTemplateCreateSubject('');
+                setEmailTemplateCreateText('');
+                void loadEmailTemplates();
+              },
+            },
+          );
+        }}
+      >
+        Create Template
+      </UiButton>
+      {emailTemplates.length === 0 ? (
+        <UiStatePanel
+          compact
+          title="No templates found"
+          description="Create a template or refresh to load the latest set."
+        />
+      ) : (
+        <ul className="va-list va-list-dense">
+          {emailTemplates.slice(0, 40).map((template, index) => {
+            const templateId = toText(template.template_id, `template-${index + 1}`);
+            const active = templateId === selectedEmailTemplateId;
+            return (
+              <li key={`email-template-row-${templateId}`}>
+                <strong>{templateId}</strong>
+                <span>
+                  <UiBadge variant={toLifecycleTone(template.lifecycle_state)}>
+                    {toText(template.lifecycle_state, 'draft')}
+                  </UiBadge>
+                </span>
+                <UiButton
+                  variant="chip"
+                  className={active ? 'is-active' : ''}
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setSelectedEmailTemplateId(templateId);
+                  }}
+                >
+                  {active ? 'Selected' : 'Select'}
+                </UiButton>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {selectedEmailTemplate ? (
+        <>
+          <h4>Email Template Editor</h4>
+          <UiInput value={selectedEmailTemplateId} disabled />
+          <UiInput
+            placeholder="Subject"
+            value={emailTemplateSubjectInput}
+            onChange={(event) => setEmailTemplateSubjectInput(event.target.value)}
+          />
+          <UiTextarea
+            placeholder="HTML"
+            value={emailTemplateHtmlInput}
+            onChange={(event) => setEmailTemplateHtmlInput(event.target.value)}
+            rows={3}
+          />
+          <UiTextarea
+            placeholder="Text"
+            value={emailTemplateTextInput}
+            onChange={(event) => setEmailTemplateTextInput(event.target.value)}
+            rows={3}
+          />
+          <div className="va-inline-tools">
+            <UiButton
+              variant="primary"
+              disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
+              onClick={() => {
+                void runAction(
+                  DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
+                  {
+                    template_id: selectedEmailTemplateId,
+                    subject: emailTemplateSubjectInput,
+                    html: emailTemplateHtmlInput,
+                    text: emailTemplateTextInput,
+                  },
+                  {
+                    successMessage: `Updated template "${selectedEmailTemplateId}"`,
+                    onSuccess: () => {
+                      void loadEmailTemplates();
+                    },
+                  },
+                );
+              }}
+            >
+              Save Template
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
+              onClick={() => {
+                void runAction(
+                  DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
+                  { template_id: selectedEmailTemplateId },
+                  {
+                    confirmText: `Delete template "${selectedEmailTemplateId}"?`,
+                    successMessage: `Deleted template "${selectedEmailTemplateId}"`,
+                    onSuccess: () => {
+                      void loadEmailTemplates();
+                    },
+                  },
+                );
+              }}
+            >
+              Delete Template
+            </UiButton>
+          </div>
+        </>
+      ) : null}
+    </UiCard>
+  );
 
   return (
     <>
       <section className="va-page-intro">
         <p className="va-kicker">Content</p>
-        <h2 className="va-page-title">Call Scripts</h2>
-        <p className="va-muted">Draft, review, simulate, and promote call scripts without leaving the content workspace.</p>
+        <h2 className="va-page-title">Script Designer</h2>
+        <p className="va-muted">Switch between call scripts, SMS scripts, and email templates in one operator workspace.</p>
+        <div className="va-page-intro-meta" aria-label="Script designer summary">
+          <UiBadge variant={pulseTone === 'neutral' ? 'meta' : pulseTone}>
+            {pulseStatus}
+          </UiBadge>
+          <UiBadge variant="meta">Unified designer</UiBadge>
+          <UiBadge variant="info">{activeScriptStudioLaneLabel}</UiBadge>
+          <UiBadge variant="meta">{activeScriptStudioCount} in lane</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Keep authoring in one place: move between call, SMS, and email lanes without losing the surrounding policy,
+          persona, and caller-screening context the broader scripts workflow depends on.
+        </p>
       </section>
       <UiWorkspacePulse
         title="Workspace pulse"
-        description="Track script selection, supporting context, and editor readiness in one compact summary."
+        description="Track the active script lane, current selection, and shared policy context in one compact summary."
         tone={pulseTone}
         status={pulseStatus}
         items={[
-          { label: 'Scripts', value: callScriptsTotal },
-          { label: 'Selected', value: selectedCallScript ? toText(selectedCallScript.name, 'Unknown') : 'None' },
-          { label: 'Caller flags', value: callerFlags.length },
-          { label: 'Personas', value: totalPersonas },
+          { label: 'Active lane', value: activeScriptStudioLaneLabel },
+          { label: 'Selected', value: activeScriptStudioSelection },
+          { label: activeScriptStudioLaneLabel, value: activeScriptStudioCount },
+          { label: 'Shared context', value: `${callerFlags.length} flags · ${totalPersonas} personas` },
         ]}
       />
-      <DashboardWorkflowContractCard moduleId="content" />
+      <DashboardWorkflowContractCard moduleId={activeScriptStudioLane === 'call' ? 'content' : 'scriptsparity'} />
       <UiCard>
-        <h3>Scripts workspace</h3>
-        <p className="va-muted">
-          Use this workspace for call script drafting, review, simulation, and live promotion. SMS
-          scripts and email templates live in Message Templates.
-        </p>
+        <div className="va-ops-card-header">
+          <div className="va-ops-card-headline">
+            <h3>Designer switchboard</h3>
+            <p className="va-muted">
+              Match the bot-side Script Designer by switching between call scripts, SMS scripts, and email templates from one page.
+            </p>
+          </div>
+          <UiBadge variant="meta">{activeScriptStudioSelection}</UiBadge>
+        </div>
+        <div className="va-inline-tools">
+          <UiButton
+            variant="chip"
+            className={activeScriptStudioLane === 'call' ? 'is-active' : ''}
+            onClick={() => {
+              triggerHaptic('selection');
+              setActiveScriptStudioLane('call');
+            }}
+          >
+            Call Scripts
+          </UiButton>
+          <UiButton
+            variant="chip"
+            className={activeScriptStudioLane === 'sms' ? 'is-active' : ''}
+            onClick={() => {
+              triggerHaptic('selection');
+              setActiveScriptStudioLane('sms');
+            }}
+          >
+            SMS Scripts
+          </UiButton>
+          <UiButton
+            variant="chip"
+            className={activeScriptStudioLane === 'email' ? 'is-active' : ''}
+            onClick={() => {
+              triggerHaptic('selection');
+              setActiveScriptStudioLane('email');
+            }}
+          >
+            Email Templates
+          </UiButton>
+        </div>
         <Link to={MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS}>
           <Cell
             subtitle="Open the scripts overview before moving to another content workspace."
@@ -293,14 +709,33 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
         </Link>
         <Link to={DASHBOARD_MODULE_ROUTE_CONTRACTS.scriptsparity}>
           <Cell
-            subtitle="Open SMS scripts and email templates."
+            subtitle="Open the focused message-lane workspace when you want a narrower editor."
             after={<Navigation>Open</Navigation>}
           >
-            Message Templates
+            Message Lanes
           </Cell>
         </Link>
       </UiCard>
+      <UiDisclosure
+        title="Workspace coverage"
+        subtitle="Expose the current combined designer surface while keeping the broader lifecycle gaps explicit."
+      >
+        <UiStatePanel
+          compact
+          tone="success"
+          title="Available here now"
+          description="Switch between call, SMS, and email lanes. Call scripts support draft review, approval, promotion, and simulation here, while SMS and email lanes support create, update, inspect, and delete."
+        />
+        <UiStatePanel
+          compact
+          tone="info"
+          title="Continue in broader scripts workflow"
+          description="Call script creation, cloning, inbound default assignment, version history, diff, rollback, and the full SMS or email review and publishing lifecycle remain outside this current Mini App surface."
+        />
+      </UiDisclosure>
       <section className="va-grid">
+        {activeScriptStudioLane === 'call' ? (
+          <>
         <UiCard>
           <h3>Call Scripts</h3>
           <p className="va-muted">
@@ -502,337 +937,17 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
             />
           )}
         </UiCard>
+          </>
+        ) : null}
+        {activeScriptStudioLane === 'sms' ? renderSmsScriptsCard() : null}
+        {activeScriptStudioLane === 'email' ? renderEmailTemplatesCard() : null}
+      </section>
 
       <UiDisclosure
-        title="Supporting content tools"
-        subtitle={`${smsScripts.length} SMS scripts, ${emailTemplates.length} email templates, ${callerFlags.length} caller flags, ${totalPersonas} personas`}
+        title="Shared policy context"
+        subtitle={`${callerFlags.length} caller flags, ${totalPersonas} personas`}
       >
         <section className="va-grid">
-          <UiCard>
-            <h3>SMS Scripts</h3>
-            <p className="va-muted">Manage custom SMS script content from the app.</p>
-            <div className="va-inline-tools">
-              <UiButton
-                variant="secondary"
-                disabled={studioBusy.length > 0 || busyAction.length > 0}
-                onClick={() => {
-                  triggerHaptic('impact', 'light');
-                  void loadSmsScripts();
-                }}
-              >
-                Refresh SMS Scripts
-              </UiButton>
-              <UiInput
-                placeholder="Create script name"
-                value={smsScriptCreateName}
-                onChange={(event) => setSmsScriptCreateName(event.target.value)}
-              />
-            </div>
-            <UiTextarea
-              placeholder="Create script content"
-              value={smsScriptCreateContent}
-              onChange={(event) => setSmsScriptCreateContent(event.target.value)}
-              rows={3}
-            />
-            <div className="va-inline-tools">
-              <UiButton
-                variant="primary"
-                disabled={
-                  studioBusy.length > 0
-                  || busyAction.length > 0
-                  || !smsScriptCreateName.trim()
-                  || !smsScriptCreateContent.trim()
-                }
-                onClick={() => {
-                  void runAction(
-                    DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_CREATE,
-                    {
-                      name: smsScriptCreateName.trim(),
-                      content: smsScriptCreateContent,
-                    },
-                    {
-                      successMessage: `Created SMS script "${smsScriptCreateName.trim()}"`,
-                      onSuccess: () => {
-                        setSmsScriptCreateName('');
-                        setSmsScriptCreateContent('');
-                        void loadSmsScripts();
-                      },
-                    },
-                  );
-                }}
-              >
-                Create SMS Script
-              </UiButton>
-            </div>
-            {smsScripts.length === 0 ? (
-              <UiStatePanel
-                compact
-                title="No SMS scripts found"
-                description="Create a script or refresh to pull the latest content."
-              />
-            ) : (
-              <ul className="va-list va-list-dense">
-                {smsScripts.slice(0, 40).map((script, index) => {
-                  const scriptName = toText(script.name, `sms-script-${index + 1}`);
-                  const builtin = script.is_builtin === true;
-                  const active = scriptName === selectedSmsScriptName;
-                  return (
-                    <li key={`sms-script-row-${scriptName}`}>
-                      <strong>{scriptName}</strong>
-                      <span>
-                        <UiBadge variant={toLifecycleTone(script.lifecycle_state)}>
-                          {toText(script.lifecycle_state, builtin ? 'builtin' : 'draft')}
-                        </UiBadge>
-                      </span>
-                      <span>
-                        <UiBadge variant={builtin ? 'info' : 'meta'}>
-                          {builtin ? 'Built-in (read-only)' : 'Custom'}
-                        </UiBadge>
-                      </span>
-                      <UiButton
-                        variant="chip"
-                        className={active ? 'is-active' : ''}
-                        onClick={() => {
-                          triggerHaptic('selection');
-                          setSelectedSmsScriptName(scriptName);
-                        }}
-                      >
-                        {active ? 'Selected' : 'Select'}
-                      </UiButton>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {selectedSmsScript ? (
-              <>
-                <h4>SMS Script Editor</h4>
-                {selectedSmsScript.is_builtin === true ? (
-                  <UiStatePanel
-                    compact
-                    title="Read-only built-in script"
-                    description="Clone this script into a custom entry if you need to modify the content."
-                    tone="info"
-                  />
-                ) : null}
-                <UiInput value={selectedSmsScriptName} disabled />
-                <UiTextarea
-                  placeholder="Description"
-                  value={smsScriptDescriptionInput}
-                  onChange={(event) => setSmsScriptDescriptionInput(event.target.value)}
-                  rows={2}
-                  disabled={selectedSmsScript.is_builtin === true}
-                />
-                <UiTextarea
-                  placeholder="SMS script content"
-                  value={smsScriptContentInput}
-                  onChange={(event) => setSmsScriptContentInput(event.target.value)}
-                  rows={4}
-                  disabled={selectedSmsScript.is_builtin === true}
-                />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="primary"
-                    disabled={
-                      studioBusy.length > 0
-                      || busyAction.length > 0
-                      || selectedSmsScript.is_builtin === true
-                      || !selectedSmsScriptName
-                    }
-                    onClick={() => {
-                      void runAction(
-                        DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_UPDATE,
-                        {
-                          script_name: selectedSmsScriptName,
-                          description: smsScriptDescriptionInput,
-                          content: smsScriptContentInput,
-                        },
-                        {
-                          successMessage: `Updated SMS script "${selectedSmsScriptName}"`,
-                          onSuccess: () => {
-                            void loadSmsScripts();
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Save SMS Script
-                  </UiButton>
-                  <UiButton
-                    variant="secondary"
-                    disabled={
-                      studioBusy.length > 0
-                      || busyAction.length > 0
-                      || selectedSmsScript.is_builtin === true
-                      || !selectedSmsScriptName
-                    }
-                    onClick={() => {
-                      void runAction(
-                        DASHBOARD_ACTION_CONTRACTS.SMSSCRIPT_DELETE,
-                        { script_name: selectedSmsScriptName },
-                        {
-                          confirmText: `Delete SMS script "${selectedSmsScriptName}"?`,
-                          successMessage: `Deleted SMS script "${selectedSmsScriptName}"`,
-                          onSuccess: () => {
-                            void loadSmsScripts();
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Delete SMS Script
-                  </UiButton>
-                </div>
-              </>
-            ) : null}
-          </UiCard>
-
-          <UiCard>
-            <h3>Email Templates</h3>
-            <p className="va-muted">Manage outbound email templates from the app.</p>
-            <div className="va-inline-tools">
-              <UiButton
-                variant="secondary"
-                disabled={studioBusy.length > 0}
-                onClick={() => {
-                  triggerHaptic('impact', 'light');
-                  void loadEmailTemplates();
-                }}
-              >
-                Refresh Templates
-              </UiButton>
-              <UiInput
-                placeholder="Create template ID"
-                value={emailTemplateCreateId}
-                onChange={(event) => setEmailTemplateCreateId(event.target.value)}
-              />
-              <UiButton
-                variant="primary"
-                disabled={studioBusy.length > 0 || busyAction.length > 0 || !emailTemplateCreateId.trim()}
-                onClick={() => {
-                  void runAction(
-                    DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_CREATE,
-                    {
-                      template_id: emailTemplateCreateId.trim(),
-                      subject: 'New template subject',
-                      text: 'Template body',
-                    },
-                    {
-                      successMessage: `Created template "${emailTemplateCreateId.trim()}"`,
-                      onSuccess: () => {
-                        setEmailTemplateCreateId('');
-                        void loadEmailTemplates();
-                      },
-                    },
-                  );
-                }}
-              >
-                Create Template
-              </UiButton>
-            </div>
-            {emailTemplates.length === 0 ? (
-              <UiStatePanel
-                compact
-                title="No templates found"
-                description="Create a template or refresh to load the latest set."
-              />
-            ) : (
-              <ul className="va-list va-list-dense">
-                {emailTemplates.slice(0, 40).map((template, index) => {
-                  const templateId = toText(template.template_id, `template-${index + 1}`);
-                  const active = templateId === selectedEmailTemplateId;
-                  return (
-                    <li key={`email-template-row-${templateId}`}>
-                      <strong>{templateId}</strong>
-                      <span>
-                        <UiBadge variant={toLifecycleTone(template.lifecycle_state)}>
-                          {toText(template.lifecycle_state, 'draft')}
-                        </UiBadge>
-                      </span>
-                      <UiButton
-                        variant="chip"
-                        className={active ? 'is-active' : ''}
-                        onClick={() => {
-                          triggerHaptic('selection');
-                          setSelectedEmailTemplateId(templateId);
-                        }}
-                      >
-                        {active ? 'Selected' : 'Select'}
-                      </UiButton>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {selectedEmailTemplate ? (
-              <>
-                <h4>Email Template Editor</h4>
-                <UiInput value={selectedEmailTemplateId} disabled />
-                <UiInput
-                  placeholder="Subject"
-                  value={emailTemplateSubjectInput}
-                  onChange={(event) => setEmailTemplateSubjectInput(event.target.value)}
-                />
-                <UiTextarea
-                  placeholder="HTML"
-                  value={emailTemplateHtmlInput}
-                  onChange={(event) => setEmailTemplateHtmlInput(event.target.value)}
-                  rows={3}
-                />
-                <UiTextarea
-                  placeholder="Text"
-                  value={emailTemplateTextInput}
-                  onChange={(event) => setEmailTemplateTextInput(event.target.value)}
-                  rows={3}
-                />
-                <div className="va-inline-tools">
-                  <UiButton
-                    variant="primary"
-                    disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
-                    onClick={() => {
-                      void runAction(
-                        DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_UPDATE,
-                        {
-                          template_id: selectedEmailTemplateId,
-                          subject: emailTemplateSubjectInput,
-                          html: emailTemplateHtmlInput,
-                          text: emailTemplateTextInput,
-                        },
-                        {
-                          successMessage: `Updated template "${selectedEmailTemplateId}"`,
-                          onSuccess: () => {
-                            void loadEmailTemplates();
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Save Template
-                  </UiButton>
-                  <UiButton
-                    variant="secondary"
-                    disabled={studioBusy.length > 0 || busyAction.length > 0 || !selectedEmailTemplateId}
-                    onClick={() => {
-                      void runAction(
-                        DASHBOARD_ACTION_CONTRACTS.EMAILTEMPLATE_DELETE,
-                        { template_id: selectedEmailTemplateId },
-                        {
-                          confirmText: `Delete template "${selectedEmailTemplateId}"?`,
-                          successMessage: `Deleted template "${selectedEmailTemplateId}"`,
-                          onSuccess: () => {
-                            void loadEmailTemplates();
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Delete Template
-                  </UiButton>
-                </div>
-              </>
-            ) : null}
-          </UiCard>
-
           <UiCard>
             <h3>Caller Flags Moderation</h3>
             <p className="va-muted">Allow, block, and spam classifications for inbound caller controls.</p>
@@ -986,7 +1101,6 @@ export function ScriptStudioPage({ visible, vm }: ScriptStudioPageProps) {
           </UiCard>
         </section>
       </UiDisclosure>
-      </section>
 
       {studioError ? (
         <div className="va-card">

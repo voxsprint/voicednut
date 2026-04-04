@@ -7,11 +7,6 @@ const SettingsPage = lazy(async () => {
   return { default: mod.SettingsPage };
 });
 
-type VisibleSettingsModule = {
-  id: string;
-  label: string;
-};
-
 type DashboardSettingsStageProps = {
   isOpen: boolean;
   userLabel: string;
@@ -24,11 +19,9 @@ type DashboardSettingsStageProps = {
   featureFlagsCount: number | string;
   featureFlagsSourceLabel: string;
   featureFlagsUpdatedAtLabel: string;
-  visibleModules: VisibleSettingsModule[];
   onTogglePolling: () => void;
   onSyncNow: () => void;
   onRetrySession: () => void;
-  onJumpToModule: (moduleId: string) => void;
 };
 
 export function DashboardSettingsStage({
@@ -43,11 +36,9 @@ export function DashboardSettingsStage({
   featureFlagsCount,
   featureFlagsSourceLabel,
   featureFlagsUpdatedAtLabel,
-  visibleModules,
   onTogglePolling,
   onSyncNow,
   onRetrySession,
-  onJumpToModule,
 }: DashboardSettingsStageProps) {
   if (!isOpen) {
     return null;
@@ -67,11 +58,9 @@ export function DashboardSettingsStage({
           featureFlagsCount={featureFlagsCount}
           featureFlagsSourceLabel={featureFlagsSourceLabel}
           featureFlagsUpdatedAtLabel={featureFlagsUpdatedAtLabel}
-          visibleModules={visibleModules}
           onTogglePolling={onTogglePolling}
           onSyncNow={onSyncNow}
           onRetrySession={onRetrySession}
-          onJumpToModule={onJumpToModule}
         />
       </Suspense>
     </section>

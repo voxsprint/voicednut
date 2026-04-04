@@ -94,21 +94,29 @@ export function DashboardShellOwnershipCard({
       >
         <div className="va-grid">
           <UiCard>
-            <h3>Access posture</h3>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Access posture</h3>
+                <p className="va-muted">Home stays role-aware and keeps the safest next route in easy reach.</p>
+              </div>
+              <UiBadge>{visibleModulesCount} areas</UiBadge>
+            </div>
             <div className="va-inline-metrics">
               <UiBadge>Role {sessionRole}</UiBadge>
-              <UiBadge>{visibleModulesCount} areas available</UiBadge>
               <UiBadge>Telegram native shell</UiBadge>
+              <UiBadge>Home safe</UiBadge>
             </div>
             <p className="va-muted">{ROLE_SUPPORT_COPY[roleKey]}</p>
           </UiCard>
 
           <UiCard>
-            <h3>Support surfaces</h3>
-            <p className="va-muted">
-              Keep role-safe guidance and recovery close without dropping back into bot command
-              language.
-            </p>
+            <div className="va-ops-card-header">
+              <div className="va-ops-card-headline">
+                <h3>Support surfaces</h3>
+                <p className="va-muted">Guidance, recovery, and approval routes stay close to the dashboard home.</p>
+              </div>
+              <UiBadge>{supportLinks.length} routes</UiBadge>
+            </div>
             <div className="va-shortcut-list">
               {supportLinks.map((link) => (
                 <Link key={link.title} className="va-shortcut-link" to={link.to}>

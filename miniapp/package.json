@@ -1,9 +1,9 @@
 {
-  "name": "voxly-miniapp",
+  "name": "miniapp",
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://voxly-miniapp.vercel.app",
+  "homepage": "https://voicednut-miniapp.vercel.app",
   "scripts": {
     "deploy": "gh-pages -d dist",
     "dev": "vite",

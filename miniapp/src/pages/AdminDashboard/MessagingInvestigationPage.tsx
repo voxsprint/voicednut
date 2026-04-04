@@ -7,6 +7,7 @@ import { selectSmsPageVm } from './vmSelectors';
 import { DashboardWorkflowContractCard } from '@/components/admin-dashboard/DashboardWorkflowContractCard';
 import {
   UiActionBar,
+  UiBadge,
   UiButton,
   UiCard,
   UiDisclosure,
@@ -64,6 +65,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
   const [messageSnapshot, setMessageSnapshot] = useState<Record<string, unknown> | null>(null);
   const [jobSnapshot, setJobSnapshot] = useState<Record<string, unknown> | null>(null);
   const [historySnapshot, setHistorySnapshot] = useState<Array<Record<string, unknown>>>([]);
+  const [emailStatsSnapshot, setEmailStatsSnapshot] = useState<Record<string, unknown> | null>(null);
   const {
     investigationBusy,
     investigationError,
@@ -88,6 +90,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
   const hasEmailInvestigationData = Boolean(
     messageSnapshot
     || jobSnapshot
+    || emailStatsSnapshot
     || historySnapshot.length > 0,
   );
   const smsArtifactsCount = Number(statusSnapshot ? 1 : 0)
@@ -96,6 +99,7 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     + (conversationMessages.length > 0 ? 1 : 0);
   const emailArtifactsCount = Number(messageSnapshot ? 1 : 0)
     + Number(jobSnapshot ? 1 : 0)
+    + Number(emailStatsSnapshot ? 1 : 0)
     + (historySnapshot.length > 0 ? 1 : 0);
   const activeFilterCount = [statusSid, conversationPhone, messageId, jobId]
     .filter((value) => value.length > 0).length;
@@ -171,16 +175,34 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
     });
   };
 
+  const runEmailStatsLookup = (): void => {
+    void runInvestigationAction(DASHBOARD_ACTION_CONTRACTS.EMAIL_BULK_STATS, { hours: 24 }, (payload) => {
+      setEmailStatsSnapshot(asRecord(payload.stats) || payload);
+    });
+  };
+
   return (
     <>
       <section className="va-page-intro">
         <p className="va-kicker">Messaging</p>
         <h2 className="va-page-title">Messaging Investigation</h2>
-        <p className="va-muted">Unified diagnostics for SMS and email delivery events, status, and history.</p>
+        <p className="va-muted">
+          Unified delivery investigation for the bot-backed SMS and email workflows, including status,
+          conversations, recent activity, job history, and channel health snapshots.
+        </p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={pulseTone}>{pulseStatus}</UiBadge>
+          <UiBadge variant="meta">Cross-channel delivery</UiBadge>
+          <UiBadge variant="info">{activeFilterCount} active filters</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Use one operational surface to inspect SMS delivery, email jobs, recent artifacts, and
+          message history before escalating to the broader admin workflow.
+        </p>
       </section>
 
       <UiWorkspacePulse
-        title="Messaging workspace"
+        title="Delivery investigation"
         description={pulseDescription}
         status={pulseStatus}
         tone={pulseTone}
@@ -228,7 +250,15 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
         </header>
         <section className="va-grid">
           <UiCard className="va-investigation-card">
-          <h3>SMS Investigation</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>SMS Investigation</h3>
+              <p className="va-muted">Inspect delivery state, phone-level conversation history, and recent SMS health.</p>
+            </div>
+            <UiBadge variant={hasSmsInvestigationData ? 'success' : 'info'}>
+              {hasSmsInvestigationData ? `${smsArtifactsCount} loaded` : 'Lookup ready'}
+            </UiBadge>
+          </div>
           {!canCheckSmsStatus ? (
             <UiStatePanel
               compact
@@ -466,11 +496,19 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
       <section className="va-section-block">
         <header className="va-section-header">
           <h3 className="va-section-title">Email Diagnostics</h3>
-          <p className="va-muted">Inspect single-message status, bulk job snapshots, and recent batch history.</p>
+          <p className="va-muted">Inspect single-message status, bulk job snapshots, recent batch history, and email batch health.</p>
         </header>
         <section className="va-grid">
           <UiCard className="va-investigation-card">
-          <h3>Email Investigation</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Email Investigation</h3>
+              <p className="va-muted">Review message status, job progress, recent history, and 24-hour email health.</p>
+            </div>
+            <UiBadge variant={hasEmailInvestigationData ? 'success' : 'info'}>
+              {hasEmailInvestigationData ? `${emailArtifactsCount} loaded` : 'Lookup ready'}
+            </UiBadge>
+          </div>
           {!canManageEmail ? (
             <UiStatePanel
               compact
@@ -489,15 +527,24 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
           ) : null}
           <UiActionBar
             title="Load email diagnostics"
-            description="Check a single message, inspect a bulk job, or pull recent email history."
+            description="Check a single message, inspect a bulk job, review batch history, or load bulk email stats."
             actions={(
-              <UiButton
-                variant="secondary"
-                disabled={controlsBusy || !canManageEmail}
-                onClick={runEmailHistoryLookup}
-              >
-                Load History
-              </UiButton>
+              <>
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy || !canManageEmail}
+                  onClick={runEmailHistoryLookup}
+                >
+                  Load History
+                </UiButton>
+                <UiButton
+                  variant="secondary"
+                  disabled={controlsBusy || !canManageEmail}
+                  onClick={runEmailStatsLookup}
+                >
+                  Load Stats
+                </UiButton>
+              </>
             )}
           />
           <div className="va-inline-tools">
@@ -578,6 +625,55 @@ export function MessagingInvestigationPage({ visible, vm }: MessagingInvestigati
                     compact
                     title="No message snapshot"
                     description="Run message status lookup to inspect delivery details."
+                  />
+                )}
+              </UiCard>
+              <UiCard tone="subcard">
+                <h4>Email Stats Snapshot</h4>
+                {emailStatsSnapshot ? (
+                  <ul className="va-native-list">
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Jobs</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.total_jobs], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Recipients</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.total_recipients], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Sent</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.sent], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Delivered</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.delivered], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Failed</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.failed], '0')}</span>
+                      </div>
+                    </li>
+                    <li className="va-native-list-row">
+                      <div className="va-native-list-head">
+                        <strong>Bounced</strong>
+                        <span className="va-native-list-value">{pickDisplayText([emailStatsSnapshot.bounced], '0')}</span>
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <UiStatePanel
+                    compact
+                    title="No email stats loaded"
+                    description="Run a stats lookup to inspect recent bulk email health."
                   />
                 )}
               </UiCard>

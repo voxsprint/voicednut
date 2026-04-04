@@ -39,6 +39,28 @@ function roleBadgeVariant(role: string): 'success' | 'info' | 'meta' {
   }
 }
 
+function roleLabel(role: string, roleSource: string): string {
+  const normalizedRole = role.toLowerCase();
+  const normalizedSource = roleSource.toLowerCase();
+  if (normalizedRole === 'admin') return 'Admin';
+  if (normalizedRole === 'operator' && normalizedSource === 'bot_db') return 'User';
+  if (normalizedRole === 'operator') return 'Operator';
+  return 'Restricted';
+}
+
+function roleSourceLabel(roleSource: string): string {
+  switch (roleSource.toLowerCase()) {
+    case 'bot_db':
+      return 'Bot directory';
+    case 'config':
+      return 'Config';
+    case 'override':
+      return 'Legacy override';
+    default:
+      return 'Inferred';
+  }
+}
+
 function isTypingTarget(target: EventTarget | null): target is HTMLElement {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName.toLowerCase();
@@ -50,9 +72,9 @@ function roleFilterLabel(roleFilter: UserRoleFilter): string {
     case 'admin':
       return 'Admins';
     case 'operator':
-      return 'Operators';
+      return 'Authorized users';
     case 'viewer':
-      return 'Viewers';
+      return 'Restricted';
     default:
       return 'All roles';
   }
@@ -88,6 +110,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   const userSearchInputRef = useRef<HTMLInputElement | null>(null);
   const refreshUsersButtonRef = useRef<HTMLButtonElement | null>(null);
   const composedReason = [reasonTemplate, reasonDetail.trim()].filter(Boolean).join(' - ');
+  const hasRoleReason = composedReason.trim().length > 0;
 
   const restoreFocus = (target: HTMLElement | null): void => {
     if (!target || typeof window === 'undefined') return;
@@ -184,6 +207,18 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
     }
   }, [pageSize, reasonTemplate, roleFilter]);
 
+  useEffect(() => {
+    if (roleReasonTemplates.length === 0) {
+      if (reasonTemplate) {
+        setReasonTemplate('');
+      }
+      return;
+    }
+    if (!reasonTemplate || !roleReasonTemplates.includes(reasonTemplate)) {
+      setReasonTemplate(roleReasonTemplates[0]);
+    }
+  }, [reasonTemplate, roleReasonTemplates]);
+
   const filteredAndSortedUsers = selectUsersRowsMemoized({
     usersRows,
     roleFilter,
@@ -211,6 +246,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   const showingStart = filteredAndSortedUsers.length === 0 ? 0 : pageStart + 1;
   const showingEnd = Math.min(filteredAndSortedUsers.length, pageStart + pageUsers.length);
   const totalTrackedUsers = toInt(usersPayload.total, usersRows.length);
+  const botDirectoryUsers = usersRows.filter((user) => toText(user.role_source, '').toLowerCase() === 'bot_db').length;
   const trimmedUserSearch = userSearch.trim();
   const hasActiveFilters = roleFilter !== 'all' || trimmedUserSearch.length > 0;
   const usersSummaryTone = filteredAndSortedUsers.length === 0
@@ -227,20 +263,21 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
       : 'Ready';
   const usersSummaryDescription = filteredAndSortedUsers.length === 0
     ? totalTrackedUsers === 0
-      ? 'Refresh the roster once Telegram admin records are available.'
-      : 'Adjust search or role filters to bring matching operators back into view.'
+      ? 'Refresh once the bot-managed user directory is available to the dashboard.'
+      : 'Adjust search or role filters to bring matching directory entries back into view.'
     : hasActiveFilters
-      ? 'Review the filtered roster, confirm the access reason, and apply changes with an audit trail.'
-      : 'Review access posture, capture an approval reason, and update roles without leaving the console.';
+      ? 'Review the filtered bot directory, confirm the audit reason, and apply access changes.'
+      : 'This workspace mirrors the bot-managed user directory first, then applies audited access changes.';
   const emptyStateTitle = totalTrackedUsers === 0
     ? 'No users are available yet'
     : 'No users matched this view';
   const emptyStateDescription = totalTrackedUsers === 0
-    ? 'Refresh the roster after Telegram admin records finish syncing into the dashboard.'
-    : 'Adjust search, role filters, or sort settings to bring matching operators back into view.';
+    ? 'Refresh after the bot user directory becomes available to the dashboard.'
+    : 'Adjust search, role filters, or sort settings to bring matching users back into view.';
   const exportUsersCsv = (): void => {
     const rows = filteredAndSortedUsers.map((user) => [
       toText(user.telegram_id, ''),
+      toText(user.username, ''),
       toText(user.role, 'viewer'),
       toText(user.role_source, 'inferred'),
       String(toInt(user.total_calls)),
@@ -249,6 +286,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
     ]);
     downloadCsv('miniapp-users.csv', [
       'telegram_id',
+      'username',
       'role',
       'role_source',
       'total_calls',
@@ -260,18 +298,28 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
   return (
     <>
       <section className="va-page-intro">
-        <p className="va-kicker">Governance</p>
+        <p className="va-kicker">User Directory</p>
         <h2 className="va-page-title">Users &amp; Roles</h2>
-        <p className="va-muted">Review roster coverage, confirm access reasons, and manage role changes with a clear audit trail.</p>
+        <p className="va-muted">Review the bot-backed roster, confirm audit reasons, and manage access changes without drifting from the main bot workflow.</p>
+        <div className="va-page-intro-meta">
+          <UiBadge variant={usersSummaryTone}>{usersSummaryStatus}</UiBadge>
+          <UiBadge variant="meta">Bot-backed roster</UiBadge>
+          <UiBadge variant="info">{roleFilterLabel(roleFilter)}</UiBadge>
+        </div>
+        <p className="va-page-intro-note">
+          Access changes stay audited here, while username-based add and remove flows continue in the
+          main bot until they are exposed safely in this workspace.
+        </p>
       </section>
 
       <UiWorkspacePulse
-        title="Access governance"
+        title="User access"
         description={usersSummaryDescription}
         status={usersSummaryStatus}
         tone={usersSummaryTone}
         items={[
-          { label: 'Tracked users', value: totalTrackedUsers },
+          { label: 'Directory rows', value: totalTrackedUsers },
+          { label: 'Bot roster', value: botDirectoryUsers },
           { label: 'Filtered', value: filteredAndSortedUsers.length },
           { label: 'Showing', value: `${showingStart}-${showingEnd}` },
           { label: 'Scope', value: roleFilterLabel(roleFilter) },
@@ -280,11 +328,22 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
 
       <section className="va-grid" onKeyDownCapture={handleSectionShortcutKeyDown}>
         <UiCard>
-          <h3>User &amp; Role Admin</h3>
+          <div className="va-ops-card-header">
+            <div className="va-ops-card-headline">
+              <h3>Bot-Managed Directory</h3>
+              <p className="va-muted">
+                The roster below is sourced from the bot user database. Username-backed add/remove
+                flows still continue in the bot until those actions are exposed in this workspace.
+              </p>
+            </div>
+            <UiBadge variant={hasRoleReason ? 'success' : 'warning'}>
+              {hasRoleReason ? 'Audit reason ready' : 'Audit reason required'}
+            </UiBadge>
+          </div>
         <div className="va-filter-grid" role="toolbar" aria-label="User filters and actions">
           <UiInput
             ref={userSearchInputRef}
-            placeholder="Search Telegram ID"
+            placeholder="Search Telegram ID or username"
             value={userSearch}
             onChange={(event) => setUserSearch(event.target.value)}
             onKeyDown={(event) => {
@@ -333,8 +392,8 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             >
               <option value="all">All Roles</option>
               <option value="admin">Admin</option>
-              <option value="operator">Operator</option>
-              <option value="viewer">Viewer</option>
+              <option value="operator">Authorized User</option>
+              <option value="viewer">Restricted</option>
             </UiSelect>
             <UiSelect
               value={String(pageSize)}
@@ -356,6 +415,9 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
             value={reasonTemplate}
             onChange={(event) => setReasonTemplate(event.target.value)}
           >
+            {roleReasonTemplates.length === 0 ? (
+              <option value="">Select audit reason</option>
+            ) : null}
             {roleReasonTemplates.map((template) => (
               <option key={`role-reason-${template}`} value={template}>{template}</option>
             ))}
@@ -373,22 +435,31 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
           />
         </div>
         <p className="va-muted">
-          Policy: admin elevation requires two-step approval phrase after reason confirmation.
+          Policy: admin elevation requires two-step approval. Restrict Access removes the user from the bot-managed roster.
         </p>
+        {!hasRoleReason ? (
+          <p className="va-muted">Select an audit reason or enter reason details before applying a role change.</p>
+        ) : null}
         <ul className="va-list">
           {pageUsers.map((user: UserRow, index: number) => {
             const telegramId = toText(user.telegram_id, '');
+            const username = toText(user.username, '');
             const role = toText(user.role, 'viewer');
             const roleVariant = roleBadgeVariant(role);
             const roleSource = toText(user.role_source, 'inferred');
+            const displayRole = roleLabel(role, roleSource);
+            const sourceLabel = roleSourceLabel(roleSource);
             return (
               <li key={`user-role-${telegramId || `row-${pageStart + index}`}`} className="va-entity-row va-user-row">
                 <div className="va-entity-head">
-                  <strong title={telegramId}>{telegramId || 'unknown'}</strong>
-                  <UiBadge variant={roleVariant}>{role}</UiBadge>
+                  <div>
+                    <strong title={telegramId}>{username ? `@${username}` : telegramId || 'unknown'}</strong>
+                    {username ? <div className="va-muted">{telegramId}</div> : null}
+                  </div>
+                  <UiBadge variant={roleVariant}>{displayRole}</UiBadge>
                 </div>
                 <div className="va-entity-meta">
-                  <span>Source: {roleSource}</span>
+                  <span>Source: {sourceLabel}</span>
                   <span>Calls: {toInt(user.total_calls)}</span>
                   <span>Failed: {toInt(user.failed_calls)}</span>
                   <span>Last: {formatTime(user.last_activity)}</span>
@@ -399,7 +470,7 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'admin');
                     }}
-                    disabled={!telegramId}
+                    disabled={!telegramId || !hasRoleReason || role === 'admin'}
                   >
                     Promote Admin
                   </UiButton>
@@ -408,18 +479,18 @@ export function UsersRolePage({ visible, vm }: UsersRolePageProps) {
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'operator');
                     }}
-                    disabled={!telegramId}
+                    disabled={!telegramId || !hasRoleReason || role === 'operator'}
                   >
-                    Set Operator
+                    Set Authorized User
                   </UiButton>
                   <UiButton
                     variant="secondary"
                     onClick={(event) => {
                       handleRoleAction(event.currentTarget, telegramId, 'viewer');
                     }}
-                    disabled={!telegramId}
+                    disabled={!telegramId || !hasRoleReason}
                   >
-                    Demote Viewer
+                    Restrict Access
                   </UiButton>
                 </div>
               </li>

@@ -6,7 +6,7 @@ import {
 } from '@/contracts/miniappParityContracts';
 
 type DashboardWorkflowContractCardProps = {
-  moduleId: 'ops' | 'mailer' | 'content' | 'scriptsparity' | 'messaging' | 'audit';
+  moduleId: 'ops' | 'mailer' | 'content' | 'scriptsparity' | 'messaging' | 'persona' | 'audit';
 };
 
 function renderListItems(values: readonly string[]) {

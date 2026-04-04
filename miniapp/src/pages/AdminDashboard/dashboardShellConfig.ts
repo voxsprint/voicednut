@@ -49,44 +49,44 @@ export const MODULE_CONTEXT: Record<DashboardModule, { subtitle: string; detail:
     detail: 'Outbound messaging pipeline.',
   },
   mailer: {
-    subtitle: 'Email audience delivery, template variables, and deliverability health.',
-    detail: 'Mailer orchestration workspace.',
+    subtitle: 'Bulk email readiness, audience delivery, job history, and 24-hour delivery posture.',
+    detail: 'Admin bulk-email operations workspace.',
   },
   provider: {
     subtitle: 'Preflight, provider switching, and rollback safety controls.',
     detail: 'Provider reliability and failover.',
   },
   content: {
-    subtitle: 'Call script drafting, review lifecycle, and simulation controls.',
-    detail: 'Conversation quality studio.',
+    subtitle: 'Combined script designer with switchable call, SMS, and email editing lanes.',
+    detail: 'Primary script design workspace.',
   },
   calllog: {
     subtitle: 'Search calls, inspect call records, and review state transitions.',
     detail: 'Call trace and timeline explorer.',
   },
   callerflags: {
-    subtitle: 'Inbound caller allow/block/spam moderation controls.',
-    detail: 'Caller policy operations.',
+    subtitle: 'Bot-backed inbound caller screening with allow, block, and spam decisions.',
+    detail: 'Caller screening workspace.',
   },
   scriptsparity: {
-    subtitle: 'SMS scripts and email templates in one workspace.',
-    detail: 'Outbound messaging content workspace.',
+    subtitle: 'Focused SMS and email editing lane inside the broader Script Designer model.',
+    detail: 'Message-lane editing workspace.',
   },
   messaging: {
-    subtitle: 'Unified SMS and email diagnostics workspace.',
+    subtitle: 'Unified SMS and email diagnostics workspace with history and batch health visibility.',
     detail: 'Message-level investigation center.',
   },
   persona: {
-    subtitle: 'Built-in and custom persona catalog management.',
-    detail: 'Persona visibility and governance.',
+    subtitle: 'Review the shared persona registry used by call scripts, agents, and messaging lanes.',
+    detail: 'Persona library and policy visibility.',
   },
   users: {
     subtitle: 'Role assignments, user oversight, and access governance.',
     detail: 'Access and permissions console.',
   },
   audit: {
-    subtitle: 'Incident timeline, runbook actions, and immutable audit feed.',
-    detail: 'Governance and incident response.',
+    subtitle: 'System posture, alert triage, response actions, and audit history.',
+    detail: 'Operational status and audit workspace.',
   },
 };
 

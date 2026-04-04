@@ -45,7 +45,7 @@ export function inferMiniAppErrorCodeFromMessage(message: string): string {
 export function describeSessionBlockedReason(errorCode: string): string {
   const code = normalizeMiniAppErrorCode(errorCode);
   if (code === 'miniapp_init_data_expired') {
-    return 'Telegram launch credentials expired. Reopen this Mini App from the bot menu, then retry.';
+    return 'Telegram launch credentials expired. Retry session to continue.';
   }
   if (code === 'miniapp_missing_init_data') {
     return 'Telegram launch credentials are missing. Open this Mini App from Telegram and retry.';
@@ -76,7 +76,7 @@ export function describeDashboardRefreshFailure(
   if (code === 'miniapp_init_data_expired') {
     return {
       title: 'Telegram launch credentials expired',
-      description: 'Reopen this Mini App from Telegram to refresh launch credentials, then retry sync.',
+      description: 'Retry session to continue syncing dashboard data.',
     };
   }
   if (code === 'miniapp_missing_init_data') {

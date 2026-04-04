@@ -8,6 +8,7 @@ import {
 export type DashboardWorkspaceLauncherModule = {
   id: DashboardModule;
   label: string;
+  isAvailable: boolean;
 };
 
 export type DashboardWorkspaceLauncherGroup = {
@@ -46,37 +47,49 @@ export function DashboardWorkspaceLauncher({
                 <h3 className="va-launcher-group-title">{group.label}</h3>
                 <p className="va-muted va-launcher-group-subtitle">{group.subtitle}</p>
               </div>
-              <span className="va-meta-chip">{group.modules.length} available</span>
+              <span className="va-meta-chip">
+                {group.modules.filter((module) => module.isAvailable).length} ready
+                {' · '}
+                {group.modules.filter((module) => !module.isAvailable).length} locked
+              </span>
             </div>
             <div className="va-launcher-grid">
               {group.modules.map((module) => {
                 const shortcutIndex = moduleShortcutIndexById[module.id] || 0;
-                const isActive = activeModule === module.id;
+                const isActive = module.isAvailable && activeModule === module.id;
+                const stateHint = module.isAvailable
+                  ? (isActive ? 'Continue here' : 'Open area')
+                  : 'Request access';
                 return (
                   <UiButton
                     key={`launcher-${module.id}`}
                     id={`va-launcher-module-${module.id}`}
                     variant="plain"
-                    className={`va-launcher-card ${isActive ? 'is-active' : ''}`}
-                    aria-label={`Open ${module.label}`}
+                    className={[
+                      'va-launcher-card',
+                      isActive ? 'is-active' : '',
+                      module.isAvailable ? '' : 'is-locked',
+                    ].filter(Boolean).join(' ')}
+                    aria-label={module.isAvailable ? `Open ${module.label}` : `${module.label} is locked`}
                     aria-pressed={isActive}
-                    aria-keyshortcuts={shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
-                    onClick={() => onSelectModule(module.id)}
+                    aria-keyshortcuts={module.isAvailable && shortcutIndex > 0 ? `Alt+${shortcutIndex}` : undefined}
+                    disabled={!module.isAvailable}
+                    onClick={module.isAvailable ? () => onSelectModule(module.id) : undefined}
                   >
                     <span className="va-launcher-glyph" aria-hidden>{moduleGlyph(module.id)}</span>
                     <span className="va-launcher-copy">
                       <span className="va-launcher-copy-top">
                         <strong>{module.label}</strong>
-                        {isActive ? (
-                          <span className="va-launcher-state">Current</span>
+                        {isActive || !module.isAvailable ? (
+                          <span className={`va-launcher-state ${module.isAvailable ? '' : 'is-locked'}`}>
+                            {module.isAvailable ? 'Current' : 'Locked'}
+                          </span>
                         ) : null}
                       </span>
                       <span>{MODULE_CONTEXT[module.id].detail}</span>
                       <span className="va-launcher-footer">
-                        <span className="va-launcher-state-hint">
-                          {isActive ? 'Continue here' : 'Open area'}
-                        </span>
-                        {shortcutIndex > 0 ? (
+                        <span className="va-launcher-state-hint">{stateHint}</span>
+                        {module.isAvailable && shortcutIndex > 0 ? (
                           <span className="va-launcher-shortcut">Alt + {shortcutIndex}</span>
                         ) : null}
                       </span>
