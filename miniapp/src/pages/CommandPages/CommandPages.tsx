@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/AdminPrimitives';
 import {
   asRecord,
+  estimateSmsSegments,
   isLikelyEmail,
   isValidE164,
   normalizePhone,
@@ -324,6 +325,18 @@ const CALL_CUSTOM_FLOW_OPTIONS: ReadonlyArray<CallPersonaPurposeOption> = [
   { id: 'marketplace_seller', label: 'Marketplace seller', emoji: '🛍️' },
   { id: 'real_estate_agent', label: 'Real estate outreach', emoji: '🏡' },
 ];
+const SMS_MESSAGE_MAX_CHARS = 1600;
+const CALL_CUSTOM_FLOW_TEXT_SIGNALS: Readonly<Record<string, ReadonlyArray<string>>> = Object.freeze({
+  dating: ['dating', 'girlfriend', 'boyfriend', 'romance', 'situationship'],
+  celebrity: ['celebrity', 'fan club', 'artist', 'official assistant'],
+  fan: ['fandom', 'fan', 'community update', 'exclusive drop'],
+  creator: ['creator', 'collab', 'partnership', 'ugc'],
+  friendship: ['friend', 'check in', 'reconnect', 'catch up'],
+  networking: ['network', 'follow-up', 'intro', 'referral'],
+  community: ['community', 'member', 'moderation', 'onboarding'],
+  marketplace_seller: ['listing', 'buyer', 'marketplace', 'item details'],
+  real_estate_agent: ['property', 'open house', 'tour', 'real estate', 'agent'],
+});
 
 const CALL_MOOD_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'auto', label: 'Auto (use recommended)' },
@@ -1276,6 +1289,31 @@ function getOptionLabel(
   return options.find((option) => option.id === id)?.label || fallback;
 }
 
+function inferCustomCallFlow(prompt: string, firstMessage: string): string {
+  const combinedText = `${prompt} ${firstMessage}`.trim().toLowerCase();
+  if (!combinedText) return 'general';
+
+  let bestFlow = 'general';
+  let bestScore = 0;
+
+  Object.entries(CALL_CUSTOM_FLOW_TEXT_SIGNALS).forEach(([flowId, signals]) => {
+    let score = 0;
+    signals.forEach((signal) => {
+      const normalizedSignal = signal.toLowerCase().trim();
+      if (!normalizedSignal) return;
+      if (combinedText.includes(normalizedSignal)) {
+        score += normalizedSignal.includes(' ') ? 2 : 1;
+      }
+    });
+    if (score > bestScore) {
+      bestScore = score;
+      bestFlow = flowId;
+    }
+  });
+
+  return bestFlow;
+}
+
 function getCommandContent(
   pageId: CommandPageId,
   accessLevel: MiniAppCommandAccessLevel,
@@ -2045,6 +2083,7 @@ function CallCommandPageContent() {
   const [personaProfiles, setPersonaProfiles] = useState<CallPersonaProfile[]>([...CALL_FALLBACK_PERSONAS]);
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>(CALL_CUSTOM_PERSONA_ID);
   const [purposeInput, setPurposeInput] = useState<string>('general');
+  const [customFlowPurposePinned, setCustomFlowPurposePinned] = useState<boolean>(false);
   const [promptInput, setPromptInput] = useState<string>('');
   const [firstMessageInput, setFirstMessageInput] = useState<string>('');
   const [voiceSelectionInput, setVoiceSelectionInput] = useState<string>(CALL_VOICE_AUTO_ID);
@@ -2120,6 +2159,13 @@ function CallCommandPageContent() {
   const purposeValue = purposeInput.trim() || 'general';
   const normalizedPurposeValue = purposeValue.toLowerCase();
   const purposeIsRelationshipFlow = RELATIONSHIP_CALL_FLOW_TYPE_SET.has(normalizedPurposeValue);
+  const inferredCustomFlow = useMemo(
+    () => inferCustomCallFlow(promptValue, firstMessageValue),
+    [firstMessageValue, promptValue],
+  );
+  const inferredCustomFlowLabel = getOptionLabel(personaPurposeOptions, inferredCustomFlow, inferredCustomFlow);
+  const isCustomPersonaSelected = Boolean(selectedPersona?.custom);
+  const customFlowMatchesRecommendation = normalizedPurposeValue === inferredCustomFlow;
   const voiceModelValue = voiceModelInput.trim();
   const resolvedVoiceModelValue = voiceSelectionInput === CALL_VOICE_CUSTOM_ID
     ? voiceModelValue
@@ -2538,6 +2584,24 @@ function CallCommandPageContent() {
       setPurposeInput(defaultPurpose);
     }
   }, [personaPurposeOptions, purposeInput, selectedPersona, workflowMode]);
+
+  useEffect(() => {
+    if (workflowMode !== 'custom' || !isCustomPersonaSelected) {
+      if (customFlowPurposePinned) {
+        setCustomFlowPurposePinned(false);
+      }
+      return;
+    }
+    if (customFlowPurposePinned) return;
+    if (normalizedPurposeValue === inferredCustomFlow) return;
+    setPurposeInput(inferredCustomFlow);
+  }, [
+    customFlowPurposePinned,
+    inferredCustomFlow,
+    isCustomPersonaSelected,
+    normalizedPurposeValue,
+    workflowMode,
+  ]);
 
   useEffect(() => {
     if (workflowMode !== 'script' || !canBrowseScripts) return;
@@ -3202,7 +3266,12 @@ function CallCommandPageContent() {
                         <UiSelect
                           aria-label="Call purpose"
                           value={purposeInput}
-                          onChange={(event) => setPurposeInput(event.target.value)}
+                          onChange={(event) => {
+                            setPurposeInput(event.target.value);
+                            if (isCustomPersonaSelected) {
+                              setCustomFlowPurposePinned(true);
+                            }
+                          }}
                         >
                           {personaPurposeOptions.map((option) => (
                             <option key={option.id} value={option.id}>
@@ -3253,6 +3322,31 @@ function CallCommandPageContent() {
                             : 'General flow selected. No relationship profile lock will be applied.'}
                           tone={purposeIsRelationshipFlow ? 'info' : 'success'}
                         />
+                      ) : null}
+                      {selectedPersona?.custom ? (
+                        <>
+                          <UiStatePanel
+                            compact
+                            title="Flow recommendation"
+                            description={customFlowMatchesRecommendation
+                              ? `Recommended from prompt text: ${inferredCustomFlowLabel}.`
+                              : `Recommended from prompt text: ${inferredCustomFlowLabel}. Current selection stays on ${callPurposeLabel}.`}
+                            tone={customFlowMatchesRecommendation ? 'success' : 'info'}
+                          />
+                          {!customFlowMatchesRecommendation ? (
+                            <div className="va-inline-tools">
+                              <UiButton
+                                variant="secondary"
+                                onClick={() => {
+                                  setPurposeInput(inferredCustomFlow);
+                                  setCustomFlowPurposePinned(false);
+                                }}
+                              >
+                                Use Recommended Flow
+                              </UiButton>
+                            </div>
+                          ) : null}
+                        </>
                       ) : null}
                       {voiceSelectionInput === CALL_VOICE_CUSTOM_ID ? (
                         <UiInput
@@ -3646,8 +3740,11 @@ function SmsCommandPageContent() {
   const [actionError, setActionError] = useState<string>('');
   const [callbackActionInput, setCallbackActionInput] = useState<string>('SMS_SEND');
   const [callbackResult, setCallbackResult] = useState<string>('');
+  const [guidedActionHint, setGuidedActionHint] = useState<string>('');
   const [statusSnapshot, setStatusSnapshot] = useState<Record<string, unknown> | null>(null);
   const [recentMessages, setRecentMessages] = useState<Array<Record<string, unknown>>>([]);
+  const [recentPage, setRecentPage] = useState<number>(1);
+  const [recentLimit, setRecentLimit] = useState<number>(10);
   const [conversationMessages, setConversationMessages] = useState<Array<Record<string, unknown>>>([]);
   const [statsSnapshot, setStatsSnapshot] = useState<Record<string, unknown> | null>(null);
   const [bulkOperations, setBulkOperations] = useState<SmsCommandBulkStatusOperation[]>([]);
@@ -3664,6 +3761,9 @@ function SmsCommandPageContent() {
   const sendRecipient = normalizePhone(sendRecipientInput.trim());
   const sendRecipientValid = isValidE164(sendRecipient);
   const sendMessage = sendMessageInput.trim();
+  const sendMessageLength = sendMessage.length;
+  const sendMessageTooLong = sendMessageLength > SMS_MESSAGE_MAX_CHARS;
+  const sendMessageSegmentEstimate = estimateSmsSegments(sendMessage);
   const sendProvider = sendProviderInput.trim();
   const normalizedConversationPhone = normalizePhone(conversationPhoneInput.trim());
   const conversationPhoneValid = isValidE164(normalizedConversationPhone);
@@ -3685,8 +3785,18 @@ function SmsCommandPageContent() {
     + Number(recentMessages.length > 0)
     + Number(conversationMessages.length > 0)
     + Number(bulkOperations.length > 0);
-  const smsComposerReady = sendRecipientValid && Boolean(sendMessage) && canUseSmsCore;
+  const smsComposerReady = sendRecipientValid && Boolean(sendMessage) && !sendMessageTooLong && canUseSmsCore;
+  const recentCanGoPrev = recentPage > 1;
+  const recentHasFullPage = recentMessages.length >= recentLimit;
+  const recentCanGoNext = recentHasFullPage;
   const callbackPlaceholder = canUseSmsAdminTools ? 'SMS_SEND or SMS_RECENT_PAGE:2' : 'SMS_SEND or SMS_STATUS';
+  const scheduleInputProvided = sendScheduleAtInput.trim().length > 0;
+  const scheduleCandidateMs = scheduleInputProvided ? Date.parse(sendScheduleAtInput) : Number.NaN;
+  const scheduleValidationError = scheduleInputProvided
+    ? (Number.isNaN(scheduleCandidateMs)
+      ? 'Scheduled time is invalid.'
+      : (scheduleCandidateMs <= Date.now() ? 'Scheduled time must be in the future.' : ''))
+    : '';
   const visibleSmsCallbackRows = SMS_CALLBACK_PARITY_ROWS.filter((row) => {
     const { baseAction } = parseCallbackToken(row.callbackAction);
     if (baseAction === 'SMS_SEND' || baseAction === 'SMS_SCHEDULE' || baseAction === 'SMS_STATUS') {
@@ -3703,15 +3813,35 @@ function SmsCommandPageContent() {
   const smsActionBarDescription = sendResult
     ? sendResult
     : (smsComposerReady
-      ? `Send now to ${sendRecipient}. Scheduling is ${sendScheduleAtInput ? 'available' : 'waiting for a send time'}.`
-      : (!canUseSmsCore
+      ? `Send now to ${sendRecipient}. Scheduling is ${scheduleInputProvided
+        ? (scheduleValidationError ? 'waiting for a valid future time' : 'available')
+        : 'waiting for a send time'}.`
+        : (!canUseSmsCore
         ? 'Authorized access is required for SMS actions.'
         : (!sendRecipientValid
           ? 'Add a valid E.164 recipient before sending.'
-          : 'Add a message body before sending.')));
+          : (sendMessageTooLong
+            ? `Message exceeds ${SMS_MESSAGE_MAX_CHARS} characters. Shorten it before sending.`
+            : 'Add a message body before sending.'))));
+
+  const resolveScheduledIso = (): { iso: string | null; error: string | null } => {
+    const scheduledAtMs = Date.parse(sendScheduleAtInput);
+    if (Number.isNaN(scheduledAtMs)) {
+      return { iso: null, error: 'Scheduled time is invalid.' };
+    }
+    if (scheduledAtMs <= Date.now()) {
+      return { iso: null, error: 'Scheduled time must be in the future.' };
+    }
+    return { iso: new Date(scheduledAtMs).toISOString(), error: null };
+  };
 
   const runSendNow = async (): Promise<void> => {
     if (!sendRecipientValid || !sendMessage || !canUseSmsCore) return;
+    if (sendMessageTooLong) {
+      setActionError(`SMS message exceeds ${SMS_MESSAGE_MAX_CHARS} characters. Shorten the message before sending.`);
+      return;
+    }
+    setGuidedActionHint('');
     setSendBusy(true);
     setActionError('');
     setSendResult('');
@@ -3737,12 +3867,17 @@ function SmsCommandPageContent() {
 
   const runSchedule = async (): Promise<void> => {
     if (!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canUseSmsCore) return;
-    const scheduledAtMs = Date.parse(sendScheduleAtInput);
-    if (Number.isNaN(scheduledAtMs)) {
-      setActionError('Scheduled time is invalid.');
+    if (sendMessageTooLong) {
+      setActionError(`SMS message exceeds ${SMS_MESSAGE_MAX_CHARS} characters. Shorten the message before scheduling.`);
       return;
     }
-    const scheduledIso = new Date(scheduledAtMs).toISOString();
+    setGuidedActionHint('');
+    const scheduleResolution = resolveScheduledIso();
+    if (!scheduleResolution.iso || scheduleResolution.error) {
+      setActionError(scheduleResolution.error ?? 'Scheduled time is invalid.');
+      return;
+    }
+    const scheduledIso = scheduleResolution.iso;
     setSendBusy(true);
     setActionError('');
     setSendResult('');
@@ -3769,6 +3904,7 @@ function SmsCommandPageContent() {
 
   const runStatusLookup = async (): Promise<void> => {
     if (!statusSid || !canUseSmsCore) return;
+    setGuidedActionHint('');
     setStatusBusy(true);
     setActionError('');
     try {
@@ -3787,6 +3923,7 @@ function SmsCommandPageContent() {
 
   const runConversationLookup = async (): Promise<void> => {
     if (!conversationPhoneValid || !canUseSmsAdminTools) return;
+    setGuidedActionHint('');
     setConversationBusy(true);
     setActionError('');
     try {
@@ -3802,16 +3939,21 @@ function SmsCommandPageContent() {
     }
   };
 
-  const runRecentLookup = async (): Promise<void> => {
+  const runRecentLookup = async (options: { page?: number; limit?: number } = {}): Promise<void> => {
     if (!canUseSmsAdminTools) return;
+    const page = Math.max(1, Math.trunc(options.page ?? recentPage) || 1);
+    const limit = Math.max(1, Math.min(20, Math.trunc(options.limit ?? recentLimit) || 10));
+    setGuidedActionHint('');
     setRecentBusy(true);
     setActionError('');
     try {
       const payload = await invokeAction<SmsCommandMessagesResponse>(
         DASHBOARD_ACTION_CONTRACTS.SMS_MESSAGES_RECENT,
-        { limit: 12, offset: 0 },
+        { limit, offset: (page - 1) * limit },
       );
       setRecentMessages(toEventRows(payload?.messages));
+      setRecentPage(page);
+      setRecentLimit(limit);
     } catch (nextError) {
       setActionError(toErrorMessage(nextError));
     } finally {
@@ -3821,6 +3963,7 @@ function SmsCommandPageContent() {
 
   const runStatsLookup = async (): Promise<void> => {
     if (!canUseSmsAdminTools) return;
+    setGuidedActionHint('');
     setStatsBusy(true);
     setActionError('');
     try {
@@ -3838,6 +3981,7 @@ function SmsCommandPageContent() {
 
   const runBulkStatusLookup = async (options: { limit?: number; hours?: number } = {}): Promise<void> => {
     if (!canUseSmsAdminTools) return;
+    setGuidedActionHint('');
     setBulkBusy(true);
     setActionError('');
     try {
@@ -3859,6 +4003,7 @@ function SmsCommandPageContent() {
 
   const runBulkPrecheck = async (): Promise<void> => {
     if (!canManageProvider) return;
+    setGuidedActionHint('');
     setPrecheckBusy(true);
     setActionError('');
     try {
@@ -3897,6 +4042,7 @@ function SmsCommandPageContent() {
     let callbackBulkBusy = false;
     let callbackPrecheckBusy = false;
     try {
+      setGuidedActionHint('');
       setActionError('');
       setCallbackResult('');
       let callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}.`;
@@ -3907,6 +4053,10 @@ function SmsCommandPageContent() {
         }
         if (!sendRecipientValid || !sendMessage) {
           setActionError('SMS_SEND callback requires a valid recipient and message body. Fill the single-recipient form first.');
+          return;
+        }
+        if (sendMessageTooLong) {
+          setActionError(`SMS_SEND callback rejected: message exceeds ${SMS_MESSAGE_MAX_CHARS} characters.`);
           return;
         }
         await invokeAction(rawCallbackAction, {
@@ -3925,15 +4075,19 @@ function SmsCommandPageContent() {
           setActionError('SMS_SCHEDULE callback requires recipient, message, and schedule timestamp. Fill the scheduling fields first.');
           return;
         }
-        const scheduledAtMs = Date.parse(sendScheduleAtInput);
-        if (Number.isNaN(scheduledAtMs)) {
-          setActionError('Scheduled time is invalid.');
+        if (sendMessageTooLong) {
+          setActionError(`SMS_SCHEDULE callback rejected: message exceeds ${SMS_MESSAGE_MAX_CHARS} characters.`);
+          return;
+        }
+        const scheduleResolution = resolveScheduledIso();
+        if (!scheduleResolution.iso || scheduleResolution.error) {
+          setActionError(scheduleResolution.error ?? 'Scheduled time is invalid.');
           return;
         }
         await invokeAction(rawCallbackAction, {
           to: sendRecipient,
           message: sendMessage,
-          scheduled_time: new Date(scheduledAtMs).toISOString(),
+          scheduled_time: scheduleResolution.iso,
           provider: sendProvider || undefined,
           options: { durable: true },
         });
@@ -3982,13 +4136,15 @@ function SmsCommandPageContent() {
         callbackRecentBusy = true;
         setRecentBusy(true);
         const page = Math.max(1, toInt(suffix, 1));
-        const limit = 12;
+        const limit = Math.max(1, Math.min(20, Math.trunc(recentLimit) || 10));
         const payload = await invokeAction<SmsCommandMessagesResponse>(
           rawCallbackAction,
           { limit, offset: (page - 1) * limit },
         );
         const messages = toEventRows(payload?.messages);
         setRecentMessages(messages);
+        setRecentPage(page);
+        setRecentLimit(limit);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded ${messages.length} recent message(s) from page ${page}.`;
       } else if (baseAction === 'SMS_RECENT') {
         if (!canUseSmsAdminTools) {
@@ -3997,12 +4153,16 @@ function SmsCommandPageContent() {
         }
         callbackRecentBusy = true;
         setRecentBusy(true);
+        const page = 1;
+        const limit = Math.max(1, Math.min(20, Math.trunc(recentLimit) || 10));
         const payload = await invokeAction<SmsCommandMessagesResponse>(
           rawCallbackAction,
-          { limit: 12, offset: 0 },
+          { limit, offset: (page - 1) * limit },
         );
         const messages = toEventRows(payload?.messages);
         setRecentMessages(messages);
+        setRecentPage(page);
+        setRecentLimit(limit);
         callbackSummary = `Executed callback ${rawCallbackAction} -> ${actionResolution.actionId}. Loaded ${messages.length} recent message(s).`;
       } else if (baseAction === 'SMS_STATS') {
         if (!canUseSmsAdminTools) {
@@ -4087,12 +4247,39 @@ function SmsCommandPageContent() {
 
   const runGuidedSmsMenuAction = async (rawCallbackAction: string): Promise<void> => {
     setCallbackActionInput(rawCallbackAction);
+    const { baseAction } = parseCallbackToken(rawCallbackAction);
+    if (baseAction === 'SMS_SEND') {
+      setActionError('');
+      setCallbackResult('');
+      setGuidedActionHint('Send flow is staged. Fill recipient and message, then select Send Now.');
+      return;
+    }
+    if (baseAction === 'SMS_SCHEDULE') {
+      setActionError('');
+      setCallbackResult('');
+      setGuidedActionHint('Schedule flow is staged. Add recipient, message, and a future schedule time, then select Schedule.');
+      return;
+    }
+    if (baseAction === 'SMS_STATUS' && !statusSid) {
+      setActionError('');
+      setCallbackResult('');
+      setGuidedActionHint('Delivery status flow is staged. Enter a message SID first, then select Check Status.');
+      return;
+    }
+    if (baseAction === 'SMS_CONVO' && !conversationPhoneValid) {
+      setActionError('');
+      setCallbackResult('');
+      setGuidedActionHint('Conversation flow is staged. Enter a valid E.164 phone first, then select Load Conversation.');
+      return;
+    }
+    setGuidedActionHint('');
     await executeCallbackAction(rawCallbackAction);
   };
 
   const openGuidedSmsRoute = (path: string): void => {
     setActionError('');
     setCallbackResult('');
+    setGuidedActionHint('');
     navigate(path);
   };
 
@@ -4156,7 +4343,7 @@ function SmsCommandPageContent() {
                   <UiMetricTile label="Activity" value={activeBusy ? 'Working' : (sendResult ? 'Queued' : 'Standing by')} />
                 </div>
                 <p className="va-muted">
-                  Send one message, inspect delivery state, or move into bulk tools without leaving this page.
+                  Send one message, inspect delivery state, or move into script and bulk tools without leaving this page.
                 </p>
                 <div className="va-inline-tools">
                   <UiButton
@@ -4187,6 +4374,14 @@ function SmsCommandPageContent() {
                     Delivery Status
                   </UiButton>
                 </div>
+                {guidedActionHint ? (
+                  <UiStatePanel
+                    compact
+                    title="Guided action staged"
+                    description={guidedActionHint}
+                    tone="info"
+                  />
+                ) : null}
                 {isAdminAccess ? (
                   <div className="va-inline-tools">
                     <UiButton
@@ -4230,6 +4425,15 @@ function SmsCommandPageContent() {
                       Open SMS Sender
                     </UiButton>
                   ) : null}
+                  <UiButton
+                    variant="secondary"
+                    disabled={activeBusy}
+                    onClick={() => {
+                      openGuidedSmsRoute(MINIAPP_COMMAND_ROUTE_CONTRACTS.SCRIPTS);
+                    }}
+                  >
+                    Script Workflows
+                  </UiButton>
                   <UiButton
                     variant="plain"
                     disabled={activeBusy}
@@ -4285,6 +4489,16 @@ function SmsCommandPageContent() {
                   value={sendMessageInput}
                   onChange={(event) => setSendMessageInput(event.target.value)}
                 />
+                {sendMessage ? (
+                  <UiStatePanel
+                    compact
+                    title={sendMessageTooLong ? 'Message length exceeds SMS limit' : 'SMS payload estimate'}
+                    description={sendMessageTooLong
+                      ? `Length ${sendMessageLength}/${SMS_MESSAGE_MAX_CHARS}. Reduce the message before sending or scheduling.`
+                      : `Length ${sendMessageLength}/${SMS_MESSAGE_MAX_CHARS}. Estimated ${sendMessageSegmentEstimate.segments} segment(s) at ${sendMessageSegmentEstimate.perSegment} chars/segment.`}
+                    tone={sendMessageTooLong ? 'warning' : 'info'}
+                  />
+                ) : null}
                 <div className="va-inline-tools">
                   <UiInput
                     aria-label="SMS provider override"
@@ -4304,6 +4518,14 @@ function SmsCommandPageContent() {
                     compact
                     title="Recipient phone format required"
                     description="Use E.164 format with the + prefix and country code, for example +18005551234."
+                    tone="warning"
+                  />
+                ) : null}
+                {scheduleValidationError ? (
+                  <UiStatePanel
+                    compact
+                    title="Schedule time needs correction"
+                    description={scheduleValidationError}
                     tone="warning"
                   />
                 ) : null}
@@ -4331,7 +4553,7 @@ function SmsCommandPageContent() {
                     <>
                       <UiButton
                         variant="primary"
-                        disabled={!sendRecipientValid || !sendMessage || !canUseSmsCore || activeBusy}
+                        disabled={!sendRecipientValid || !sendMessage || sendMessageTooLong || !canUseSmsCore || activeBusy}
                         onClick={() => {
                           void runSendNow();
                         }}
@@ -4340,7 +4562,7 @@ function SmsCommandPageContent() {
                       </UiButton>
                       <UiButton
                         variant="secondary"
-                        disabled={!sendRecipientValid || !sendMessage || !sendScheduleAtInput || !canUseSmsCore || activeBusy}
+                        disabled={!sendRecipientValid || !sendMessage || sendMessageTooLong || !sendScheduleAtInput || Boolean(scheduleValidationError) || !canUseSmsCore || activeBusy}
                         onClick={() => {
                           void runSchedule();
                         }}
@@ -4471,6 +4693,22 @@ function SmsCommandPageContent() {
                   <UiBadge>{bulkOperations.length > 0 ? `Bulk ${bulkOperations.length}` : 'Bulk idle'}</UiBadge>
                 </div>
                 <div className="va-inline-tools">
+                  <UiSelect
+                    aria-label="Recent SMS count"
+                    value={String(recentLimit)}
+                    onChange={(event) => {
+                      const nextLimit = Math.max(1, Math.min(20, toInt(event.target.value, 10)));
+                      setRecentLimit(nextLimit);
+                      setRecentPage(1);
+                      if (canUseSmsAdminTools && !activeBusy) {
+                        void runRecentLookup({ page: 1, limit: nextLimit });
+                      }
+                    }}
+                  >
+                    <option value="5">5 / page</option>
+                    <option value="10">10 / page</option>
+                    <option value="20">20 / page</option>
+                  </UiSelect>
                   <UiButton
                     variant="secondary"
                     disabled={!canUseSmsAdminTools || activeBusy}
@@ -4500,6 +4738,35 @@ function SmsCommandPageContent() {
                   </UiButton>
                 </div>
                 <div className="va-inline-tools">
+                  <UiButton
+                    variant="plain"
+                    disabled={!canUseSmsAdminTools || activeBusy || !recentCanGoPrev}
+                    onClick={() => {
+                      void runRecentLookup({ page: Math.max(1, recentPage - 1) });
+                    }}
+                  >
+                    Prev Page
+                  </UiButton>
+                  <UiButton
+                    variant="plain"
+                    disabled={!canUseSmsAdminTools || activeBusy}
+                    onClick={() => {
+                      void runRecentLookup();
+                    }}
+                  >
+                    Refresh Page {recentPage}
+                  </UiButton>
+                  <UiButton
+                    variant="plain"
+                    disabled={!canUseSmsAdminTools || activeBusy || !recentCanGoNext}
+                    onClick={() => {
+                      void runRecentLookup({ page: recentPage + 1 });
+                    }}
+                  >
+                    Next Page
+                  </UiButton>
+                </div>
+                <div className="va-inline-tools">
                   <UiInput
                     aria-label="Bulk SMS job ID"
                     placeholder="Bulk SMS job ID (optional)"
@@ -4523,6 +4790,7 @@ function SmsCommandPageContent() {
                       setCallbackResult('');
                       setStatusSnapshot(null);
                       setRecentMessages([]);
+                      setRecentPage(1);
                       setConversationMessages([]);
                       setStatsSnapshot(null);
                       setBulkOperations([]);
@@ -4575,7 +4843,7 @@ function SmsCommandPageContent() {
                 {recentMessages.length > 0 ? (
                   <UiDisclosure
                     title="Recent messages"
-                    subtitle={`${recentMessages.length} item${recentMessages.length === 1 ? '' : 's'} loaded`}
+                    subtitle={`${recentMessages.length} item${recentMessages.length === 1 ? '' : 's'} loaded | page ${recentPage} | limit ${recentLimit}`}
                   >
                     <ul className="va-list va-list-dense">
                       {recentMessages.slice(0, 6).map((message, index) => (
